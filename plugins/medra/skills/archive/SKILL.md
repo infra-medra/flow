@@ -1,6 +1,6 @@
 ---
 description: Closes a verified medra change — merges its deltas into living specs, archives it, harvests and compacts lessons, and proposes constitution amendments for recurring ones. Run only when the user explicitly invokes it.
-argument-hint: [change-name]
+argument-hint: "[change-name]"
 disable-model-invocation: true
 ---
 

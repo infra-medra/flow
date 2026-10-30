@@ -1,6 +1,6 @@
 ---
 description: Writes the technical plan for a full-track medra change — design, Constitution Check, test strategy and decisions — and runs the plan gate. Run only when the user explicitly invokes it.
-argument-hint: [change-name]
+argument-hint: "[change-name]"
 disable-model-invocation: true
 ---
 

@@ -514,23 +514,40 @@ medra install --target antigravity [--scope workspace|global] [--force]
 medra update
 ```
 
-Generates the Antigravity installation from the bundled plugin copy, applying this rewrite table to every file:
+Generates the bundled plugin as a native Antigravity plugin named `medra`. Antigravity namespaces plugin skills, so the commands are `/medra:<command>` on both runtimes. The plugin directory `<plugin>` is `.agents/plugins/medra/` in workspace scope and `~/.gemini/config/plugins/medra/` in global scope. Paths written into Markdown use the display form `.agents/plugins/medra` or `~/.gemini/config/plugins/medra`. The rewrite table:
 
-| Source | Workspace scope | Global scope |
-|---|---|---|
-| `skills/<name>/` | `.agents/skills/medra-<name>/` | `~/.gemini/config/skills/medra-<name>/` |
-| `agents/<name>.md` | `.agents/medra/agents/<name>.md` | `~/.gemini/config/medra/agents/<name>.md` |
-| Frontmatter `name: <name>` | `name: medra-<name>` | same |
-| Frontmatter keys other than `name` and `description` | removed | removed |
-| `medra:<skill>` in Markdown | `medra-<skill>` | same |
-| `${CLAUDE_PLUGIN_ROOT}` | `.agents/medra` | `~/.gemini/config/medra` |
-| `${CLAUDE_SKILL_DIR}` | the skill's own install directory | same |
-| `$ARGUMENTS` | `the text the user typed after the command` | same |
+| Source | Generated |
+|---|---|
+| `.claude-plugin/plugin.json` | `<plugin>/plugin.json` with `$schema` (`https://antigravity.google/schemas/v1/plugin.json`), `name`, `version`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`, copying only the keys the source has |
+| `skills/<name>/` | `<plugin>/skills/<name>/` |
+| Skill frontmatter | `name: <name>` and `description` only |
+| `agents/<name>.md` | `<plugin>/agents/<name>.md` |
+| Agent frontmatter | `name: medra-<name>`, `description`, `tools` as a YAML list mapped by the tool table below, `mainAgent: true`, and `subagent: true` for agents some skill dispatches with `subagent_type: medra:<agent>` (`reviewer`), `subagent: false` for the rest (Antigravity offers every plugin agent as a subagent unless told otherwise). `model`, `effort` and `color` are dropped: Antigravity rejects Claude model names, and the session's model applies |
+| `medra:<agent>` for an agent name, in Markdown | `medra-<agent>` (Antigravity lists plugin subagents without the plugin prefix) |
+| `medra:<skill>` in Markdown | unchanged |
+| `${CLAUDE_PLUGIN_ROOT}` | the plugin's display path |
+| `${CLAUDE_SKILL_DIR}` | `<display path>/skills/<name>` |
+| `$ARGUMENTS` | `the text the user typed after the command` |
 
-- **`--force`:** without it, `install` refuses (exit `1`) when files exist that it did not write. The CLI records every file it writes, with its SHA-256, in `.agents/medra/MANIFEST.json`. A file listed there whose content still matches is always replaceable; a file that is absent from the manifest or was edited since counts as foreign. Files a previous version generated and this version no longer ships are removed. No marker is written into the files, because agents copy `template.md` files into user documents.
-- **Version stamp:** writes `.agents/medra/VERSION`.
+Tool table (Claude Code → Antigravity); duplicates collapse, and the order follows the source list:
+
+| Claude Code | Antigravity |
+|---|---|
+| `Read`, `Grep`, `Glob`, `Skill` | `read_file` |
+| `Write` | `write_file` |
+| `Edit` | `edit_file` |
+| `Bash` | `run_command` |
+| `AskUserQuestion` | `ask_question` |
+| `Agent(...)` | `invoke_subagent` |
+| `WebFetch`, `WebSearch` | `search_web` |
+
+An unknown Claude tool name is an environment error (exit `4`) at install time, because Antigravity refuses to start an agent that names a tool it does not have.
+
+- **`--force`:** without it, `install` refuses (exit `1`) when files exist that it did not write. The CLI records every file it writes, with its SHA-256, in `<plugin>/MANIFEST.json`. A file listed there whose content still matches is always replaceable; a file that is absent from the manifest or was edited since counts as foreign. Files a previous version generated and this version no longer ships are removed. No marker is written into the files, because agents copy `template.md` files into user documents.
+- **Version stamp:** writes `<plugin>/VERSION`.
+- **Legacy install (1.1 and earlier):** loose skills under `.agents/skills/medra-*/` (or `~/.gemini/config/skills/medra-*/`) and agents under `.agents/medra/`. When `.agents/medra/MANIFEST.json` (or its global counterpart) exists, `install` deletes every file it lists whose content still matches, then that manifest, its `VERSION`, and the directories left empty. Edited files stay, each reported as a `install.legacy-edited` warning finding, so the user decides. Without a legacy manifest nothing is touched.
 - **`update`:** re-runs `install` for every integration in the config, and is a no-op for `claude` (the Claude Code plugin updates through `/plugin update`).
-- Result: `{"installed": n, "scope", "version"}`.
+- Result: `{"installed": n, "scope", "version", "plugin": "<display path>", "legacy_removed": n}`, plus `findings` when there are warnings.
 
 ### 8.14 `medra archive <change>`
 
@@ -580,5 +597,5 @@ The implementation is done when a test suite covers at least the following:
 - [ ] A gate goes `stale` after a document edit, and does not go stale after `task done`.
 - [ ] `context --stage apply` returns the correct `next_task` with only its requirements.
 - [ ] `learn` add / bump / merge / retire / promote, plus the `status` budget and staleness arithmetic.
-- [ ] `install --target antigravity` output matches the rewrite table, verified on the bundled plugin, and is idempotent.
+- [ ] `install --target antigravity` output matches the rewrite table, verified on the bundled plugin, is idempotent, removes an unedited legacy install, and passes `agy plugin validate --strict` when `agy` is on `PATH`.
 - [ ] `--json` output of every command validates against the envelope schema in `cli/schemas/envelope.schema.json`.

@@ -1,6 +1,6 @@
 ---
 description: Implements the approved tasks of a medra change one at a time, with red/green test evidence checkpointed by the CLI; also resumes an interrupted apply. Run only when the user explicitly invokes it.
-argument-hint: [change-name]
+argument-hint: "[change-name]"
 disable-model-invocation: true
 ---
 

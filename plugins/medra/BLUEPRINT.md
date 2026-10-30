@@ -8,7 +8,7 @@ The workflow synthesizes two sources:
 - **OpenSpec:** living specs per capability; changes with ADDED/MODIFIED/REMOVED deltas; archive merge; SHALL + WHEN/THEN scenarios; artifact dependencies as enablers.
 - **GitHub Spec Kit:** a constitution with plan gates and Complexity Tracking; `[NEEDS CLARIFICATION]` markers; traceable tasks with `[P]`; a consistency analysis before a change closes.
 
-It runs on Claude Code as the plugin `medra@flow`, and on Google Antigravity as skills installed into `.agents/skills/`. The `medra` CLI performs every deterministic operation: scaffolding, validation, gate state, task checkpoints, delta merge, context packing, the learnings store, and installation. Agents spend tokens only on judgment and writing.
+It runs on Claude Code as the plugin `medra@flow`, and on Google Antigravity as the native plugin `medra`, generated into `.agents/plugins/medra/`. The commands are `/medra:<command>` on both. The `medra` CLI performs every deterministic operation: scaffolding, validation, gate state, task checkpoints, delta merge, context packing, the learnings store, and installation. Agents spend tokens only on judgment and writing.
 
 ## Walkthrough
 
@@ -38,7 +38,7 @@ flowchart TD
 ```
 
 1. **`/medra:init`** — Inline, `author` · init.
-   - Runs `medra init`, which writes `docs/config-flow.yaml`, `docs/specs/`, `docs/changes/archive/` and an empty `docs/learnings.md`; for Antigravity it also installs the skills into `.agents/skills/`.
+   - Runs `medra init`, which writes `docs/config-flow.yaml`, `docs/specs/`, `docs/changes/archive/` and an empty `docs/learnings.md`; for Antigravity it also generates the plugin into `.agents/plugins/medra/`.
    - Interviews the user and writes `docs/constitution.md`.
    - Optionally bootstraps living specs from existing code.
    - Gates: constitution; bootstrap specs.
@@ -209,8 +209,8 @@ In build order. Paths are relative to `/home/tcavalli/src/harness/`.
 
 | Decision | Strongest rejected alternative | Reason |
 |---|---|---|
-| Portable core: every step is a skill that runs inline in the main session. Subagents are only an optimization (reviewer · check), with an inline fallback | A Claude-native topology with a subagent per step | Antigravity has skills, but no subagents with enforced tools and no `AskUserQuestion`. A step that depends on delegation would not run there |
-| The native Claude Code plugin is the source of truth. Antigravity gets a generated install (`medra install --target antigravity`) that renames skills to `medra-<name>`, strips the `medra:` prefix from references, and rewrites `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_SKILL_DIR}` and `$ARGUMENTS` | A hand-maintained second copy for Antigravity | One source, a deterministic rewrite table, and `claude plugin validate` still applies to the source |
+| Portable core: every step is a skill that runs inline in the main session. Subagents are only an optimization (reviewer · check), with an inline fallback | A Claude-native topology with a subagent per step | Antigravity plugins now have subagents with enforced tool grants and `ask_question` (verified with agy 1.4.10, 2026-10-30), so reviewer · check runs isolated there too. The inline fallback stays for runtimes without subagents, and keeping every step in the main session keeps the gates interactive everywhere |
+| The native Claude Code plugin is the source of truth. Antigravity gets a generated native plugin (`medra install --target antigravity`): Antigravity namespaces plugin skills as `/medra:<skill>`, so skill names and `medra:` references stay; agents become `medra-<agent>` with tool grants mapped to Antigravity tool names; `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_SKILL_DIR}` and `$ARGUMENTS` are rewritten because Antigravity substitutes no variables | A hand-maintained second copy for Antigravity; `agy plugin install` converting the Claude plugin directly | One source and a deterministic rewrite table, checked by both `claude plugin validate` and `agy plugin validate --strict`. The direct conversion only adds a manifest: it drops the commands (no `name:`) and the agents (Claude tool and model names) |
 | Deterministic operations live in a Node CLI (`medra`) that uses npm packages. Agents call it and never hand-edit state | Model-performed merge, validation, checkpoints and state edits | User requirement. Models apply merges and checklists inconsistently, and gate records have to be trustworthy for teams |
 | The CLI is specified in `cli/SPEC.md` and implemented by an engineering session | The Architect writes the CLI | The Architect writes instruction artifacts only; code needs engineering review |
 | The CLI is installed globally (`npm i -g`). Every command's first precondition is `medra --version` matching the supported major, with install instructions on failure | `npx -y <pkg>@<ver>` on every call | Works offline, is fast on every call, and works in non-Node projects. The version check keeps the skills and the CLI in step |
@@ -240,7 +240,7 @@ In build order. Paths are relative to `/home/tcavalli/src/harness/`.
 - **CLI implementation.** `cli/SPEC.md` must be implemented and `medra` published before the first real run. Default: an engineering session implements it in `cli/`, publishing under the npm name settled in the next item.
 - **npm package name.** Decided: `@medra.dev/flow`, with binary `medra`, published under the user's npm org `medra.dev`.
 - **Namespace risk.** `medra@flow` and `medra@meta-agent` both expose `medra:*` on Claude Code. Default: keep their names disjoint, and revisit if Claude Code documents how same-name plugins behave.
-- **Antigravity auto-invocation.** Antigravity has no `disable-model-invocation`, so every command's description opens with "Run only when the user explicitly invokes it". Default: accept that prompt-level guard.
+- **Antigravity auto-invocation.** Antigravity has no `disable-model-invocation`, so every command's description opens with "Run only when the user explicitly invokes it". Default: accept that prompt-level guard. For the same reason the internal skills (pipelines, templates, `conventions`, the handoff) also appear in the Antigravity `/` menu, since there is no `user-invocable: false`. Revisit if Antigravity documents either key.
 - **Direct constitution amendment.** v1 amends the constitution only through promotion at archive. Default: for anything else, the user edits `docs/constitution.md` and bumps its version; add a `/medra:constitution` command if direct amendments become frequent.
 - **Executable Gherkin and readable docs.** v1 has no `.feature` export (`bdd.runner`) and no `medra docs` site. Default: add both as CLI features later. The scenario format already fits Gherkin, so the skills need no change.
 - **Workflow self-improvement.** Friction with the medra skills themselves is not captured. Default: none. Revisit by adding an opt-in friction log feeding the Architect's evolution review.

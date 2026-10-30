@@ -19,7 +19,7 @@ This handoff gets the implementer an independent verdict on a finished change be
 
 ## Dispatch
 
-On Claude Code, the sender passes this payload to the Agent tool, with `subagent_type: medra:reviewer`, after the line `Contract: medra:handoff-implementer-reviewer`. On a runtime without subagents, the sender runs the receiver's pipeline itself, using this payload as its input (see `medra:conventions` → Runtime Portability).
+On Claude Code, the sender passes this payload to the Agent tool, with `subagent_type: medra:reviewer`, after the line `Contract: medra:handoff-implementer-reviewer`. On Antigravity, it passes the same text to `invoke_subagent` for that agent. On a runtime without subagents, the sender runs the receiver's pipeline itself, using this payload as its input (see `medra:conventions` → Runtime Portability).
 
 | Field | Type | Required | Source |
 |---|---|---|---|

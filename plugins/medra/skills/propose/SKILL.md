@@ -1,6 +1,6 @@
 ---
 description: Starts a medra change from an intent, or revises an existing change — writes the proposal and delta specs, picks the fast or full track, and runs the proposal gate. Run only when the user explicitly invokes it.
-argument-hint: [intent | change-name]
+argument-hint: "[intent | change-name]"
 disable-model-invocation: true
 ---
 

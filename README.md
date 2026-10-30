@@ -22,7 +22,9 @@ medra --version   # 1.x
 
 ### 2b. Antigravity
 
-Run `medra init` in your project and choose `antigravity` as an integration. To add or refresh it later, run `medra install --target antigravity`, or `medra update`. The skills are installed to `.agents/skills/medra-*`, and the commands become `/medra-<command>`.
+Run `medra init` in your project and choose `antigravity` as an integration. To add or refresh it later, run `medra install --target antigravity`, or `medra update`. medra is installed as the Antigravity plugin `medra` in `.agents/plugins/medra/` (add `--scope global` for `~/.gemini/config/plugins/medra/`). Commit that folder so everyone who clones the project gets the commands. `medra update` refreshes it only when `antigravity` is listed under `integrations` in `docs/config-flow.yaml`.
+
+Upgrading from 1.1 or earlier: the next install removes the old loose skills in `.agents/skills/medra-*` and `.agents/medra/`, keeping any file you edited.
 
 ## First run
 
@@ -34,7 +36,7 @@ Run `medra init` in your project and choose `antigravity` as an integration. To 
 /medra:archive
 ```
 
-On Antigravity, use `/medra-init`, `/medra-propose`, and so on.
+The commands are the same on Antigravity.
 
 ## Commands
 

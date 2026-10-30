@@ -1,6 +1,6 @@
 ---
 description: Breaks an approved medra plan into a traceable, test-first task list and runs the tasks gate. Run only when the user explicitly invokes it.
-argument-hint: [change-name]
+argument-hint: "[change-name]"
 disable-model-invocation: true
 ---
 

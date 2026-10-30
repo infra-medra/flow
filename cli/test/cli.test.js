@@ -290,22 +290,53 @@ test('learnings: add, bump, merge, retire, promote, status budget and staleness'
   assert.equal(medra(root, 'validate', '--project', 'learnings').code, 0);
 });
 
-test('install --target antigravity: rewrite table, manifest, idempotent, refuses foreign files', () => {
+test('install --target antigravity: plugin rewrite table, manifest, idempotent, refuses foreign files', () => {
   const root = project();
   const r = medra(root, 'install', '--target', 'antigravity');
   assert.equal(r.code, 0, r.stderr);
-  const cmd = read(root, '.agents/skills/medra-propose/SKILL.md');
-  assert.match(cmd, /^---\nname: medra-propose\ndescription: /);
-  assert.doesNotMatch(cmd, /disable-model-invocation|argument-hint|\$ARGUMENTS|\$\{CLAUDE_|medra:/);
-  assert.match(cmd, /\.agents\/medra\/agents\/author\.md/);
-  assert.match(cmd, /`medra-pipeline-author-propose`/);
-  assert.match(read(root, '.agents/skills/medra-template-spec/SKILL.md'), /`\.agents\/skills\/medra-template-spec\/template\.md`/);
-  assert.ok(fs.existsSync(path.join(root, '.agents/medra/agents/reviewer.md')));
-  assert.equal(read(root, '.agents/medra/VERSION').trim(), JSON.parse(read(path.resolve('.'), 'package.json')).version);
+  assert.equal(r.json.plugin, '.agents/plugins/medra');
+  const P = '.agents/plugins/medra';
+  const version = JSON.parse(read(path.resolve('.'), 'package.json')).version;
+  const manifest = JSON.parse(read(root, `${P}/plugin.json`));
+  assert.equal(manifest.$schema, 'https://antigravity.google/schemas/v1/plugin.json');
+  assert.equal(manifest.name, 'medra');
+  assert.equal(manifest.version, version);
+  const cmd = read(root, `${P}/skills/propose/SKILL.md`);
+  assert.match(cmd, /^---\nname: propose\ndescription: [^\n]+\n---\n/);
+  assert.doesNotMatch(cmd, /disable-model-invocation|argument-hint|\$ARGUMENTS|\$\{CLAUDE_/);
+  assert.match(cmd, /\.agents\/plugins\/medra\/agents\/author\.md/);
+  assert.match(cmd, /`medra:pipeline-author-propose`/, 'skill references keep the plugin namespace');
+  assert.match(read(root, `${P}/skills/template-spec/SKILL.md`), /`\.agents\/plugins\/medra\/skills\/template-spec\/template\.md`/);
+  const reviewer = read(root, `${P}/agents/reviewer.md`);
+  assert.match(reviewer, /^---\nname: medra-reviewer\ndescription: [^\n]+\ntools: \[read_file, write_file, run_command, ask_question\]\nmainAgent: true\nsubagent: true\n---\n/);
+  assert.match(read(root, `${P}/agents/implementer.md`), /tools: \[read_file, write_file, edit_file, run_command, ask_question, invoke_subagent\]\nmainAgent: true\nsubagent: false\n---/);
+  assert.match(read(root, `${P}/skills/handoff-implementer-reviewer/SKILL.md`), /subagent_type: medra-reviewer/);
+  assert.equal(read(root, `${P}/VERSION`).trim(), version);
   assert.equal(medra(root, 'install', '--target', 'antigravity').code, 0, 'idempotent');
-  write(root, '.agents/skills/medra-propose/SKILL.md', 'hand edited');
+  write(root, `${P}/skills/propose/SKILL.md`, 'hand edited');
   assert.equal(medra(root, 'install', '--target', 'antigravity').code, 1);
   assert.equal(medra(root, 'install', '--target', 'antigravity', '--force').code, 0);
+  const agy = spawnSync('agy', ['plugin', 'validate', path.join(root, P), '--strict'], { encoding: 'utf8' });
+  if (agy.error?.code !== 'ENOENT') assert.equal(agy.status, 0, agy.stdout + agy.stderr);
+});
+
+test('install --target antigravity removes an unedited 1.1 install and keeps edited files', () => {
+  const root = project();
+  const files = { 'skills/medra-init/SKILL.md': 'init', 'skills/medra-plan/SKILL.md': 'plan', 'medra/agents/author.md': 'author' };
+  for (const [f, t] of Object.entries(files)) write(root, `.agents/${f}`, t);
+  write(root, '.agents/skills/mine/SKILL.md', 'user skill');
+  const hashes = Object.fromEntries(Object.entries(files).map(([f, t]) => [f, crypto.createHash('sha256').update(t).digest('hex')]));
+  write(root, '.agents/medra/MANIFEST.json', JSON.stringify({ version: '1.1.0', files: hashes }));
+  write(root, '.agents/medra/VERSION', '1.1.0\n');
+  write(root, '.agents/skills/medra-plan/SKILL.md', 'plan, edited');
+  const r = medra(root, 'install', '--target', 'antigravity');
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(r.json.legacy_removed, 2);
+  assert.deepEqual(r.json.findings.map((f) => f.rule), ['install.legacy-edited']);
+  assert.ok(!fs.existsSync(path.join(root, '.agents/skills/medra-init')));
+  assert.ok(!fs.existsSync(path.join(root, '.agents/medra')));
+  assert.equal(read(root, '.agents/skills/medra-plan/SKILL.md'), 'plan, edited');
+  assert.equal(read(root, '.agents/skills/mine/SKILL.md'), 'user skill');
 });
 
 test('usage errors exit 2 with a JSON envelope', () => {

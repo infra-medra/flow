@@ -99,14 +99,14 @@ Silence, "ok, continue", or an answer to a different question is not an approval
 
 ## Runtime Portability
 
-medra runs from the same instructions on Claude Code and on Antigravity. Where the two runtimes differ, these rules apply:
+medra runs from the same instructions on Claude Code and on Antigravity, where it is installed as the plugin `medra`. Where the runtimes differ, these rules apply:
 
-| Need | Claude Code | Antigravity, or any runtime without the tool |
-|---|---|---|
-| Load a skill | `Skill` tool with the exact name | Read `SKILL.md` from the installed skill folder with that name |
-| Ask a structured question | `AskUserQuestion`, at most 4 questions per call | Numbered options in chat; wait for an explicit reply |
-| Delegate to another agent | `Agent` tool, under the handoff contract the pipeline names | Run the receiver's pipeline yourself, in a separate section headed with the receiver's name. Apply its constraints for the duration, then return to your own role with only its response fields |
-| Command arguments | Given to the command skill | The text the user typed after the command |
+| Need | Claude Code | Antigravity | Any runtime without the tool |
+|---|---|---|---|
+| Load a skill | `Skill` tool with the exact name | Read `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md`, where `<name>` is the skill name after `medra:` | Same as Antigravity |
+| Ask a structured question | `AskUserQuestion`, at most 4 questions per call | `ask_question` | Numbered options in chat; wait for an explicit reply |
+| Delegate to another agent | `Agent` tool, under the handoff contract the pipeline names | `invoke_subagent` with the agent the handoff names, under the same contract | Run the receiver's pipeline yourself, in a separate section headed with the receiver's name. Apply its constraints for the duration, then return to your own role with only its response fields |
+| Command arguments | Given to the command skill | The text the user typed after the command | Same as Antigravity |
 
 ## Commit Suggestions
 

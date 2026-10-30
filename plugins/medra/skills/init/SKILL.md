@@ -1,6 +1,6 @@
 ---
 description: Sets up medra in this project — scaffold, config, ratified constitution and optional living specs from existing code. Run only when the user explicitly invokes it.
-argument-hint: [language] [notes]
+argument-hint: "[language] [notes]"
 disable-model-invocation: true
 ---
 

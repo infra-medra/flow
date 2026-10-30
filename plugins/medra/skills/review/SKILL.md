@@ -1,6 +1,6 @@
 ---
 description: Reviews a medra change's documents at their current stage (proposal, plan or tasks), writes a review report and records the reviewer's verdict — for authors and teammates alike. Run only when the user explicitly invokes it.
-argument-hint: <change-name> [stage]
+argument-hint: "<change-name> [stage]"
 disable-model-invocation: true
 ---
 

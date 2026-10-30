@@ -62,7 +62,7 @@ A `docs/` scaffold whose `config-flow.yaml` records the user's language, integra
 **Exit when:**
 - [ ] `medra init --json` returned `ok: true`
 - [ ] `docs/config-flow.yaml` holds the language, integrations and testing mode the user chose
-- [ ] With `antigravity` among the integrations, the result reported installed skills
+- [ ] With `antigravity` among the integrations, the result reported the installed plugin
 
 ---
 
