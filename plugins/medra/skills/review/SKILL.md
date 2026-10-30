@@ -1,6 +1,6 @@
 ---
 description: Reviews a medra change's documents at their current stage (proposal, plan or tasks), writes a review report and records the reviewer's verdict — for authors and teammates alike. Run only when the user explicitly invokes it.
-argument-hint: <change-name> [stage]
+argument-hint: "<change-name> [stage]"
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-An optional step any team member can run at any point before archive. It produces `medra/changes/<change>/reviews/<date>-<stage>-<reviewer>.md` and records the verdict in the change state.
+An optional step any team member can run at any point before archive. It produces `docs/changes/<change>/reviews/<date>-<stage>-<reviewer>.md` and records the verdict in the change state.
 
 ## Input
 
@@ -19,7 +19,7 @@ An optional step any team member can run at any point before archive. It produce
 | Requires | Check | If missing |
 |---|---|---|
 | CLI | `medra --version` prints major version `1` | Stop and tell the user to run `npm install -g @medra.dev/flow` |
-| State | `medra/changes/<change>/proposal.md` exists | Stop and tell the user to run `/medra:propose` first |
+| State | `docs/changes/<change>/proposal.md` exists | Stop and tell the user to run `/medra:propose` first |
 | State | A named stage's document exists (`plan.md` for plan, `tasks.md` for tasks) | Stop and name the command that produces it |
 
 ## Route

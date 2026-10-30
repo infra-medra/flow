@@ -1,6 +1,6 @@
 ---
 name: template-plan
-description: Template for medra/changes/<change>/plan.md — the technical approach of a full-track change, its Constitution Check, test strategy and decisions. Filled by the author during plan and approved at the plan gate.
+description: Template for docs/changes/<change>/plan.md — the technical approach of a full-track change, its Constitution Check, test strategy and decisions. Filled by the author during plan and approved at the plan gate.
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ The plan decides how a full-track change satisfies its approved deltas, and prov
 
 | Item | Value |
 |---|---|
-| Path | `medra/changes/<change>/plan.md`, plus `contracts/<name>.<ext>` when an interface is defined or changed (OpenAPI, JSON Schema, protobuf, event schemas) |
+| Path | `docs/changes/<change>/plan.md`, plus `contracts/<name>.<ext>` when an interface is defined or changed (OpenAPI, JSON Schema, protobuf, event schemas) |
 | Lifecycle | draft → approved (plan gate) → archived with the change |
 | Exists only | on the full track |
 
@@ -84,7 +84,7 @@ Between Test Strategy and Decisions, add a `##` section only for what this chang
 - **Inside the fence.** Plan only what the approved deltas and the proposal's In scope require. Record extra work as a new proposal idea instead of planning it.
 - **Grounded.** Name only the paths, modules and dependencies you verified in the codebase.
 - **Bounded.** Aim for under 150 lines. Schemas and long examples go in `contracts/`.
-- **Language.** Prose follows `medra/config.yaml`. Anchor headings, table headers, `pass`, `fail`, `n/a` and the `**Choice:**`, `**Alternatives:**` and `**Rationale:**` labels stay in English.
+- **Language.** Prose follows `docs/config-flow.yaml`. Anchor headings, table headers, `pass`, `fail`, `n/a` and the `**Choice:**`, `**Alternatives:**` and `**Rationale:**` labels stay in English.
 
 ## Quality Checklist
 

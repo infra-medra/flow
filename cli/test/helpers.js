@@ -47,7 +47,7 @@ export function project({ mode = 'tdd' } = {}) {
   spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: root });
   const r = medra(root, 'init', '--testing-mode', mode, '--language', 'en');
   if (r.code !== 0) throw new Error(r.stderr || r.stdout);
-  write(root, 'medra/constitution.md', CONSTITUTION);
+  write(root, 'docs/constitution.md', CONSTITUTION);
   medra(root, 'constitution', 'ratify', '--note', 'Initial');
   return root;
 }
@@ -56,11 +56,11 @@ export const req = (id, title, scenarios, statement = `The system SHALL ${title.
   [`### REQ ${id}: ${title}`, '', statement, '', ...scenarios.flatMap(([sid, t]) => [`#### Scenario ${sid}: ${t}`, '', '- **Given** a state', '- **When** an action', '- **Then** an outcome', ''])].join('\n');
 
 export function livingSpec(root, cap, prefix, reqs, retired = '') {
-  write(root, `medra/specs/${cap}/spec.md`, [`# ${cap} title`, '', `**Capability:** \`${cap}\``, `**ID prefix:** \`${prefix}\``, '', '## Purpose', '', `Does ${cap}.`, '', '## Requirements', '', ...(retired ? [`<!-- retired: ${retired} -->`, ''] : []), ...reqs, ''].join('\n'));
+  write(root, `docs/specs/${cap}/spec.md`, [`# ${cap} title`, '', `**Capability:** \`${cap}\``, `**ID prefix:** \`${prefix}\``, '', '## Purpose', '', `Does ${cap}.`, '', '## Requirements', '', ...(retired ? [`<!-- retired: ${retired} -->`, ''] : []), ...reqs, ''].join('\n'));
 }
 
 export function proposal(root, change, { track = 'fast', caps = [['auth', 'modified', 'AUTH-001']] } = {}) {
-  write(root, `medra/changes/${change}/proposal.md`, `# Proposal: ${change}
+  write(root, `docs/changes/${change}/proposal.md`, `# Proposal: ${change}
 
 ## Why
 
@@ -107,7 +107,7 @@ None.
 export const delta = (cap, sections, header = '') => `# Delta: ${cap} title\n\n**Capability:** \`${cap}\`\n${header}\n${sections}\n`;
 
 export function tasks(root, change, lines) {
-  write(root, `medra/changes/${change}/tasks.md`, `# Tasks: ${change}\n\n## Phase 1: Work\n\n${lines.join('\n')}\n`);
+  write(root, `docs/changes/${change}/tasks.md`, `# Tasks: ${change}\n\n## Phase 1: Work\n\n${lines.join('\n')}\n`);
 }
 
 export const verifyReport = (verdict = 'pass') => `# Review: x — verify\n\n**Stage:** verify\n**Verdict:** ${verdict}\n**Counts:** critical 0 · major 0 · minor 0\n**Reviewer:** reviewer agent\n**Date:** 2026-10-30\n\n## Summary\n\nOk.\n\n## Findings\n\nNone.\n\n## Coverage\n\n| Requirement | Evidence | Status |\n|---|---|---|\n`;

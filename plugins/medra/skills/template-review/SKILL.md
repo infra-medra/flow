@@ -1,6 +1,6 @@
 ---
 name: template-review
-description: Template for a review report, medra/changes/<change>/reviews/<date>-<stage>-<reviewer>.md — a verdict, severity-classified findings and requirement coverage for one stage of a change. Filled by the reviewer in review (proposal, plan, tasks) and in check (verify).
+description: Template for a review report, docs/changes/<change>/reviews/<date>-<stage>-<reviewer>.md — a verdict, severity-classified findings and requirement coverage for one stage of a change. Filled by the reviewer in review (proposal, plan, tasks) and in check (verify).
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ A review report records one reviewer's judgment of one stage of a change, so tha
 
 | Item | Value |
 |---|---|
-| Path | `medra/changes/<change>/reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md`. `<reviewer>` is the human's name in kebab-case, or `agent` for the check |
+| Path | `docs/changes/<change>/reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md`. `<reviewer>` is the human's name in kebab-case, or `agent` for the check |
 | Lifecycle | Final when written. A re-review is a new file |
 
 ## Structure
@@ -73,7 +73,7 @@ Fixed. Copy `${CLAUDE_SKILL_DIR}/template.md` to the placement path, then fill i
 - **Evidence, not impression.** Every finding cites a path, a line, or an ID.
 - **Fix, not only fault.** Every finding states the change that resolves it.
 - **Judge against the contract.** Findings are measured against the deltas, the constitution, the plan and the templates, never against your own preferred design.
-- **Language.** Prose follows `medra/config.yaml`. The status-block labels, verdict values and severities stay in English.
+- **Language.** Prose follows `docs/config-flow.yaml`. The status-block labels, verdict values and severities stay in English.
 
 ## Quality Checklist
 

@@ -22,7 +22,9 @@ medra --version   # 1.x
 
 ### 2b. Antigravity
 
-Run `medra init` in your project and choose `antigravity` as an integration. To add or refresh it later, run `medra install --target antigravity`, or `medra update`. The skills are installed to `.agents/skills/medra-*`, and the commands become `/medra-<command>`.
+Run `medra init` in your project and choose `antigravity` as an integration. To add or refresh it later, run `medra install --target antigravity`, or `medra update`. medra is installed as the Antigravity plugin `medra` in `.agents/plugins/medra/` (add `--scope global` for `~/.gemini/config/plugins/medra/`). Commit that folder so everyone who clones the project gets the commands. `medra update` refreshes it only when `antigravity` is listed under `integrations` in `docs/config-flow.yaml`.
+
+Upgrading from 1.1 or earlier: the next install removes the old loose skills in `.agents/skills/medra-*` and `.agents/medra/`, keeping any file you edited.
 
 ## First run
 
@@ -34,13 +36,13 @@ Run `medra init` in your project and choose `antigravity` as an integration. To 
 /medra:archive
 ```
 
-On Antigravity, use `/medra-init`, `/medra-propose`, and so on.
+The commands are the same on Antigravity.
 
 ## Commands
 
 | Command | What it does | Gate |
 |---|---|---|
-| `init` | Scaffolds `medra/`, sets the language and testing mode, writes the constitution, and can bootstrap specs from existing code | constitution · bootstrap specs |
+| `init` | Scaffolds `docs/`, sets the language and testing mode, writes the constitution, and can bootstrap specs from existing code | constitution · bootstrap specs |
 | `propose` | Writes the proposal and delta specs (`ADDED/MODIFIED/REMOVED`) and picks the fast or full track. On the fast track it also writes the tasks | proposal (+ tasks) |
 | `plan` | Full track: writes the design, the Constitution Check, the test strategy and the decisions | plan |
 | `tasks` | Full track: writes a traceable, test-first task list | tasks |
@@ -52,8 +54,8 @@ On Antigravity, use `/medra-init`, `/medra-propose`, and so on.
 ## Project layout
 
 ```
-medra/
-├── config.yaml          language · integrations · testing mode · learning budget
+docs/
+├── config-flow.yaml     language · integrations · testing mode · learning budget
 ├── constitution.md      principles, each with a gate question
 ├── learnings.md         lessons and team preferences
 ├── specs/<capability>/spec.md
@@ -61,7 +63,7 @@ medra/
     └── archive/
 ```
 
-Commit `medra/` with your code. medra never commits or creates branches for you; it suggests a commit message at the end of every step.
+Commit `docs/` with your code. medra never commits or creates branches for you; it suggests a commit message at the end of every step.
 
 ## Design
 

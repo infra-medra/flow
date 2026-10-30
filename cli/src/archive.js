@@ -1,7 +1,7 @@
 // `medra archive`: merge deltas into living specs, append the index row, move the change folder.
 import fs from 'node:fs';
 import path from 'node:path';
-import { MedraError, EXIT, refused, finding, readIf, writeAtomic, today, rel, errorsOf } from './core.js';
+import { MedraError, EXIT, refused, finding, readIf, writeAtomic, today, rel, errorsOf, docsPath } from './core.js';
 import { parseProposal, archiveWhy, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
 import { loadLivingSpecs, loadDeltas, mergeDelta, livingPath, parseLivingSpec, livingSpecFindings } from './specs.js';
 import { changeDir, loadState, stateContent, statePath, isApproved, gateStatus } from './change.js';
@@ -45,7 +45,7 @@ export function archive(root, change, { dryRun = false } = {}) {
   const date = today();
   const proposal = parseProposal(readIf(path.join(dir, 'proposal.md')) ?? '');
   const row = `| ${sequence} | ${date} | ${change} | ${Object.keys(deltas).join(', ')} | ${reqTokens.join(' ')} | ${archiveWhy(proposal)} |`;
-  const archivedDir = path.join(root, 'medra', 'changes', 'archive', `${date}-${change}`);
+  const archivedDir = docsPath(root, 'changes', 'archive', `${date}-${change}`);
   const result = {
     archived_path: rel(root, archivedDir), sequence,
     specs: counts, capabilities_touched: Object.keys(deltas).length, dry_run: dryRun,

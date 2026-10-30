@@ -8,7 +8,7 @@ user-invocable: false
 
 ## Purpose
 
-This pipeline produces a verification report and a structured verdict on a finished change: does the code do what the approved deltas say, proven by tests that really exercise the scenarios? It runs single-shot when the implementer dispatches it under `medra:handoff-implementer-reviewer`, as an isolated subagent on Claude Code and inline elsewhere, and returns without asking the user anything. It differs from review by judging code and evidence rather than documents.
+This pipeline produces a verification report and a structured verdict on a finished change: does the code do what the approved deltas say, proven by tests that really exercise the scenarios? It runs single-shot when the implementer dispatches it under `medra:handoff-implementer-reviewer`, as an isolated subagent on Claude Code and Antigravity (inline on runtimes without subagents), and returns without asking the user anything. It differs from review by judging code and evidence rather than documents.
 
 ## Presentation
 

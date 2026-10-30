@@ -1,6 +1,6 @@
 ---
 description: Closes a verified medra change — merges its deltas into living specs, archives it, harvests and compacts lessons, and proposes constitution amendments for recurring ones. Run only when the user explicitly invokes it.
-argument-hint: [change-name]
+argument-hint: "[change-name]"
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-The last step of every change. It updates `medra/specs/`, moves the change to `medra/changes/archive/`, updates `medra/learnings.md`, and may amend `medra/constitution.md` behind a gate.
+The last step of every change. It updates `docs/specs/`, moves the change to `docs/changes/archive/`, updates `docs/learnings.md`, and may amend `docs/constitution.md` behind a gate.
 
 ## Input
 

@@ -8,7 +8,7 @@ user-invocable: false
 
 ## Purpose
 
-This pipeline produces an approved verify gate: proof that the implementation does what the approved deltas say, backed by a verification report written by the reviewer. It runs interactively when the user runs verify, with one human gate. The reviewer's check runs in an isolated subagent on Claude Code and inline elsewhere, and the implementer fixes findings between rounds. It differs from apply by judging finished work, and from review by checking code rather than documents.
+This pipeline produces an approved verify gate: proof that the implementation does what the approved deltas say, backed by a verification report written by the reviewer. It runs interactively when the user runs verify, with one human gate. The reviewer's check runs in an isolated subagent on Claude Code and Antigravity, and inline on runtimes without subagents, and the implementer fixes findings between rounds. It differs from apply by judging finished work, and from review by checking code rather than documents.
 
 ## Presentation
 
@@ -73,7 +73,7 @@ A verification report at the dispatched `report_path`, and a validated response 
 
 **Actions**
 - Compose the dispatch payload exactly as the handoff's Dispatch section defines it, using `round: 1` on the first pass and adding `fixed_findings` on later rounds
-- On Claude Code, call the Agent tool with the reviewer agent and the payload. On a runtime without subagents, run the reviewer's check inline, following `medra:conventions` → Runtime Portability
+- On Claude Code, call the Agent tool with the reviewer agent and the payload; on Antigravity, `invoke_subagent`. On a runtime without subagents, run the reviewer's check inline, following `medra:conventions` → Runtime Portability
 - Validate the response against the handoff's Validation rules. When it fails, follow its Error Handling
 - When the response is `needs-decision`, put its question to the user with `AskUserQuestion`, then re-dispatch with the answer recorded in the change's documents (through `/medra:propose <change>` when the answer changes behavior)
 

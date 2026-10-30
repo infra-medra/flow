@@ -1,6 +1,6 @@
 ---
 description: Starts a medra change from an intent, or revises an existing change — writes the proposal and delta specs, picks the fast or full track, and runs the proposal gate. Run only when the user explicitly invokes it.
-argument-hint: [intent | change-name]
+argument-hint: "[intent | change-name]"
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-The entry point of every change. It produces `medra/changes/<change>/proposal.md` and its delta specs (plus `tasks.md` on the fast track), approved at the proposal gate. Planning or implementation comes next, depending on the track.
+The entry point of every change. It produces `docs/changes/<change>/proposal.md` and its delta specs (plus `tasks.md` on the fast track), approved at the proposal gate. Planning or implementation comes next, depending on the track.
 
 ## Input
 

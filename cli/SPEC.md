@@ -5,7 +5,7 @@ This is the contract for the `medra` command-line tool. It is written for the en
 ## 1. Scope and principles
 
 - **Deterministic, with no model calls.** The CLI owns every operation that has one correct answer: scaffolding, parsing, validation, state, gates, checkpoints, merge, context packing, coverage, the learnings store, and installation. Judgment stays with the agents.
-- **Agents never hand-edit CLI-owned data.** These are `.medra.yaml`, `medra/changes/archive/INDEX.md`, the task checkboxes and evidence lines in `tasks.md`, the status and version lines of `constitution.md`, and the store structure of `learnings.md`. The CLI is their only writer.
+- **Agents never hand-edit CLI-owned data.** These are `.medra.yaml`, `docs/changes/archive/INDEX.md`, the task checkboxes and evidence lines in `tasks.md`, the status and version lines of `constitution.md`, and the store structure of `learnings.md`. The CLI is their only writer.
 - **Atomic writes.** Every command that writes several files writes to temporary files first and renames them only once all writes have succeeded. A failed command leaves no partial state.
 - **Machine and human output.** Every command takes `--json`. Without it, the CLI prints a short human summary; with it, it prints exactly one JSON object to stdout. Diagnostics go to stderr.
 - **Runtime and packaging.**
@@ -27,7 +27,7 @@ This is the contract for the `medra` command-line tool. It is written for the en
 Every failure JSON has the shape `{"ok": false, "code": <n>, "findings": [Finding]}`, where a Finding is:
 
 ```json
-{ "rule": "tasks.test-before-impl", "severity": "error", "file": "medra/changes/add-reset/tasks.md", "line": 14, "message": "T005 implements AUTH-004 but is not after its [TEST] task T004", "ref": "T005" }
+{ "rule": "tasks.test-before-impl", "severity": "error", "file": "docs/changes/add-reset/tasks.md", "line": 14, "message": "T005 implements AUTH-004 but is not after its [TEST] task T004", "ref": "T005" }
 ```
 
 `severity` is `error` or `warning`; only an `error` causes exit `1`. `rule` IDs are stable and documented in §6.
@@ -35,8 +35,8 @@ Every failure JSON has the shape `{"ok": false, "code": <n>, "findings": [Findin
 ## 3. Project layout
 
 ```
-medra/
-├── config.yaml
+docs/
+├── config-flow.yaml
 ├── constitution.md
 ├── learnings.md
 ├── specs/<capability>/spec.md
@@ -54,7 +54,13 @@ medra/
         └── <YYYY-MM-DD>-<change>/
 ```
 
-- **Project root:** the nearest ancestor directory containing `medra/config.yaml`. Every command except `init`, `install` and `--version` exits `4` outside a project.
+- **Project root:** the nearest ancestor directory containing `docs/config-flow.yaml`. Every command except `init`, `install` and `--version` exits `4` outside a project.
+- **Layout migration (from 1.0).** Version 1.0 kept the documents in `medra/`, with the config at `medra/config.yaml`. When the nearest project root has that layout, every command (and `init` run at that root) first migrates it:
+  - It moves each entry of `medra/` into `docs/` (renaming `config.yaml` to `config-flow.yaml`) with `git mv` when the entry is tracked, and with a plain rename otherwise.
+  - It re-signs every approved gate whose 1.0 hash still matches (§7), so a gate valid before the move stays valid.
+  - It regenerates the Antigravity install when that integration is configured.
+  - It prints a notice to stderr and adds `"migration": {"from", "to", "moved", "gates_rehashed"}` to the command's JSON.
+  - When any target already exists in `docs/`, it refuses with exit `1` and `layout.collision` findings, and moves nothing.
 - **Names:**
   - A `<capability>` matches `^[a-z][a-z0-9-]{1,40}$`.
   - A `<change>` matches `^[a-z][a-z0-9]*(-[a-z0-9]+){1,7}$` (kebab-case, at least two words).
@@ -64,7 +70,7 @@ medra/
 
 All Markdown is parsed by a block-level tokenizer that finds headings, labelled lines and tables while skipping fenced code; it never matches regular expressions over the whole file. Merges splice requirement blocks byte-for-byte, so prose is never reformatted. Headings and bold labels are matched exactly and case-sensitively. Prose may be in any language; the structural tokens below are always in English.
 
-### 4.1 `medra/config.yaml`
+### 4.1 `docs/config-flow.yaml`
 
 ```yaml
 version: 1
@@ -83,7 +89,7 @@ learning:
 
 Missing keys take the defaults shown. Unknown keys produce a warning.
 
-### 4.2 Constitution — `medra/constitution.md`
+### 4.2 Constitution — `docs/constitution.md`
 
 ```markdown
 # Constitution
@@ -112,7 +118,7 @@ Missing keys take the defaults shown. Unknown keys produce a warning.
 - Each live article has exactly one `**Gate:**` line.
 - The CLI owns `Status`, `Version`, `Ratified`, `Last amended` and the rows of the Amendments table (§8.9). While Status is `draft`, the Version, Ratified and Last amended lines are absent and validation does not require them.
 
-### 4.3 Living spec — `medra/specs/<capability>/spec.md`
+### 4.3 Living spec — `docs/specs/<capability>/spec.md`
 
 ```markdown
 # {Capability title}
@@ -145,7 +151,7 @@ Missing keys take the defaults shown. Unknown keys produce a warning.
 - **Scenario steps:** a list whose items begin with a bold keyword from `Given`, `When`, `Then`, `And`, `But`. Each scenario has at least one `When` and one `Then`, and `Given` comes before `When`.
 - **Retired IDs:** a requirement or scenario ID that has been removed is recorded in the HTML comment `<!-- retired: AUTH-002, AUTH-001.S3 -->` directly under `## Requirements`, and is never reassigned. The CLI owns that comment.
 
-### 4.4 Delta spec — `medra/changes/<change>/specs/<capability>/spec.md`
+### 4.4 Delta spec — `docs/changes/<change>/specs/<capability>/spec.md`
 
 ```markdown
 # Delta: {capability title}
@@ -183,7 +189,7 @@ Missing keys take the defaults shown. Unknown keys produce a warning.
   - A new scenario takes the next free `S<n>`.
   - A living scenario left out of the MODIFIED block is removed, and its ID is retired.
 
-### 4.5 Proposal — `medra/changes/<change>/proposal.md`
+### 4.5 Proposal — `docs/changes/<change>/proposal.md`
 
 Required headings, in order:
 
@@ -196,7 +202,7 @@ Required headings, in order:
 - `## Impact`
 - `## Open Questions`
 
-### 4.6 Plan — `medra/changes/<change>/plan.md`
+### 4.6 Plan — `docs/changes/<change>/plan.md`
 
 Required anchor headings, in this order: `# Plan: <change>`, `## Summary`, `## Constitution Check`, `## Complexity Tracking`, `## Test Strategy`, `## Decisions`. Any number of free-form `##` sections may sit between `## Test Strategy` and `## Decisions`.
 
@@ -205,7 +211,7 @@ Required anchor headings, in this order: `# Plan: <change>`, `## Summary`, `## C
 - **`## Decisions`** holds `### D-<NN>: <title>` subsections, each with the lines `**Choice:**`, `**Alternatives:**` and `**Rationale:**`.
 - **`## Test Strategy`**, when `testing.mode` is `none`, must contain the line `No automated tests.` followed by a reason.
 
-### 4.7 Tasks — `medra/changes/<change>/tasks.md`
+### 4.7 Tasks — `docs/changes/<change>/tasks.md`
 
 ```markdown
 # Tasks: add-password-reset
@@ -238,11 +244,11 @@ Required anchor headings, in this order: `# Plan: <change>`, `## Summary`, `## C
 
 The CLI flips `[ ]` to `[x]` only through `task done`.
 
-### 4.8 Review report — `medra/changes/<change>/reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md`
+### 4.8 Review report — `docs/changes/<change>/reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md`
 
 The required lines are `**Stage:** proposal|plan|tasks|verify`, `**Verdict:** approve|request-changes|comment|pass|pass-with-findings|fail`, and `**Counts:** critical <n> · major <n> · minor <n>`. The rest follows `medra:template-review`. The CLI reads only these three lines.
 
-### 4.9 Learnings — `medra/learnings.md`
+### 4.9 Learnings — `docs/learnings.md`
 
 ```markdown
 # Learnings
@@ -299,7 +305,7 @@ last_task_done_at: 2026-10-30T10:12:44Z   # set by `task done`; `verify.report` 
 - **Gate `hash`:** the SHA-256 over the stage's documents (see §7), taken at approval.
 - **Stale gates:** `status` reports a gate as `stale` when the current hash differs from the stored one. A stale gate counts as not approved.
 
-### 4.11 Archive index — `medra/changes/archive/INDEX.md`
+### 4.11 Archive index — `docs/changes/archive/INDEX.md`
 
 ```markdown
 # Archive
@@ -355,7 +361,7 @@ On the fast track there are no `plan` or `tasks` gates, and `status` reports the
 
 ## 7. Hashing
 
-A stage's hash is the SHA-256 over the stage documents' content, concatenated in sorted path order, with line endings normalized to `\n`. For tasks.md, the CLI strips the checkbox state and the evidence lines before hashing, so ticking tasks does not make the `tasks` gate stale.
+A stage's hash is the SHA-256 over the stage documents' content, each prefixed by its path relative to the change folder, concatenated in sorted path order, with line endings normalized to `\n`. Change-relative paths keep gates valid when the documents directory moves; 1.0 used root-relative paths (`medra/changes/<change>/…`), which the layout migration recognizes once. For tasks.md, the CLI strips the checkbox state and the evidence lines before hashing, so ticking tasks does not make the `tasks` gate stale.
 
 ## 8. Commands
 
@@ -367,7 +373,7 @@ All commands accept `--json`. The JSON in this section shows the success payload
 medra init [--language <tag>] [--integrations claude,antigravity] [--testing-mode tdd|test-after|none] [--testing-command "<cmd>"]
 ```
 
-- Creates any of these that are missing, and never overwrites existing files: `medra/config.yaml`, `medra/specs/`, `medra/changes/archive/INDEX.md` (header only), `medra/learnings.md` (headings only), and `medra/constitution.md` holding the single line `**Status:** draft`.
+- Creates any of these that are missing, and never overwrites existing files: `docs/config-flow.yaml`, `docs/specs/`, `docs/changes/archive/INDEX.md` (header only), `docs/learnings.md` (headings only), and `docs/constitution.md` holding the single line `**Status:** draft`.
 - When `integrations` includes `antigravity`, runs §8.13 with `--scope workspace`.
 - Result: `{"created": [paths], "existing": [paths], "config": {…}}`. Exit `0` even when everything already exists.
 
@@ -508,23 +514,40 @@ medra install --target antigravity [--scope workspace|global] [--force]
 medra update
 ```
 
-Generates the Antigravity installation from the bundled plugin copy, applying this rewrite table to every file:
+Generates the bundled plugin as a native Antigravity plugin named `medra`. Antigravity namespaces plugin skills, so the commands are `/medra:<command>` on both runtimes. The plugin directory `<plugin>` is `.agents/plugins/medra/` in workspace scope and `~/.gemini/config/plugins/medra/` in global scope. Paths written into Markdown use the display form `.agents/plugins/medra` or `~/.gemini/config/plugins/medra`. The rewrite table:
 
-| Source | Workspace scope | Global scope |
-|---|---|---|
-| `skills/<name>/` | `.agents/skills/medra-<name>/` | `~/.gemini/config/skills/medra-<name>/` |
-| `agents/<name>.md` | `.agents/medra/agents/<name>.md` | `~/.gemini/config/medra/agents/<name>.md` |
-| Frontmatter `name: <name>` | `name: medra-<name>` | same |
-| Frontmatter keys other than `name` and `description` | removed | removed |
-| `medra:<skill>` in Markdown | `medra-<skill>` | same |
-| `${CLAUDE_PLUGIN_ROOT}` | `.agents/medra` | `~/.gemini/config/medra` |
-| `${CLAUDE_SKILL_DIR}` | the skill's own install directory | same |
-| `$ARGUMENTS` | `the text the user typed after the command` | same |
+| Source | Generated |
+|---|---|
+| `.claude-plugin/plugin.json` | `<plugin>/plugin.json` with `$schema` (`https://antigravity.google/schemas/v1/plugin.json`), `name`, `version`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`, copying only the keys the source has |
+| `skills/<name>/` | `<plugin>/skills/<name>/` |
+| Skill frontmatter | `name: <name>` and `description` only |
+| `agents/<name>.md` | `<plugin>/agents/<name>.md` |
+| Agent frontmatter | `name: medra-<name>`, `description`, `tools` as a YAML list mapped by the tool table below, `mainAgent: true`, and `subagent: true` for agents some skill dispatches with `subagent_type: medra:<agent>` (`reviewer`), `subagent: false` for the rest (Antigravity offers every plugin agent as a subagent unless told otherwise). `model`, `effort` and `color` are dropped: Antigravity rejects Claude model names, and the session's model applies |
+| `medra:<agent>` for an agent name, in Markdown | `medra-<agent>` (Antigravity lists plugin subagents without the plugin prefix) |
+| `medra:<skill>` in Markdown | unchanged |
+| `${CLAUDE_PLUGIN_ROOT}` | the plugin's display path |
+| `${CLAUDE_SKILL_DIR}` | `<display path>/skills/<name>` |
+| `$ARGUMENTS` | `the text the user typed after the command` |
 
-- **`--force`:** without it, `install` refuses (exit `1`) when files exist that it did not write. The CLI records every file it writes, with its SHA-256, in `.agents/medra/MANIFEST.json`. A file listed there whose content still matches is always replaceable; a file that is absent from the manifest or was edited since counts as foreign. Files a previous version generated and this version no longer ships are removed. No marker is written into the files, because agents copy `template.md` files into user documents.
-- **Version stamp:** writes `.agents/medra/VERSION`.
+Tool table (Claude Code → Antigravity); duplicates collapse, and the order follows the source list:
+
+| Claude Code | Antigravity |
+|---|---|
+| `Read`, `Grep`, `Glob`, `Skill` | `read_file` |
+| `Write` | `write_file` |
+| `Edit` | `edit_file` |
+| `Bash` | `run_command` |
+| `AskUserQuestion` | `ask_question` |
+| `Agent(...)` | `invoke_subagent` |
+| `WebFetch`, `WebSearch` | `search_web` |
+
+An unknown Claude tool name is an environment error (exit `4`) at install time, because Antigravity refuses to start an agent that names a tool it does not have.
+
+- **`--force`:** without it, `install` refuses (exit `1`) when files exist that it did not write. The CLI records every file it writes, with its SHA-256, in `<plugin>/MANIFEST.json`. A file listed there whose content still matches is always replaceable; a file that is absent from the manifest or was edited since counts as foreign. Files a previous version generated and this version no longer ships are removed. No marker is written into the files, because agents copy `template.md` files into user documents.
+- **Version stamp:** writes `<plugin>/VERSION`.
+- **Legacy install (1.1 and earlier):** loose skills under `.agents/skills/medra-*/` (or `~/.gemini/config/skills/medra-*/`) and agents under `.agents/medra/`. When `.agents/medra/MANIFEST.json` (or its global counterpart) exists, `install` deletes every file it lists whose content still matches, then that manifest, its `VERSION`, and the directories left empty. Edited files stay, each reported as a `install.legacy-edited` warning finding, so the user decides. Without a legacy manifest nothing is touched.
 - **`update`:** re-runs `install` for every integration in the config, and is a no-op for `claude` (the Claude Code plugin updates through `/plugin update`).
-- Result: `{"installed": n, "scope", "version"}`.
+- Result: `{"installed": n, "scope", "version", "plugin": "<display path>", "legacy_removed": n}`, plus `findings` when there are warnings.
 
 ### 8.14 `medra archive <change>`
 
@@ -574,5 +597,5 @@ The implementation is done when a test suite covers at least the following:
 - [ ] A gate goes `stale` after a document edit, and does not go stale after `task done`.
 - [ ] `context --stage apply` returns the correct `next_task` with only its requirements.
 - [ ] `learn` add / bump / merge / retire / promote, plus the `status` budget and staleness arithmetic.
-- [ ] `install --target antigravity` output matches the rewrite table, verified on the bundled plugin, and is idempotent.
+- [ ] `install --target antigravity` output matches the rewrite table, verified on the bundled plugin, is idempotent, removes an unedited legacy install, and passes `agy plugin validate --strict` when `agy` is on `PATH`.
 - [ ] `--json` output of every command validates against the envelope schema in `cli/schemas/envelope.schema.json`.

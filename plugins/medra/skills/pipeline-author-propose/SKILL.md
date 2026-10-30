@@ -142,7 +142,7 @@ A proposal and deltas with zero open clarification markers, each resolved by the
 A `tasks.md` for a fast-track change that covers every ADDED and MODIFIED requirement, in test-first order when the mode is `tdd`.
 
 **Actions**
-- Load `medra:template-tasks`, then read `testing.mode` and `testing.command` from `medra/config.yaml`
+- Load `medra:template-tasks`, then read `testing.mode` and `testing.command` from `docs/config-flow.yaml`
 - Write the task list from the deltas. For a defect fix, the first task is a `[TEST]` that reproduces the defect (regression-first)
 - Run `medra validate <change> --stage tasks` and fix every `tasks.*` error it reports
 

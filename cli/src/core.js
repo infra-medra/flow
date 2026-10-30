@@ -26,6 +26,14 @@ export function finding(rule, message, { file = null, line = null, ref = null, s
 
 export const errorsOf = (findings) => findings.filter((f) => f.severity === 'error');
 
+export const DOCS_DIR = 'docs';
+export const CONFIG_FILE = 'config-flow.yaml';
+/** Absolute path inside the project's documents directory. */
+export const docsPath = (root, ...parts) => path.join(root, DOCS_DIR, ...parts);
+/** The same path as shown to users and agents, relative to the project root. */
+export const docsRel = (...parts) => [DOCS_DIR, ...parts].join('/');
+export const configRel = docsRel(CONFIG_FILE);
+
 export const CHANGE_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+){1,7}$/;
 export const CAPABILITY_NAME = /^[a-z][a-z0-9-]{1,40}$/;
 
@@ -37,10 +45,12 @@ export const DEFAULT_CONFIG = {
   learning: { max_active: 40, promote_after: 3, stale_after: 10, context_max: 10 },
 };
 
+/** Nearest ancestor holding docs/config-flow.yaml, or the 1.0 layout (medra/config.yaml): { root, legacy }. */
 export function findRoot(start = process.cwd()) {
   let dir = path.resolve(start);
   for (;;) {
-    if (fs.existsSync(path.join(dir, 'medra', 'config.yaml'))) return dir;
+    if (fs.existsSync(docsPath(dir, CONFIG_FILE))) return { root: dir, legacy: false };
+    if (fs.existsSync(path.join(dir, 'medra', 'config.yaml'))) return { root: dir, legacy: true };
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -48,13 +58,13 @@ export function findRoot(start = process.cwd()) {
 }
 
 export function requireRoot() {
-  const root = findRoot();
-  if (!root) throw envError('Not a medra project: no medra/config.yaml found in this directory or its parents. Run `medra init`.');
-  return root;
+  const found = findRoot();
+  if (!found) throw envError(`Not a medra project: no ${configRel} found in this directory or its parents. Run \`medra init\`.`);
+  return found;
 }
 
 export function loadConfig(root) {
-  const file = path.join(root, 'medra', 'config.yaml');
+  const file = docsPath(root, CONFIG_FILE);
   const raw = YAML.parse(fs.readFileSync(file, 'utf8')) ?? {};
   return {
     ...DEFAULT_CONFIG,
@@ -65,11 +75,11 @@ export function loadConfig(root) {
 }
 
 export function configWarnings(root) {
-  const raw = YAML.parse(fs.readFileSync(path.join(root, 'medra', 'config.yaml'), 'utf8')) ?? {};
+  const raw = YAML.parse(fs.readFileSync(docsPath(root, CONFIG_FILE), 'utf8')) ?? {};
   const known = new Set(Object.keys(DEFAULT_CONFIG));
   return Object.keys(raw)
     .filter((k) => !known.has(k))
-    .map((k) => finding('config.unknown-key', `Unknown config key "${k}"`, { file: 'medra/config.yaml', severity: 'warning' }));
+    .map((k) => finding('config.unknown-key', `Unknown config key "${k}"`, { file: configRel, severity: 'warning' }));
 }
 
 export const readText = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');

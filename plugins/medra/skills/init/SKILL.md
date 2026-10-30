@@ -1,6 +1,6 @@
 ---
 description: Sets up medra in this project — scaffold, config, ratified constitution and optional living specs from existing code. Run only when the user explicitly invokes it.
-argument-hint: [language] [notes]
+argument-hint: "[language] [notes]"
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-The first step of the medra workflow. It creates `medra/` through the CLI, records language, integrations and testing mode, ratifies `medra/constitution.md`, and can bootstrap living specs from existing code. Every other command requires it.
+The first step of the medra workflow. It creates `docs/` through the CLI, records language, integrations and testing mode, ratifies `docs/constitution.md`, and can bootstrap living specs from existing code. Every other command requires it.
 
 ## Input
 

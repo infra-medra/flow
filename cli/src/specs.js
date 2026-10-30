@@ -1,7 +1,7 @@
 // Living specs and delta specs: parsing, validation rules, and the archive merge.
 import fs from 'node:fs';
 import path from 'node:path';
-import { finding, readText, CAPABILITY_NAME } from './core.js';
+import { finding, readText, CAPABILITY_NAME, docsPath } from './core.js';
 import { toLines, headings, section, label, trimBlank } from './markdown.js';
 
 const REQ_HEADING = /^REQ ([A-Z][A-Z0-9]{1,9})-(\d{3,}):\s*(.+)$/;
@@ -88,10 +88,10 @@ export function parseDelta(text) {
   };
 }
 
-export const livingPath = (root, cap) => path.join(root, 'medra', 'specs', cap, 'spec.md');
+export const livingPath = (root, cap) => docsPath(root, 'specs', cap, 'spec.md');
 
 export function loadLivingSpecs(root) {
-  const dir = path.join(root, 'medra', 'specs');
+  const dir = docsPath(root, 'specs');
   if (!fs.existsSync(dir)) return {};
   const out = {};
   for (const cap of fs.readdirSync(dir).sort()) {

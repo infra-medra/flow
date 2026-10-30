@@ -1,6 +1,6 @@
 ---
 name: template-delta
-description: Template for a delta spec, medra/changes/<change>/specs/<capability>/spec.md — the ADDED, MODIFIED and REMOVED requirements one change makes to one capability, in the exact form medra archive merges. Filled by the author during propose.
+description: Template for a delta spec, docs/changes/<change>/specs/<capability>/spec.md — the ADDED, MODIFIED and REMOVED requirements one change makes to one capability, in the exact form medra archive merges. Filled by the author during propose.
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ A delta states how one change alters one capability's behavior. It is the review
 
 | Item | Value |
 |---|---|
-| Path | `medra/changes/<change>/specs/<capability>/spec.md`. The capability folder name matches the living spec, or a new kebab-case name for a new capability |
+| Path | `docs/changes/<change>/specs/<capability>/spec.md`. The capability folder name matches the living spec, or a new kebab-case name for a new capability |
 | Lifecycle | draft → approved (proposal gate) → merged (archive) |
 | Count | One file per capability in the proposal's Capabilities table |
 
@@ -79,7 +79,7 @@ The system SHALL reject a password reset link used more than 15 minutes after it
 - **Grounded in the living spec.** Write MODIFIED and REMOVED only against IDs that the context pack shows in the living spec. A guessed ID is a merge conflict at archive.
 - **Markers instead of guesses.** Where intent is unclear, write `[NEEDS CLARIFICATION: {specific question}]` inline. The proposal gate cannot pass while any marker remains.
 - **Scenarios as tests in waiting.** Every scenario becomes a test that cites its ID, so write each one concrete enough to code directly.
-- **Language.** Prose follows `medra/config.yaml`. The operation headings, `REQ`, `Scenario`, the step keywords, `SHALL`, `**Reason:**` and `**Migration:**` stay in English.
+- **Language.** Prose follows `docs/config-flow.yaml`. The operation headings, `REQ`, `Scenario`, the step keywords, `SHALL`, `**Reason:**` and `**Migration:**` stay in English.
 
 ## Quality Checklist
 

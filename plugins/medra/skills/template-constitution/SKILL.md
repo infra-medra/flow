@@ -1,6 +1,6 @@
 ---
 name: template-constitution
-description: Template for medra/constitution.md — the project's numbered, non-negotiable principles, each with a gate question that every plan answers. Filled by the author at init and amended at archive.
+description: Template for docs/constitution.md — the project's numbered, non-negotiable principles, each with a gate question that every plan answers. Filled by the author at init and amended at archive.
 user-invocable: false
 ---
 
@@ -14,13 +14,13 @@ The constitution holds the few principles this project will not trade away: test
 
 | Item | Value |
 |---|---|
-| Path | `medra/constitution.md`, one per project |
+| Path | `docs/constitution.md`, one per project |
 | Lifecycle | `draft` → `ratified`. Each amendment bumps `vMAJOR.MINOR` |
 | Owned by the CLI | the `Status` line, plus the `Version`, `Ratified` and `Last amended` lines and the Amendments rows, all written by `medra constitution ratify` |
 
 ## Structure
 
-Fixed. Copy `${CLAUDE_SKILL_DIR}/template.md` to `medra/constitution.md` when the file holds only `**Status:** draft`, then fill it section by section.
+Fixed. Copy `${CLAUDE_SKILL_DIR}/template.md` to `docs/constitution.md` when the file holds only `**Status:** draft`, then fill it section by section.
 
 ## Sections
 
@@ -60,7 +60,7 @@ Every behavior change MUST be covered by a test that is written and seen failing
 
 - **Checkable.** Write principles as observable properties of a plan or of code ("MUST expose every capability through the CLI"). "MUST be clean" and "SHOULD be fast" cannot be failed, so they make a gate that always passes.
 - **Project-specific.** An article earns its place by preventing a failure this project has had, or is at real risk of having.
-- **Language.** Prose follows `language` in `medra/config.yaml`. The headings, `Article`, `**Gate:**`, `**Rationale:**`, `MUST` and `MUST NOT` stay in English.
+- **Language.** Prose follows `language` in `docs/config-flow.yaml`. The headings, `Article`, `**Gate:**`, `**Rationale:**`, `MUST` and `MUST NOT` stay in English.
 
 ## Quality Checklist
 

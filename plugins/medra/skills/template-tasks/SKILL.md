@@ -1,6 +1,6 @@
 ---
 name: template-tasks
-description: Template for medra/changes/<change>/tasks.md — the ordered, traceable checklist the implementer executes, with test-first ordering and a verification step per task. Filled by the author in propose (fast track) or tasks (full track); ticked only by medra task done.
+description: Template for docs/changes/<change>/tasks.md — the ordered, traceable checklist the implementer executes, with test-first ordering and a verification step per task. Filled by the author in propose (fast track) or tasks (full track); ticked only by medra task done.
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ The task list turns approved deltas (and, on the full track, the plan) into smal
 
 | Item | Value |
 |---|---|
-| Path | `medra/changes/<change>/tasks.md` |
+| Path | `docs/changes/<change>/tasks.md` |
 | Lifecycle | draft → approved (the tasks gate, or the proposal gate on the fast track) → in progress → done |
 | CLI-owned | `[x]` ticks and the nested `evidence` lines |
 
@@ -69,7 +69,7 @@ The title, using the exact change name.
 - **Grounded.** Every path is one that exists, or one the plan creates.
 - **Inside the fence.** Write no task that delivers behavior outside the approved deltas.
 - **Never tick by hand.** Leave every box `[ ]`. Only `medra task done` ticks a task, and it writes the evidence line at the same time.
-- **Language.** Descriptions follow `medra/config.yaml`. Task IDs, `[P]`, `[TEST]`, requirement IDs, `after`, `— verify:` and phase-title IDs stay in English.
+- **Language.** Descriptions follow `docs/config-flow.yaml`. Task IDs, `[P]`, `[TEST]`, requirement IDs, `after`, `— verify:` and phase-title IDs stay in English.
 
 ## Quality Checklist
 

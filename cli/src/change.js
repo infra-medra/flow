@@ -4,12 +4,12 @@ import path from 'node:path';
 import YAML from 'yaml';
 import fg from 'fast-glob';
 import ignore from 'ignore';
-import { envError, readText, readIf, sha256, writeAtomic, rel, loadConfig } from './core.js';
+import { envError, readText, readIf, sha256, writeAtomic, rel, loadConfig, docsPath, DOCS_DIR } from './core.js';
 import { tasksHashBasis, parseTasks, parseReport } from './documents.js';
 import { loadDeltas } from './specs.js';
 
 export const GATES = ['proposal', 'plan', 'tasks', 'verify'];
-export const changesDir = (root) => path.join(root, 'medra', 'changes');
+export const changesDir = (root) => docsPath(root, 'changes');
 export const changeDir = (root, change) => path.join(changesDir(root), change);
 export const statePath = (root, change) => path.join(changeDir(root, change), '.medra.yaml');
 
@@ -67,10 +67,17 @@ export function stageDocuments(root, change, gate, state) {
   return files.filter((f) => fs.existsSync(f)).sort();
 }
 
-export function stageHash(root, change, gate, state) {
+/**
+ * Hash over a gate's stage documents. Paths are relative to the change folder, so moving the
+ * documents directory does not stale a gate. `legacyPrefix` reproduces the 1.0 hashes, which used
+ * root-relative paths under medra/, for the layout migration.
+ */
+export function stageHash(root, change, gate, state, { legacyPrefix = null } = {}) {
+  const dir = changeDir(root, change);
   const parts = stageDocuments(root, change, gate, state).map((f) => {
     const text = readText(f);
-    return `${rel(root, f)}\n${f.endsWith('tasks.md') ? tasksHashBasis(text) : text}`;
+    const name = legacyPrefix ? `${legacyPrefix}/${rel(dir, f)}` : rel(dir, f);
+    return `${name}\n${f.endsWith('tasks.md') ? tasksHashBasis(text) : text}`;
   });
   return sha256(parts.join('\n\0\n'));
 }
@@ -106,7 +113,7 @@ const SCENARIO_ID = /\b[A-Z][A-Z0-9]{1,9}-\d{3,}\.S\d+\b/g;
 
 export function coverage(root, scenarioIds) {
   const config = loadConfig(root);
-  const ig = ignore().add(['node_modules/', '.git/', 'medra/', '.agents/']);
+  const ig = ignore().add(['node_modules/', '.git/', `${DOCS_DIR}/changes/`, `${DOCS_DIR}/specs/`, '.agents/']);
   const gi = readIf(path.join(root, '.gitignore'));
   if (gi) ig.add(gi);
   const files = fg.sync(config.testing.paths, { cwd: root, dot: false, onlyFiles: true, unique: true })
