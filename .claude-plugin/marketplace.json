@@ -1,0 +1,16 @@
+{
+  "name": "flow",
+  "owner": {
+    "name": "Tiago Cavalli"
+  },
+  "metadata": {
+    "description": "Workflows forged with the medra meta-harness."
+  },
+  "plugins": [
+    {
+      "name": "medra",
+      "source": "./plugins/medra",
+      "description": "Spec-driven development workflow for Claude Code and Antigravity: propose, plan, tasks, apply, verify, review, archive."
+    }
+  ]
+}

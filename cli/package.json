@@ -1,0 +1,36 @@
+{
+  "name": "@medra.dev/flow",
+  "version": "1.0.0",
+  "description": "The medra CLI: deterministic operations for the medra spec-driven development workflow (validation, gates, task checkpoints, delta merge, context packs, coverage, learnings, Antigravity install).",
+  "type": "module",
+  "bin": {
+    "medra": "bin/medra.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "schemas/",
+    "plugin/"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "bundle-plugin": "node scripts/bundle-plugin.js",
+    "check-version": "node scripts/check-version.js",
+    "prepack": "npm run check-version && npm run bundle-plugin"
+  },
+  "license": "MIT",
+  "author": "Tiago Cavalli",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "fast-glob": "^3.3.3",
+    "ignore": "^5.3.2",
+    "picomatch": "^4.0.7",
+    "yaml": "^2.9.1"
+  }
+}

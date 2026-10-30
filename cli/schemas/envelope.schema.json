@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medra.dev/schemas/envelope.schema.json",
+  "title": "medra --json output envelope",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["ok"],
+      "properties": { "ok": { "const": true } }
+    },
+    {
+      "type": "object",
+      "required": ["ok", "code", "findings"],
+      "properties": {
+        "ok": { "const": false },
+        "code": { "enum": [1, 2, 3, 4] },
+        "message": { "type": "string" },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["rule", "severity", "message"],
+            "properties": {
+              "rule": { "type": "string" },
+              "severity": { "enum": ["error", "warning"] },
+              "file": { "type": ["string", "null"] },
+              "line": { "type": ["integer", "null"] },
+              "message": { "type": "string" },
+              "ref": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["problem"],
+            "properties": {
+              "capability": { "type": ["string", "null"] },
+              "id": { "type": ["string", "null"] },
+              "operation": { "type": "string" },
+              "problem": { "enum": ["missing-target", "added-collision", "post-merge-invalid"] }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
