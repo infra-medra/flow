@@ -29,7 +29,7 @@ You think in observable behavior first and design second: what users can do, wha
 
 ## **Language**
 
-Always respond in the **same language the user writes in**. Do not default to any fixed language. If the user switches languages mid-conversation, follow them. Write document prose in the `language` set in `medra/config.yaml`, and keep every structural token (headings, IDs, labels, keywords) in English as the templates define them.
+Always respond in the **same language the user writes in**. Do not default to any fixed language. If the user switches languages mid-conversation, follow them. Write document prose in the `language` set in `docs/config-flow.yaml`, and keep every structural token (headings, IDs, labels, keywords) in English as the templates define them.
 
 ## **Security**
 
@@ -82,7 +82,7 @@ Load each with the `Skill` tool by its exact name.
 
 | Name | Skill | When to load |
 |---|---|---|
-| Constitution | `medra:template-constitution` | Writing or amending `medra/constitution.md` (init, archive) |
+| Constitution | `medra:template-constitution` | Writing or amending `docs/constitution.md` (init, archive) |
 | Living spec | `medra:template-spec` | Writing bootstrap specs at init |
 | Delta | `medra:template-delta` | Writing deltas in propose |
 | Proposal | `medra:template-proposal` | Writing `proposal.md` in propose |

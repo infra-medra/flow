@@ -1,6 +1,6 @@
 // `medra index` and `medra context`: bounded knowledge packs for agents.
 import path from 'node:path';
-import { readIf, loadConfig, rel, usageError } from './core.js';
+import { readIf, loadConfig, rel, usageError, docsPath, docsRel } from './core.js';
 import { parseConstitution, liveArticles, parsePlan, parseArchiveIndex } from './documents.js';
 import { firstSentence } from './markdown.js';
 import { loadLivingSpecs, loadDeltas, nextId } from './specs.js';
@@ -9,8 +9,8 @@ import { changeDir, loadState, activeChanges, loadTasks, nextTask, coverage, cha
 
 export const CONTEXT_STAGES = ['propose', 'plan', 'tasks', 'apply', 'verify', 'review', 'archive'];
 
-const constitutionOf = (root) => parseConstitution(readIf(path.join(root, 'medra', 'constitution.md')) ?? '');
-export const archiveIndexPath = (root) => path.join(root, 'medra', 'changes', 'archive', 'INDEX.md');
+const constitutionOf = (root) => parseConstitution(readIf(docsPath(root, 'constitution.md')) ?? '');
+export const archiveIndexPath = (root) => docsPath(root, 'changes', 'archive', 'INDEX.md');
 
 export function index(root, { learnings: caps } = {}) {
   const specs = loadLivingSpecs(root);
@@ -41,7 +41,7 @@ function namedPaths(root, change) {
 function lastChangedBy(root) {
   const rows = parseArchiveIndex(readIf(archiveIndexPath(root)));
   const map = {};
-  for (const r of rows) for (const q of r.requirements) map[q.id] = `medra/changes/archive/${r.date}-${r.change}`;
+  for (const r of rows) for (const q of r.requirements) map[q.id] = docsRel('changes', 'archive', `${r.date}-${r.change}`);
   return map;
 }
 

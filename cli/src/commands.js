@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import YAML from 'yaml';
 import {
   refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, git,
-  identity, today, nowIso, loadConfig, configWarnings, DEFAULT_CONFIG, CHANGE_NAME, ROMAN, listOpt,
+  identity, today, nowIso, loadConfig, configWarnings, DEFAULT_CONFIG, CHANGE_NAME, ROMAN, listOpt, docsPath, docsRel, CONFIG_FILE,
 } from './core.js';
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
 import { loadLivingSpecs } from './specs.js';
@@ -15,7 +15,7 @@ import { changeFindings, projectFindings, STAGES } from './validate.js';
 import { archiveIndexPath } from './context.js';
 import { install } from './install.js';
 
-const constitutionPath = (root) => path.join(root, 'medra', 'constitution.md');
+const constitutionPath = (root) => docsPath(root, 'constitution.md');
 const constitutionOf = (root) => parseConstitution(readIf(constitutionPath(root)) ?? '');
 const archiveSequence = (root) => parseArchiveIndex(readIf(archiveIndexPath(root))).length;
 
@@ -23,8 +23,7 @@ const archiveSequence = (root) => parseArchiveIndex(readIf(archiveIndexPath(root
 
 export function init(cwd, opts) {
   const root = path.resolve(cwd);
-  const medra = path.join(root, 'medra');
-  const configFile = path.join(medra, 'config.yaml');
+  const configFile = docsPath(root, CONFIG_FILE);
   const created = [];
   const existing = [];
   let config = DEFAULT_CONFIG;
@@ -48,7 +47,7 @@ export function init(cwd, opts) {
   for (const [f, content] of files) (fs.existsSync(f) ? existing : plan).push(fs.existsSync(f) ? f : [f, content]);
   writeAtomic(plan);
   created.push(...plan.map(([f]) => f));
-  for (const d of [path.join(medra, 'specs')]) if (!fs.existsSync(d)) { fs.mkdirSync(d, { recursive: true }); created.push(d); }
+  for (const d of [docsPath(root, 'specs')]) if (!fs.existsSync(d)) { fs.mkdirSync(d, { recursive: true }); created.push(d); }
   if (fs.existsSync(configFile)) config = loadConfig(root);
   const result = { created: created.map((f) => rel(root, f)), existing: existing.map((f) => rel(root, f)), config };
   if (config.integrations.includes('antigravity')) result.antigravity = install(root, { scope: 'workspace' });
@@ -268,7 +267,7 @@ export function ratify(root, { bump, note, source = 'init', by }) {
   if (!note) throw usageError('--note is required');
   const file = constitutionPath(root);
   const text = readIf(file);
-  if (text === null) throw envError('medra/constitution.md is missing');
+  if (text === null) throw envError(`${docsRel('constitution.md')} is missing`);
   const findings = projectFindings(root, 'constitution');
   if (errorsOf(findings).length) throw refused(findings);
   const c = parseConstitution(text);

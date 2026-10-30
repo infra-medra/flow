@@ -40,7 +40,7 @@ On Antigravity, use `/medra-init`, `/medra-propose`, and so on.
 
 | Command | What it does | Gate |
 |---|---|---|
-| `init` | Scaffolds `medra/`, sets the language and testing mode, writes the constitution, and can bootstrap specs from existing code | constitution · bootstrap specs |
+| `init` | Scaffolds `docs/`, sets the language and testing mode, writes the constitution, and can bootstrap specs from existing code | constitution · bootstrap specs |
 | `propose` | Writes the proposal and delta specs (`ADDED/MODIFIED/REMOVED`) and picks the fast or full track. On the fast track it also writes the tasks | proposal (+ tasks) |
 | `plan` | Full track: writes the design, the Constitution Check, the test strategy and the decisions | plan |
 | `tasks` | Full track: writes a traceable, test-first task list | tasks |
@@ -52,8 +52,8 @@ On Antigravity, use `/medra-init`, `/medra-propose`, and so on.
 ## Project layout
 
 ```
-medra/
-├── config.yaml          language · integrations · testing mode · learning budget
+docs/
+├── config-flow.yaml     language · integrations · testing mode · learning budget
 ├── constitution.md      principles, each with a gate question
 ├── learnings.md         lessons and team preferences
 ├── specs/<capability>/spec.md
@@ -61,7 +61,7 @@ medra/
     └── archive/
 ```
 
-Commit `medra/` with your code. medra never commits or creates branches for you; it suggests a commit message at the end of every step.
+Commit `docs/` with your code. medra never commits or creates branches for you; it suggests a commit message at the end of every step.
 
 ## Design
 

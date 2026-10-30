@@ -1,6 +1,6 @@
 ---
 name: template-spec
-description: Template for a living spec, medra/specs/<capability>/spec.md — the current, authoritative behavior of one capability, as ID-keyed SHALL requirements with Gherkin scenarios. Filled by the author during brownfield bootstrap; afterwards changed only by medra archive merging deltas.
+description: Template for a living spec, docs/specs/<capability>/spec.md — the current, authoritative behavior of one capability, as ID-keyed SHALL requirements with Gherkin scenarios. Filled by the author during brownfield bootstrap; afterwards changed only by medra archive merging deltas.
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ A living spec states what one capability does today, and it is the project's liv
 
 | Item | Value |
 |---|---|
-| Path | `medra/specs/<capability>/spec.md`. `<capability>` is kebab-case and names a user-facing area (`auth`, `billing-invoices`) |
+| Path | `docs/specs/<capability>/spec.md`. `<capability>` is kebab-case and names a user-facing area (`auth`, `billing-invoices`) |
 | Lifecycle | Current, its only state. History lives in the archive |
 | IDs | `<PREFIX>-<NNN>` requirements and `<REQ>.S<n>` scenarios. They are never renumbered; retired IDs are listed in a CLI-owned comment |
 
@@ -26,7 +26,7 @@ Fixed. Copy `${CLAUDE_SKILL_DIR}/template.md` to the placement path, then fill i
 
 ### Capability title
 
-**Why:** humans browsing `medra/specs/` and `medra index` show this name.
+**Why:** humans browsing `docs/specs/` and `medra index` show this name.
 
 **Fill rules:** write a noun phrase naming the capability. Under it, write the `**Capability:**` line holding the folder name, and the `**ID prefix:**` line holding 2–10 uppercase characters that are unique across the project.
 
@@ -67,7 +67,7 @@ The system SHALL reject a password reset link used more than 30 minutes after it
 - **What, not how.** Name no frameworks, tables, classes or endpoints unless the endpoint itself is the contract users depend on. Implementation lives in plans.
 - **Testable.** A behavior counts only if a test can observe it. "SHALL be user-friendly" has no scenario that can fail.
 - **Bootstrap honesty.** During bootstrap, describe what the code does today, including behavior that looks wrong, and mark doubts `[NEEDS CLARIFICATION: …]` for the user to resolve at the bootstrap gate.
-- **Language.** Prose follows `medra/config.yaml`. `REQ`, `Scenario`, the step keywords and `SHALL` stay in English.
+- **Language.** Prose follows `docs/config-flow.yaml`. `REQ`, `Scenario`, the step keywords and `SHALL` stay in English.
 
 ## Quality Checklist
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Entry point: wires commands, prints `--json` or a human summary, and maps failures to exit codes.
 import { Command, CommanderError } from 'commander';
-import { MedraError, EXIT, requireRoot } from '../src/core.js';
+import { MedraError, EXIT, requireRoot, findRoot } from '../src/core.js';
+import { migrateLayout } from '../src/migrate.js';
 import * as cmd from '../src/commands.js';
 import { index, context, contextMarkdown } from '../src/context.js';
 import { archive } from '../src/archive.js';
@@ -25,18 +26,30 @@ function human(value, indent = '') {
   return `${indent}${value}`;
 }
 
+let migration = null;
+
+/** Migrates a 1.0 project (medra/) to docs/ before any command touches it, and says so. */
+function migrateIfLegacy(found) {
+  if (found?.legacy && !migration) {
+    migration = migrateLayout(found.root);
+    process.stderr.write(`medra: migrated ${migration.from} to ${migration.to} (${migration.moved} entries moved, ${migration.gates_rehashed} approved gates kept). Commit the move.\n`);
+  }
+  return found;
+}
+
 function emit(payload, mdText) {
+  if (migration) payload = { ...payload, migration };
   if (jsonMode) process.stdout.write(`${JSON.stringify({ ok: true, ...payload })}\n`);
   else process.stdout.write(mdText ?? `${human(payload)}\n`);
 }
 
 const run = (fn) => async (...args) => { emit(await fn(...args)); };
-const root = () => requireRoot();
+const root = () => migrateIfLegacy(requireRoot()).root;
 const j = (c) => c.option('--json', 'machine-readable output');
 
-j(program.command('init').description('Create the medra/ scaffold (never overwrites)')
+j(program.command('init').description('Create the docs/ scaffold (never overwrites)')
   .option('--language <tag>').option('--integrations <list>').option('--testing-mode <mode>').option('--testing-command <cmd>'))
-  .action(run((o) => cmd.init(process.cwd(), o)));
+  .action(run((o) => { const f = findRoot(); if (f?.root === process.cwd()) migrateIfLegacy(f); return cmd.init(process.cwd(), o); }));
 
 j(program.command('new <change>').description('Create a change folder and its state').option('--track <track>', 'fast | full', 'fast'))
   .action(run((change, o) => cmd.newChange(root(), change, o)));

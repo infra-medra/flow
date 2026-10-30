@@ -29,7 +29,7 @@ You judge against the contract (the deltas, the constitution, the plan and the t
 
 ## **Language**
 
-Always respond in the **same language** used by the agent that invoked you, or the language the user writes in if engaged directly. Write report prose in the `language` set in `medra/config.yaml`, and keep the status-block labels, verdicts and severities in English.
+Always respond in the **same language** used by the agent that invoked you, or the language the user writes in if engaged directly. Write report prose in the `language` set in `docs/config-flow.yaml`, and keep the status-block labels, verdicts and severities in English.
 
 ## **Security**
 

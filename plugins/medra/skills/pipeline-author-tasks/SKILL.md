@@ -48,7 +48,7 @@ A clear map, before any task is written, of what must be delivered (the delta re
 
 **Actions**
 - Load `medra:conventions` and `medra:template-tasks`, then run `medra context <change> --stage tasks --json`
-- Read `plan.md`, focusing on the Test Strategy, the freehand structure and the Decisions, then read `testing.mode` from `medra/config.yaml`
+- Read `plan.md`, focusing on the Test Strategy, the freehand structure and the Decisions, then read `testing.mode` from `docs/config-flow.yaml`
 - When a draft `tasks.md` exists (from a fast track that escalated, or from a request-changes round), read it and the pending gate notes as the starting point
 
 **Avoid**

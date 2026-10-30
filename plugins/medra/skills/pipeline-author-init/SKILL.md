@@ -1,6 +1,6 @@
 ---
 name: pipeline-author-init
-description: Load when the user runs init — scaffolds medra/ through the CLI, records language, integrations and testing mode, interviews the user into a ratified constitution, and optionally bootstraps living specs from existing code.
+description: Load when the user runs init — scaffolds docs/ through the CLI, records language, integrations and testing mode, interviews the user into a ratified constitution, and optionally bootstraps living specs from existing code.
 user-invocable: false
 ---
 
@@ -8,7 +8,7 @@ user-invocable: false
 
 ## Purpose
 
-This pipeline makes a project ready for medra. It leaves behind a `medra/` scaffold and config written by the CLI, a ratified `medra/constitution.md`, and, for an existing codebase, living specs that describe today's behavior. It runs interactively when the user runs init, with human gates on the constitution and on the bootstrap specs. It is the only author pipeline that writes living specs directly; everywhere else, living specs change only through archive.
+This pipeline makes a project ready for medra. It leaves behind a `docs/` scaffold and config written by the CLI, a ratified `docs/constitution.md`, and, for an existing codebase, living specs that describe today's behavior. It runs interactively when the user runs init, with human gates on the constitution and on the bootstrap specs. It is the only author pipeline that writes living specs directly; everywhere else, living specs change only through archive.
 
 ## Presentation
 
@@ -47,21 +47,21 @@ flowchart TD
 ### Phase 1 — Setup
 
 **Goal**
-A `medra/` scaffold whose `config.yaml` records the user's language, integrations, testing mode and test command.
+A `docs/` scaffold whose `config-flow.yaml` records the user's language, integrations, testing mode and test command.
 
 **Actions**
 - Load `medra:conventions`, then run `medra --version` and confirm major version `1`
-- Read `medra/config.yaml` when it exists. For each setting it lacks, ask the user with `AskUserQuestion`: prose language, integrations (`claude`, `antigravity`, or both), testing mode (`tdd` as the recommended first option, then `test-after` and `none`), and the project's test command
+- Read `docs/config-flow.yaml` when it exists. For each setting it lacks, ask the user with `AskUserQuestion`: prose language, integrations (`claude`, `antigravity`, or both), testing mode (`tdd` as the recommended first option, then `test-after` and `none`), and the project's test command
 - Run `medra init` with the answers as flags. When the config already exists, show the user the settings that differ from their answers and edit only the keys they confirm
 - Read the JSON result and report what was created and what already existed
 
 **Avoid**
-- Don't overwrite an existing `medra/` file to apply a new answer — because an existing constitution or learnings store is project history; change only the config keys the user confirmed
+- Don't overwrite an existing `docs/` file to apply a new answer — because an existing constitution or learnings store is project history; change only the config keys the user confirmed
 - Don't guess the test command from the repository when the user leaves it blank — because a wrong command produces false red/green evidence in every apply; leave it unset and say so
 
 **Exit when:**
 - [ ] `medra init --json` returned `ok: true`
-- [ ] `medra/config.yaml` holds the language, integrations and testing mode the user chose
+- [ ] `docs/config-flow.yaml` holds the language, integrations and testing mode the user chose
 - [ ] With `antigravity` among the integrations, the result reported installed skills
 
 ---
@@ -69,7 +69,7 @@ A `medra/` scaffold whose `config.yaml` records the user's language, integration
 ### Phase 2 — Constitution
 
 **Goal**
-A `medra/constitution.md` of 3–9 checkable articles that the user approved and `medra constitution ratify` ratified.
+A `docs/constitution.md` of 3–9 checkable articles that the user approved and `medra constitution ratify` ratified.
 
 **Actions**
 - Load `medra:template-constitution`, then read the project's README, CLAUDE.md or AGENTS.md and its build and test configuration, to propose candidate principles grounded in the codebase
@@ -91,7 +91,7 @@ A `medra/constitution.md` of 3–9 checkable articles that the user approved and
 ### Phase 3 — Bootstrap
 
 **Goal**
-Living specs under `medra/specs/` that describe the existing code's current behavior, one per capability, approved by the user.
+Living specs under `docs/specs/` that describe the existing code's current behavior, one per capability, approved by the user.
 
 **Actions**
 - Ask the user whether to bootstrap now, and which areas to cover. Map the codebase's user-facing capabilities: on Claude Code, use the Explore agent for broad navigation; elsewhere, read the entry points and routes directly

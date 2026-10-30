@@ -63,7 +63,7 @@ export function ratifyConstitution(text, { version, date, change, source, first 
   return `${trimBlank(lines).join('\n')}\n`;
 }
 
-export function constitutionFindings(c, file = 'medra/constitution.md') {
+export function constitutionFindings(c, file = 'docs/constitution.md') {
   const out = [];
   if (c.title !== 'Constitution') out.push(finding('constitution.structure', 'Missing "# Constitution" heading', { file }));
   if (!['draft', 'ratified'].includes(c.status)) out.push(finding('constitution.structure', '**Status:** must be draft or ratified', { file }));

@@ -1,12 +1,11 @@
 // medra/learnings.md: the CLI owns its whole structure; agents supply content through `medra learn`.
-import path from 'node:path';
 import picomatch from 'picomatch';
-import { finding, readIf, writeAtomic } from './core.js';
+import { finding, readIf, writeAtomic, docsPath } from './core.js';
 import { toLines, headings, label } from './markdown.js';
 
 const SECTIONS = ['Active', 'Promoted', 'Retired'];
 export const STAGES = ['propose', 'plan', 'tasks', 'apply', 'verify', 'review'];
-export const learningsPath = (root) => path.join(root, 'medra', 'learnings.md');
+export const learningsPath = (root) => docsPath(root, 'learnings.md');
 
 function parseScope(value) {
   const scope = { capabilities: [], paths: [], stages: [] };
@@ -68,7 +67,7 @@ export function renderLearnings(entries) {
 export const loadLearnings = (root) => parseLearnings(readIf(learningsPath(root)));
 export const saveLearnings = (root, entries) => writeAtomic([[learningsPath(root), renderLearnings(entries)]]);
 
-export function learningsFindings(parsed, file = 'medra/learnings.md') {
+export function learningsFindings(parsed, file = 'docs/learnings.md') {
   const out = [];
   for (const s of SECTIONS) if (!parsed.sections.includes(s)) out.push(finding('learnings.structure', `Missing ## ${s}`, { file }));
   for (const m of parsed.malformed) out.push(finding('learnings.structure', `"${m.text}" is not an "L-NNN [lesson|preference] <title>" heading`, { file, line: m.line }));

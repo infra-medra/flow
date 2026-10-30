@@ -1,7 +1,7 @@
 // The validation rules of SPEC §6, grouped by stage.
 import fs from 'node:fs';
 import path from 'node:path';
-import { finding, readIf, readText, loadConfig, rel } from './core.js';
+import { finding, readIf, readText, loadConfig, rel, docsPath } from './core.js';
 import { parseConstitution, constitutionFindings, liveArticles, parseProposal, PROPOSAL_HEADINGS, parsePlan, PLAN_ANCHORS } from './documents.js';
 import { loadLivingSpecs, loadDeltas, livingSpecFindings, deltaFindings } from './specs.js';
 import { loadLearnings, learningsFindings } from './learnings.js';
@@ -11,8 +11,8 @@ export const STAGES = ['proposal', 'plan', 'tasks', 'verify'];
 
 export function projectFindings(root, scope) {
   if (scope === 'constitution') {
-    const text = readIf(path.join(root, 'medra', 'constitution.md'));
-    if (text === null) return [finding('constitution.structure', 'medra/constitution.md is missing')];
+    const text = readIf(docsPath(root, 'constitution.md'));
+    if (text === null) return [finding('constitution.structure', 'docs/constitution.md is missing')];
     return constitutionFindings(parseConstitution(text));
   }
   if (scope === 'specs') return livingSpecFindings(root, loadLivingSpecs(root));
@@ -77,7 +77,7 @@ function planFindings(root, change) {
     if (!d.valid || !d.choice || !d.alternatives || !d.rationale) out.push(finding('plan.structure', `Decision "${d.heading}" needs a D-NN heading, **Choice:**, **Alternatives:** and **Rationale:**`, { file }));
   }
   // plan.constitution
-  const constitution = parseConstitution(readIf(path.join(root, 'medra', 'constitution.md')) ?? '');
+  const constitution = parseConstitution(readIf(docsPath(root, 'constitution.md')) ?? '');
   const live = liveArticles(constitution).map((a) => a.roman);
   const rows = p.check ?? [];
   const rowArticles = rows.map((r) => (r.article || '').replace(/^Article\s+/, ''));

@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-The full-track step after an approved proposal. It produces `medra/changes/<change>/plan.md` (plus `contracts/` when interfaces change), approved at the plan gate. Tasks come next.
+The full-track step after an approved proposal. It produces `docs/changes/<change>/plan.md` (plus `contracts/` when interfaces change), approved at the plan gate. Tasks come next.
 
 ## Input
 

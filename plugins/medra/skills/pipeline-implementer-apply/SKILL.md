@@ -54,7 +54,7 @@ The next executable task identified from disk, with its requirements, test strat
 
 **Actions**
 - Load `medra:conventions`, then run `medra status <change> --json` and `medra context <change> --stage apply --json`
-- Read the next task, its requirements (full blocks) and the Test Strategy, plus `testing.mode` and `testing.command` from `medra/config.yaml`
+- Read the next task, its requirements (full blocks) and the Test Strategy, plus `testing.mode` and `testing.command` from `docs/config-flow.yaml`
 - Show the user the open blockers and ask, with `AskUserQuestion`, whether each one is resolved. Run `medra task unblock` for each resolved one
 - Read the code files the next task names, and the matching active learnings from the context pack
 

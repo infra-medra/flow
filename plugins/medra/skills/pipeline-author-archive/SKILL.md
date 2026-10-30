@@ -54,7 +54,7 @@ flowchart TD
 ### Phase 1 — Merge
 
 **Goal**
-The change's deltas merged into `medra/specs/`, with the change folder moved into the archive by `medra archive`.
+The change's deltas merged into `docs/specs/`, with the change folder moved into the archive by `medra archive`.
 
 **Actions**
 - Load `medra:conventions`, then run `medra archive <change> --dry-run --json`
@@ -78,7 +78,7 @@ Every lesson and preference evidenced by this change recorded in the learnings s
 
 **Actions**
 - Load `medra:template-learnings`, then read the harvest sources in the archived folder: the critical and major findings in `reviews/`, plus `gate_notes`, resolved `blockers` and `track_history` in `.medra.yaml`
-- For each candidate, check the active entries (`medra context` is no longer available after archive, so read the `## Active` section of `medra/learnings.md`), then decide add, bump or skip using the template's rules
+- For each candidate, check the active entries (`medra context` is no longer available after archive, so read the `## Active` section of `docs/learnings.md`), then decide add, bump or skip using the template's rules
 - Run `medra learn bump` or `medra learn add` for each decision, with the narrowest scope that changes behavior
 
 **Avoid**

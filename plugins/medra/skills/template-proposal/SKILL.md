@@ -1,6 +1,6 @@
 ---
 name: template-proposal
-description: Template for medra/changes/<change>/proposal.md — why a change exists, its scope fence, its track and the capabilities it touches. Filled by the author during propose and approved at the proposal gate.
+description: Template for docs/changes/<change>/proposal.md — why a change exists, its scope fence, its track and the capabilities it touches. Filled by the author during propose and approved at the proposal gate.
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ The proposal states why a change is worth making and draws its boundary before a
 
 | Item | Value |
 |---|---|
-| Path | `medra/changes/<change>/proposal.md` |
+| Path | `docs/changes/<change>/proposal.md` |
 | Lifecycle | draft → approved (proposal gate) → archived with the change |
 | Naming | The change name is kebab-case and starts with a verb (`add-password-reset`), validated by `medra new` |
 
@@ -85,7 +85,7 @@ The exclusions, one bullet each with its reason. Example: "SMS delivery of reset
 - **Markers instead of guesses.** Write `[NEEDS CLARIFICATION: {specific question}]` wherever the intent leaves a behavior open, and resolve every marker with the user before the gate.
 - **Stands alone.** A teammate who missed the conversation must be able to judge the proposal. Write nothing like "as discussed".
 - **Bounded.** The whole proposal fits on one screen: about 60 lines. Detail goes in the deltas and the plan.
-- **Language.** Prose follows `medra/config.yaml`. Headings, `**Track:**`, `**Rationale:**` and the marker syntax stay in English.
+- **Language.** Prose follows `docs/config-flow.yaml`. Headings, `**Track:**`, `**Rationale:**` and the marker syntax stay in English.
 
 ## Quality Checklist
 

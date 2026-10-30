@@ -1,6 +1,6 @@
 ---
 name: template-learnings
-description: Template and curation rules for medra/learnings.md — the project's bounded store of lessons and team preferences, harvested at archive, filtered into context packs, compacted and promoted to the constitution. Content comes from the author at archive; structure is written only by medra learn.
+description: Template and curation rules for docs/learnings.md — the project's bounded store of lessons and team preferences, harvested at archive, filtered into context packs, compacted and promoted to the constitution. Content comes from the author at archive; structure is written only by medra learn.
 user-invocable: false
 ---
 
@@ -14,7 +14,7 @@ The learnings store makes each archived change improve the next one. Lessons cap
 
 | Item | Value |
 |---|---|
-| Path | `medra/learnings.md`, one per project |
+| Path | `docs/learnings.md`, one per project |
 | Lifecycle per entry | active → promoted (to a constitution article), or retired (stale, merged into another `L-NNN`, or wrong) |
 | Writer | `medra learn` only. The author supplies titles, statements and scopes as arguments |
 
@@ -79,7 +79,7 @@ medra learn add --type lesson --change add-password-reset \
 - A lesson listed by `medra learn candidates` becomes a proposed constitution article only when it is checkable as a plan gate.
 - When it is not checkable that way, leave it active, because the constitution holds only gateable principles.
 
-**Language.** Titles and statements follow `medra/config.yaml`. Types, scope keys and IDs stay in English.
+**Language.** Titles and statements follow `docs/config-flow.yaml`. Types, scope keys and IDs stay in English.
 
 ## Quality Checklist
 

@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-The entry point of every change. It produces `medra/changes/<change>/proposal.md` and its delta specs (plus `tasks.md` on the fast track), approved at the proposal gate. Planning or implementation comes next, depending on the track.
+The entry point of every change. It produces `docs/changes/<change>/proposal.md` and its delta specs (plus `tasks.md` on the fast track), approved at the proposal gate. Planning or implementation comes next, depending on the track.
 
 ## Input
 

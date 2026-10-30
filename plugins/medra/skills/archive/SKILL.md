@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-The last step of every change. It updates `medra/specs/`, moves the change to `medra/changes/archive/`, updates `medra/learnings.md`, and may amend `medra/constitution.md` behind a gate.
+The last step of every change. It updates `docs/specs/`, moves the change to `docs/changes/archive/`, updates `docs/learnings.md`, and may amend `docs/constitution.md` behind a gate.
 
 ## Input
 

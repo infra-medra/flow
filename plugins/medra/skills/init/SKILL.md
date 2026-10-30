@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-The first step of the medra workflow. It creates `medra/` through the CLI, records language, integrations and testing mode, ratifies `medra/constitution.md`, and can bootstrap living specs from existing code. Every other command requires it.
+The first step of the medra workflow. It creates `docs/` through the CLI, records language, integrations and testing mode, ratifies `docs/constitution.md`, and can bootstrap living specs from existing code. Every other command requires it.
 
 ## Input
 

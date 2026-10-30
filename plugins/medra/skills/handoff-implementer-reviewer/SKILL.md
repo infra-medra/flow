@@ -24,17 +24,17 @@ On Claude Code, the sender passes this payload to the Agent tool, with `subagent
 | Field | Type | Required | Source |
 |---|---|---|---|
 | change | string | yes | The change name, from `medra status` |
-| change_path | path | yes | `medra/changes/<change>` |
+| change_path | path | yes | `docs/changes/<change>` |
 | diff_base | string | yes | The `diff_base` value from `.medra.yaml` (a git ref, or `none`) |
-| report_path | path | yes | `medra/changes/<change>/reviews/<YYYY-MM-DD>-verify-agent.md`, using today's date |
+| report_path | path | yes | `docs/changes/<change>/reviews/<YYYY-MM-DD>-verify-agent.md`, using today's date |
 | round | integer | yes | `1` for the first check. Increment it on every re-check after fixes |
 | fixed_findings | list | no | On rounds after the first: the finding IDs from the previous report that the implementer claims are fixed |
 
 ```yaml
 change: add-password-reset
-change_path: medra/changes/add-password-reset
+change_path: docs/changes/add-password-reset
 diff_base: 3f2a9c1
-report_path: medra/changes/add-password-reset/reviews/2026-10-31-verify-agent.md
+report_path: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent.md
 round: 1
 ```
 
@@ -56,7 +56,7 @@ The receiver's final message ends with this block:
 ```yaml
 status: done
 verdict: fail
-report_path: medra/changes/add-password-reset/reviews/2026-10-31-verify-agent.md
+report_path: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent.md
 counts: { critical: 1, major: 2, minor: 1 }
 unverified: 0
 ```
