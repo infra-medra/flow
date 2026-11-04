@@ -76,6 +76,7 @@ An evidence-backed judgment for every ADDED and MODIFIED requirement, and findin
 **Avoid**
 - Don't accept coverage as proof — because a test that cites a scenario ID can still assert nothing; read every covering test
 - Don't review style or your preferred design — because the contract is the deltas, plan and constitution; preference findings bury the real ones
+- Don't run a security audit when `medra status` reports `security: relevant` — because the security agent audits that change in parallel, and a duplicated finding costs the implementer two fixes for one problem; report a security problem only when it makes a requirement `unmet`, and leave the rest to the security report
 
 **Exit when:**
 - [ ] Every ADDED and MODIFIED requirement has a status of `met`, `partial`, `unmet` or `unverified`, with evidence

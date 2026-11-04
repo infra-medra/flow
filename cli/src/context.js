@@ -82,8 +82,10 @@ export function context(root, change, stage) {
   const learningStage = stage === 'archive' ? null : stage;
   out.learnings = selectLearnings(loadLearnings(root).entries, { capabilities: touchedCaps, paths: namedPaths(root, change), stage: learningStage }, config.learning.context_max);
   const gate = stage === 'review' ? (state.phase === 'proposed' ? 'proposal' : state.phase === 'planned' ? 'plan' : 'tasks') : stageGate[stage];
+  // Timestamps have one-second precision, so a note recorded in the same second as the approval
+  // it follows compares equal; `>=` keeps it.
   out.gate_notes = gate && gateStatus(root, change, state, gate) !== 'approved'
-    ? state.gate_notes.filter((n) => n.gate === gate && n.at > (state.gates[gate]?.status === 'approved' ? state.gates[gate].at : state.gates[gate]?.last_approved_at ?? '')).map(({ by, at, note, report }) => ({ by, at, note: note ?? null, report: report ?? null }))
+    ? state.gate_notes.filter((n) => n.gate === gate && n.at >= (state.gates[gate]?.status === 'approved' ? state.gates[gate].at : state.gates[gate]?.last_approved_at ?? '')).map(({ by, at, note, report }) => ({ by, at, note: note ?? null, report: report ?? null }))
     : [];
   out.documents = ['proposal.md', 'plan.md', 'tasks.md'].filter((f) => readIf(path.join(dir, f)) !== null).map((f) => rel(root, path.join(dir, f)))
     .concat(Object.values(deltas).map((d) => rel(root, d.file)));

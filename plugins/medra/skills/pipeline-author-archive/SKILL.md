@@ -77,7 +77,7 @@ The change's deltas merged into `docs/specs/`, with the change folder moved into
 Every lesson and preference evidenced by this change recorded in the learnings store as an add or a bump, with everything else deliberately skipped.
 
 **Actions**
-- Load `medra:template-learnings`, then read the harvest sources in the archived folder: the critical and major findings of every report in `reviews/`, including every verify round (`*-verify-agent-r<N>.md`), not only the last, plus `gate_notes`, resolved `blockers` and `track_history` in `.medra.yaml`. A finding fixed in a later round is still evidence: it is the failure the lesson prevents
+- Load `medra:template-learnings`, then read the harvest sources in the archived folder: the critical and major findings of every report in `reviews/`, including every verify round (`*-verify-agent-r<N>.md`), not only the last, and the critical and high findings of every security round (`*-security-agent-r<N>.md`), plus `gate_notes`, the verify gate's `accepted-risk` note, resolved `blockers` and `track_history` in `.medra.yaml`. A finding fixed in a later round is still evidence: it is the failure the lesson prevents
 - For each candidate, check the active entries (`medra context` is no longer available after archive, so read the `## Active` section of `docs/learnings.md`), then decide add, bump or skip using the template's rules
 - Run `medra learn bump` or `medra learn add` for each decision, with the narrowest scope that changes behavior
 
@@ -86,7 +86,7 @@ Every lesson and preference evidenced by this change recorded in the learnings s
 - Don't record incidents instead of rules — because "the SMTP sandbox failed on 2026-10-30" teaches nothing; "run the mail tests against the local catcher" does
 
 **Exit when:**
-- [ ] Every critical or major finding, from every verify round, and every gate note was decided as add, bump or skip
+- [ ] Every critical or major finding from every verify round, every critical or high finding from every security round, and every gate note was decided as add, bump or skip
 - [ ] `medra validate --project learnings` exits `0`
 
 ---

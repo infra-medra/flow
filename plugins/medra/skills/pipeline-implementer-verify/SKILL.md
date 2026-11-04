@@ -1,6 +1,6 @@
 ---
 name: pipeline-implementer-verify
-description: Load when the user runs verify on a change whose tasks are all done — confirms readiness, obtains an independent check through the reviewer handoff (or runs it inline where subagents are unavailable), fixes findings for up to two rounds (plus one per request-changes at the gate), and runs the verify gate.
+description: Load when the user runs verify on a change whose tasks are all done — confirms readiness, obtains an independent check through the reviewer handoff and, on a security-relevant change, a parallel security audit through the security handoff (or runs them inline where subagents are unavailable), fixes findings for up to two rounds (plus one per request-changes at the gate), and runs the verify gate.
 user-invocable: false
 ---
 
@@ -8,7 +8,7 @@ user-invocable: false
 
 ## Purpose
 
-This pipeline produces an approved verify gate: proof that the implementation does what the approved deltas say, backed by a verification report written by the reviewer. It runs interactively when the user runs verify, with one human gate. The reviewer's check runs in an isolated subagent on Claude Code and Antigravity, and inline on runtimes without subagents, and the implementer fixes findings between rounds. It differs from apply by judging finished work, and from review by checking code rather than documents.
+This pipeline produces an approved verify gate: proof that the implementation does what the approved deltas say, backed by a verification report written by the reviewer and, on a security-relevant change, a security report written by the security agent. It runs interactively when the user runs verify, with one human gate. The reviewer's check and the security audit run in parallel in isolated subagents on Claude Code and Antigravity, one after the other inline on runtimes without subagents, and the implementer fixes both reports' findings between rounds. It differs from apply by judging finished work, and from review by checking code rather than documents.
 
 ## Presentation
 
@@ -28,10 +28,10 @@ Phase headers for this pipeline:
 flowchart TD
     Start["Start"] --> Readiness["Readiness\nTasks, validate, coverage"]
     Readiness --> Ready{{"Ready?"}}
-    Ready -->|"Yes"| Check["Check\nDispatch reviewer"]
+    Ready -->|"Yes"| Check["Check\nDispatch reviewer ∥ security"]
     Ready -->|"Uncovered or tasks open"| Stop1["Stop\nResume apply"]
     Check --> Verdict{{"Verdict?"}}
-    Verdict -->|"Pass"| Gate["Gate\nVerify gate"]
+    Verdict -->|"Every verdict pass"| Gate["Gate\nVerify gate"]
     Verdict -->|"Findings or fail"| Fix["Fix\nResolve findings"]
     Verdict -->|"Needs decision"| Ask{{"User decides"}}
     Ask -->|"Answered"| Check
@@ -53,7 +53,7 @@ flowchart TD
 Confirmation that the change satisfies the handoff's dispatch preconditions and that every changed scenario has a covering test.
 
 **Actions**
-- Load `medra:conventions` and `medra:handoff-implementer-reviewer`, then run `medra status <change> --json` and confirm that every task is done
+- Load `medra:conventions` and `medra:handoff-implementer-reviewer`, then run `medra status <change> --json` and confirm that every task is done. When it reports `security: relevant`, also load `medra:handoff-implementer-security`
 - Run `medra validate <change> --stage tasks --json` and `medra coverage <change> --json`
 - When the mode is `tdd` or `test-after` and coverage lists uncovered scenarios, stop and tell the user to resume `/medra:apply` with a test task for each one
 
@@ -69,41 +69,45 @@ Confirmation that the change satisfies the handoff's dispatch preconditions and 
 ### Phase 2 — Check
 
 **Goal**
-A verification report at the dispatched `report_path`, and a validated response payload.
+This round's verification report and, on a security-relevant change, its security report, each at its dispatched `report_path` with a validated response payload.
 
 **Actions**
-- Compose the dispatch payload exactly as the handoff's Dispatch section defines it, using `round: 1` on the first pass. On later rounds, set `round` to one more than the highest `-r<N>` report in `reviews/`, and add `previous_report` (that report) and `fixed_findings`
-- On Claude Code, call the Agent tool with the reviewer agent and the payload; on Antigravity, `invoke_subagent`. On a runtime without subagents, run the reviewer's check inline, following `medra:conventions` → Runtime Portability
-- Validate the response against the handoff's Validation rules. When it fails, follow its Error Handling
-- When the response is `needs-decision`, put its question to the user with `AskUserQuestion`, then re-dispatch with the answer recorded in the change's documents (through `/medra:propose <change>` when the answer changes behavior)
+- Compose the reviewer's payload exactly as its handoff's Dispatch section defines it, using `round: 1` on the first pass. On later rounds, set `round` to one more than the highest `-verify-agent-r<N>` report in `reviews/`, and add `previous_report` (that report) and `fixed_findings`
+- When the change is security-relevant, compose the security payload as `medra:handoff-implementer-security` defines it, with the same `round`, its own `-security-agent-r<round>.md` path, and on later rounds `previous_report` (its latest security report) and the `S-NN` IDs in `fixed_findings`. Skip it in a later round when its latest report's verdict is `pass`; that report stays current
+- Dispatch both in one message so they run in parallel: on Claude Code, two Agent calls (`subagent_type: medra:reviewer` and `medra:security`); on Antigravity, `invoke_subagent` for each. On a runtime without subagents, run the reviewer's check and then the audit inline, following `medra:conventions` → Runtime Portability
+- Validate each response against its handoff's Validation rules. When one fails, follow that handoff's Error Handling
+- When a response is `needs-decision`, put its question to the user with `AskUserQuestion`, then re-dispatch that receiver with the answer recorded in the change's documents (through `/medra:propose <change>` when the answer changes behavior)
 
 **Avoid**
-- Don't summarize the code into the payload — because the handoff passes pointers; inlined code bloats both contexts and drifts from the files the reviewer must read
+- Don't summarize the code into a payload — because the handoffs pass pointers; inlined code bloats both contexts and drifts from the files the receivers must read
+- Don't pass one receiver's report to the other — because each verdict must be independent; a security audit anchored on the reviewer's pass misses what the reviewer was not looking for
 
 **Exit when:**
-- [ ] The report exists at `report_path`, and its Verdict and Counts lines equal the response
-- [ ] The response passed the handoff's Validation rules
+- [ ] Each dispatched report exists at its `report_path`, and its Verdict and Counts lines equal its response
+- [ ] Each response passed its handoff's Validation rules
+- [ ] On a security-relevant change, a security report of this round exists, or the latest one has verdict `pass`
 
 ---
 
 ### Phase 3 — Fix
 
 **Goal**
-Every critical and major finding from the latest report resolved in code, ready for a re-check.
+Every critical and major review finding, and every critical and high security finding, from the latest reports resolved in code, ready for a re-check.
 
 **Actions**
-- Read the report's findings in severity order, and fix each critical and major finding in code and tests, re-running the affected tests to green
-- Fix a minor finding when the fix is local and safe. Otherwise leave it for the gate, noting why
-- Collect the fixed finding IDs for the next dispatch's `fixed_findings`, then return to Check with `round` incremented. After round 2, go to the gate with whatever remains
+- Read both reports' findings in severity order, and fix each critical and major review finding and each open critical and high security finding in code and tests, re-running the affected tests to green. For a security finding, add the test its Validation field describes when one can be written
+- Fix a minor review finding, or a medium, low or info security finding, when the fix is local and safe. Otherwise leave it for the gate, noting why
+- Collect the fixed finding IDs per report (`F-NN` for the reviewer, `S-NN` for security) for the next dispatches' `fixed_findings`, then return to Check with `round` incremented. After round 2, go to the gate with whatever remains
 - When the gate returns request-changes, fix the gate notes here, then always run one more Check with the next `round`, outside the two-round limit, and go back to the gate with its verdict without further Fix rounds. Each request-changes at the gate opens exactly one such round
 
 **Avoid**
-- Don't argue a finding by editing the report — because the report is the reviewer's record; disagreement goes to the user at the gate
+- Don't argue a finding by editing a report — because each report is its author's record; disagreement goes to the user at the gate
+- Don't weaken or disable a security control to make a finding go away — because that trades a reported risk for an unreported one; fix the root cause, or leave the finding for the gate
 - Don't change behavior beyond what a finding asks — because each fix must stay inside the approved deltas, like any apply work
 - Don't go to the gate after a code change without a new Check round — because the current report then describes code that no longer exists, and `verify.report` only detects changes made through `medra task done`
 
 **Exit when:**
-- [ ] Every critical and major finding is fixed or explicitly left for the gate
+- [ ] Every critical and major review finding, and every critical and high security finding, is fixed or explicitly left for the gate
 - [ ] The tests affected by the fixes pass
 
 ---
@@ -114,12 +118,14 @@ Every critical and major finding from the latest report resolved in code, ready 
 A verify-gate decision recorded by `medra gate`.
 
 **Actions**
-- Run `medra validate <change> --stage verify --json`. When `verify.report` fails because code changed after the last check, return to Check
-- Run the gate as `medra:conventions` → Gate Protocol describes it, for gate `verify`. Present the report of the highest round (the one `verify.report` validated) with its verdict and counts, the number of check rounds, the coverage ratio, and any finding left unresolved together with its reason
-- Record the decision with `medra gate`
+- Run `medra validate <change> --stage verify --json`. When `verify.report` or `verify.security-report` fails because code changed after the last check, return to Check
+- Run the gate as `medra:conventions` → Gate Protocol describes it, for gate `verify`. Present the current verification report with its verdict and counts, the number of check rounds, the coverage ratio, and any finding left unresolved together with its reason
+- On a security-relevant change, present the current security report as well: its verdict, open counts by severity, origin mix and unreachable sources, and put each open critical or high security finding up as its own decision to accept as residual risk or to fix
+- Record the decision with `medra gate`. On approval with open security findings, pass `--note` listing each accepted one as `accepted-risk: S-NN — <the user's reason>`
 
 **Avoid**
 - Don't present a `fail` verdict as approvable without stating each unresolved critical finding — because approving verify lets archive merge the deltas into living specs as if they were true
+- Don't fold open security findings into a single "approve" — because an accepted risk needs a named finding and a reason on the record; the CLI does not block on them, so this gate is the only control
 
 **Exit when:**
 - [ ] `medra status <change> --json` shows gate `verify` as `approved` or `changes-requested`, or the user rejected it
@@ -133,7 +139,7 @@ A verify-gate decision recorded by `medra gate`.
 A bounded summary that names the next command.
 
 **Actions**
-- Report the report path, the verdict, the counts, the coverage ratio and the number of check rounds
+- Report the report path, the verdict, the counts, the coverage ratio and the number of check rounds, plus the security report path, its verdict and the number of accepted risks on a security-relevant change
 - Suggest a commit as `medra:conventions` → Commit Suggestions describes it
 - Name the next command: `/medra:archive`
 

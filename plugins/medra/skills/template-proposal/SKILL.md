@@ -62,6 +62,19 @@ The exclusions, one bullet each with its reason. Example: "SMS delivery of reset
 
 **Fill rules:** write `fast` or `full`, matching `.medra.yaml`. The Rationale names which classification criteria fired, or that none did.
 
+Then classify security relevance. It decides whether the security agent threat-models the plan (full track) and audits the implementation (both tracks). Write `relevant` when the change touches any of:
+
+| Criterion | Examples |
+|---|---|
+| Authentication, authorization, sessions or identity | login, roles, tokens, route permissions, tenant isolation |
+| Sensitive data | personal, financial or health data; credentials; data crossing a tenant or service boundary |
+| New or changed external input | endpoints, file uploads, webhooks, query parameters, deserialization, user-rendered content |
+| Secrets, keys or cryptography | connection strings, key storage, hashing, signing, TLS settings |
+| Infrastructure, deployment or CI | network exposure, containers, IaC, pipeline permissions, cloud roles |
+| Dependencies | a package added, removed or upgraded |
+
+The Security rationale names the criteria that fired and where, for example "External input: new `POST /reset` endpoint; Sensitive data: reset tokens stored in `reset_tokens`." For `not-relevant`, it says why none fired, for example "Copy change in the settings page; no input, data or permission change." When unsure, write `relevant`: the human can lower it at the proposal gate, and an unaudited security change is the costlier mistake.
+
 ### Capabilities
 
 **Why:** it binds the proposal to its delta files. The CLI cross-checks this table against them.
@@ -85,7 +98,7 @@ The exclusions, one bullet each with its reason. Example: "SMS delivery of reset
 - **Markers instead of guesses.** Write `[NEEDS CLARIFICATION: {specific question}]` wherever the intent leaves a behavior open, and resolve every marker with the user before the gate.
 - **Stands alone.** A teammate who missed the conversation must be able to judge the proposal. Write nothing like "as discussed".
 - **Bounded.** The whole proposal fits on one screen: about 60 lines. Detail goes in the deltas and the plan.
-- **Language.** Prose follows `docs/config-flow.yaml`. Headings, `**Track:**`, `**Rationale:**` and the marker syntax stay in English.
+- **Language.** Prose follows `docs/config-flow.yaml`. Headings, `**Track:**`, `**Rationale:**`, `**Security:**`, `**Security rationale:**`, the Security values and the marker syntax stay in English.
 
 ## Quality Checklist
 
@@ -93,6 +106,7 @@ The exclusions, one bullet each with its reason. Example: "SMS delivery of reset
 - [ ] The first sentence of Why stands alone and names who has the problem.
 - [ ] Every Out of scope item carries a reason.
 - [ ] The Track equals the change's track, and the Rationale names the criteria.
+- [ ] Security is `relevant` or `not-relevant`, and its rationale names the criteria that fired and where, or why none did.
 - [ ] The Capabilities rows and the delta files match one-to-one, with matching operations.
 - [ ] All four Impact lines are filled.
 - [ ] Open Questions reads "None." and no marker remains anywhere in the change.

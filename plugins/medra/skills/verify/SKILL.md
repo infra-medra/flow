@@ -1,5 +1,5 @@
 ---
-description: Verifies a finished medra change against its specs through an independent reviewer check, fixes findings, and runs the verify gate. Run only when the user explicitly invokes it.
+description: Verifies a finished medra change against its specs through an independent reviewer check and, on a security-relevant change, a parallel security audit, fixes findings, and runs the verify gate. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
 ---

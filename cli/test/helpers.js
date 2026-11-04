@@ -59,7 +59,8 @@ export function livingSpec(root, cap, prefix, reqs, retired = '') {
   write(root, `docs/specs/${cap}/spec.md`, [`# ${cap} title`, '', `**Capability:** \`${cap}\``, `**ID prefix:** \`${prefix}\``, '', '## Purpose', '', `Does ${cap}.`, '', '## Requirements', '', ...(retired ? [`<!-- retired: ${retired} -->`, ''] : []), ...reqs, ''].join('\n'));
 }
 
-export function proposal(root, change, { track = 'fast', caps = [['auth', 'modified', 'AUTH-001']] } = {}) {
+export function proposal(root, change, { track = 'fast', caps = [['auth', 'modified', 'AUTH-001']], security = null } = {}) {
+  const securityLines = security ? `\n**Security:** ${security}\n**Security rationale:** External input: new endpoint.` : '';
   write(root, `docs/changes/${change}/proposal.md`, `# Proposal: ${change}
 
 ## Why
@@ -83,7 +84,7 @@ Users need this. It costs support time.
 ## Track
 
 **Track:** ${track}
-**Rationale:** Criteria checked.
+**Rationale:** Criteria checked.${securityLines}
 
 ## Capabilities
 
@@ -109,5 +110,7 @@ export const delta = (cap, sections, header = '') => `# Delta: ${cap} title\n\n*
 export function tasks(root, change, lines) {
   write(root, `docs/changes/${change}/tasks.md`, `# Tasks: ${change}\n\n## Phase 1: Work\n\n${lines.join('\n')}\n`);
 }
+
+export const securityReport = (verdict = 'pass', counts = 'critical 0 · high 0 · medium 0 · low 0 · info 0') => `# Security Report: x — round 1\n\n**Stage:** security\n**Verdict:** ${verdict}\n**Counts:** ${counts}\n**Reviewer:** security agent\n**Date:** 2026-11-04\n\n## Summary\n\nOk.\n`;
 
 export const verifyReport = (verdict = 'pass') => `# Review: x — verify\n\n**Stage:** verify\n**Verdict:** ${verdict}\n**Counts:** critical 0 · major 0 · minor 0\n**Reviewer:** reviewer agent\n**Date:** 2026-10-30\n\n## Summary\n\nOk.\n\n## Findings\n\nNone.\n\n## Coverage\n\n| Requirement | Evidence | Status |\n|---|---|---|\n`;

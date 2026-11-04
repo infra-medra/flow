@@ -22,6 +22,8 @@
 
 **Track:** {fast | full}
 **Rationale:** {Which classification criteria fired or did not fire.}
+**Security:** {relevant | not-relevant}
+**Security rationale:** {Which security criteria fired, naming the code or data involved, or that none did.}
 
 ## Capabilities
 

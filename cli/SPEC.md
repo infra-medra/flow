@@ -46,9 +46,10 @@ docs/
     │   ├── proposal.md
     │   ├── specs/<capability>/spec.md      # delta specs
     │   ├── plan.md                         # full track only
+    │   ├── threat-model.md                 # security-relevant full-track changes only
     │   ├── contracts/                      # optional, free-form
     │   ├── tasks.md
-    │   └── reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md   # verify: …-verify-agent-r<round>.md
+    │   └── reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md   # verify: …-verify-agent-r<round>.md; security: …-security-agent-r<round>.md
     └── archive/
         ├── INDEX.md
         └── <YYYY-MM-DD>-<change>/
@@ -197,7 +198,7 @@ Required headings, in order:
 - `## Why`
 - `## What Changes`
 - `## Scope`, containing `### In scope` and `### Out of scope`
-- `## Track`, containing the lines `**Track:** fast|full` and `**Rationale:** …`
+- `## Track`, containing the lines `**Track:** fast|full` and `**Rationale:** …`, then `**Security:** relevant|not-relevant` and `**Security rationale:** …`. A proposal written before 1.4 has no Security line and reads as `not-relevant`
 - `## Capabilities`, containing a table with the columns `Capability | Operation | Requirements`. Operation is `new`, `modified` or `removed`. Requirements lists IDs, or `—` for a new capability.
 - `## Impact`
 - `## Open Questions`
@@ -249,6 +250,18 @@ The CLI flips `[ ]` to `[x]` only through `task done`.
 A verify report written by the check carries its round as a suffix: `<YYYY-MM-DD>-verify-agent-r<round>.md`. The **latest** `verify` report is the one with the highest round; a file without the suffix ranks below every suffixed one, and the modification time breaks ties.
 
 The required lines are `**Stage:** proposal|plan|tasks|verify`, `**Verdict:** approve|request-changes|comment|pass|pass-with-findings|fail`, and `**Counts:** critical <n> · major <n> · minor <n>`. The rest follows `medra:template-review`. The CLI reads only these three lines.
+
+### 4.8a Security report — `docs/changes/<change>/reviews/<YYYY-MM-DD>-security-agent-r<round>.md`
+
+Written by the security agent's audit; the round suffix and the "latest" rule are those of §4.8. The required lines are `**Stage:** security`, `**Verdict:** pass|pass-with-findings|fail`, and `**Counts:** critical <n> · high <n> · medium <n> · low <n> · info <n>`. The rest follows `medra:template-security-report`. The CLI reads only these three lines, and a `security` report never counts as a `verify` report.
+
+### 4.8b Threat model — `docs/changes/<change>/threat-model.md`
+
+Required anchor headings, in this order: `# Threat Model: <change>`, `## Scope`, `## Assets`, `## Trust Boundaries`, `## Entry Points`, `## Threats`, `## Mitigations`, `## Residual Risks`, `## Sources`.
+
+- **`## Threats`** is a table with the columns `ID | STRIDE | Threat | Boundary | Severity | Likelihood | Mitigations`. ID is `TM-<NN>`; STRIDE is one or more of `S T R I D E`; Severity is `critical|high|medium|low|info`; Likelihood is `high|medium|low`; Mitigations lists `M-<NN>` IDs or `—`.
+- **`## Mitigations`** is a table with the columns `ID | Mitigation | Threats | Decision`. ID is `M-<NN>`; Threats lists `TM-<NN>` IDs; Decision is `pending`, `accepted (D-<NN>)` or `declined (D-<NN>)`, where `D-<NN>` is a Decision in plan.md.
+- IDs are unique and never renumbered.
 
 ### 4.9 Learnings — `docs/learnings.md`
 
@@ -324,9 +337,9 @@ The Requirements cell uses the prefixes `+` (added), `~` (modified) and `-` (rem
 | Gate | Stage documents (hashed) | Prerequisite | Sets phase |
 |---|---|---|---|
 | `proposal` | proposal.md and every delta; on the fast track also tasks.md | — | `proposed` (full) or `tasked` (fast) |
-| `plan` | plan.md and `contracts/**` | `proposal` approved; track `full` | `planned` |
+| `plan` | plan.md, `contracts/**`, and threat-model.md when present | `proposal` approved; track `full` | `planned` |
 | `tasks` | tasks.md, ignoring checkboxes and evidence lines | `plan` approved | `tasked` |
-| `verify` | every stage document, plus the latest `verify` review report (§4.8) | every task done; `tasks` approved (full) or `proposal` approved (fast) | `verified` |
+| `verify` | every stage document, plus the latest `verify` review report (§4.8) and, when present, the latest `security` report (§4.8a) | every task done; `tasks` approved (full) or `proposal` approved (fast) | `verified` |
 
 On the fast track there are no `plan` or `tasks` gates, and `status` reports them as `skipped`.
 
@@ -343,6 +356,7 @@ On the fast track there are no `plan` or `tasks` gates, and `status` reports the
 | `spec.scenario` | specs | Every requirement has ≥ 1 scenario; each scenario has a When and a Then, with Given before When |
 | `spec.ids` | specs | IDs carry the capability's prefix, are unique, and none is retired |
 | `proposal.structure` | proposal | §4.5 headings; the Track value equals the `.medra.yaml` track |
+| `proposal.security` | proposal | When a `**Security:**` line is present, its value is `relevant` or `not-relevant` and a `**Security rationale:**` line follows it |
 | `proposal.markers` | proposal | Zero occurrences of `[NEEDS CLARIFICATION` in proposal.md and the deltas |
 | `proposal.capabilities` | proposal | Every Capabilities row has a delta file, every delta file has a row, and the operations match |
 | `delta.structure` | proposal | §4.4 grammar, plus the `spec.shall` and `spec.scenario` rules applied to delta blocks |
@@ -350,15 +364,18 @@ On the fast track there are no `plan` or `tasks` gates, and `status` reports the
 | `delta.new-capability` | proposal | A new capability has an ID prefix and a Purpose, and contains only ADDED |
 | `plan.structure` | plan | §4.6 anchors, in order |
 | `plan.constitution` | plan | The Constitution Check has exactly one row per live article; every `fail` has a Complexity Tracking row |
+| `plan.threat-model` | plan | Proposal `**Security:** relevant`: threat-model.md exists and follows §4.8b, every Threat names a Mitigation or `—`, every Mitigation names an existing Threat, and no Decision is `pending`; every `accepted`/`declined` `D-<NN>` exists in plan.md |
 | `plan.test-strategy` | plan | Present; when the mode is `none`, the `No automated tests.` line is present with a reason |
 | `tasks.structure` | tasks | Every task line parses per §4.7; IDs are unique |
 | `tasks.after` | tasks | Every `after` reference exists and points to a task listed earlier |
 | `tasks.coverage` | tasks | Every ADDED or MODIFIED requirement is referenced by ≥ 1 task |
+| `tasks.mitigations` | tasks | Every Mitigation `accepted` in threat-model.md is cited (`M-<NN>`) in ≥ 1 task line |
 | `tasks.test-task` | tasks | Mode `tdd` or `test-after`: every ADDED or MODIFIED requirement has ≥ 1 `[TEST]` task |
 | `tasks.test-before-impl` | tasks | Mode `tdd`: every non-test task that references requirement R is `after` (directly or transitively) a `[TEST]` task referencing R |
 | `verify.tasks-done` | verify | Every task is `[x]` with at least one evidence line |
 | `verify.coverage` | verify | Mode `tdd` or `test-after`: `coverage` reports no uncovered scenario among the change's ADDED and MODIFIED requirements |
 | `verify.report` | verify | The latest `verify` review report (§4.8) exists, is newer than the last task done, and has Verdict `pass` or `pass-with-findings` |
+| `verify.security-report` | verify | Proposal `**Security:** relevant`: the latest `security` report (§4.8a) exists and is newer than the last task done. Its verdict is not checked: security findings inform the gate and never block it |
 | `learnings.structure` | learnings | §4.9 grammar; IDs unique |
 
 ## 7. Hashing
@@ -393,7 +410,7 @@ medra new <change> [--track fast|full]
 ### 8.3 `medra status [<change>]`
 
 - **Without a change:** returns `{"project": {"constitution": {status, version}, "capabilities": n, "learnings": {active, over_budget}}, "changes": [{name, track, phase}]}`. The changes list is bounded by the number of active changes.
-- **With a change:** returns `{"change", "track", "phase", "gates": {name: {status: pending|approved|changes-requested|stale|skipped, by, at}}, "tasks": {"total", "done", "next": "T004"|null}, "blockers_open": n, "reviews": n, "last_review": {stage, verdict}|null}`.
+- **With a change:** returns `{"change", "track", "phase", "security": "relevant"|"not-relevant", "gates": {name: {status: pending|approved|changes-requested|stale|skipped, by, at}}, "tasks": {"total", "done", "next": "T004"|null}, "blockers_open": n, "reviews": n, "last_review": {stage, verdict}|null, "last_security": {path, round, verdict}|null}`. `security` comes from the proposal's `**Security:**` line, `not-relevant` when the line is absent.
 
 ### 8.4 `medra validate <change> --stage <stage>` · `medra validate --project <scope>`
 
@@ -431,10 +448,10 @@ With `--md`, the CLI prints the same content as Markdown, for runtimes where an 
 ### 8.7 `medra gate <change> <gate> --approve|--request-changes`
 
 ```
-medra gate <change> proposal|plan|tasks|verify (--approve | --request-changes --note "<text>") [--by <name>]
+medra gate <change> proposal|plan|tasks|verify (--approve [--note "<text>"] | --request-changes --note "<text>") [--by <name>]
 ```
 
-- **`--approve`:** runs `validate --stage <gate>` and checks the prerequisite in §5. When either fails, exits `1` with findings and records nothing. When both pass, records `approved` with by, at and hash, and sets the phase.
+- **`--approve`:** runs `validate --stage <gate>` and checks the prerequisite in §5. When either fails, exits `1` with findings and records nothing. When both pass, records `approved` with by, at, hash and the optional note, and sets the phase. The verify pipeline uses the note to record each security finding accepted as residual risk (`accepted-risk: S-03 — <reason>`), which archive harvests.
 - **`--request-changes`:** requires `--note`. Records the gate as `changes-requested` and appends the note to `gate_notes`.
 - Result: `{"gate", "status", "phase"}`.
 
@@ -524,7 +541,7 @@ Generates the bundled plugin as a native Antigravity plugin named `medra`. Antig
 | `skills/<name>/` | `<plugin>/skills/<name>/` |
 | Skill frontmatter | `name: <name>` and `description` only |
 | `agents/<name>.md` | `<plugin>/agents/<name>.md` |
-| Agent frontmatter | `name: medra-<name>`, `description`, `tools` as a YAML list mapped by the tool table below, `mainAgent: true`, and `subagent: true` for agents some skill dispatches with `subagent_type: medra:<agent>` (`reviewer`), `subagent: false` for the rest (Antigravity offers every plugin agent as a subagent unless told otherwise). `model`, `effort` and `color` are dropped: Antigravity rejects Claude model names, and the session's model applies |
+| Agent frontmatter | `name: medra-<name>`, `description`, `tools` as a YAML list mapped by the tool table below (the source list is split on commas outside parentheses, so `Agent(reviewer, security)` is one entry), `mainAgent: true`, and `subagent: true` for agents some skill dispatches with `subagent_type: medra:<agent>` (`reviewer`), `subagent: false` for the rest (Antigravity offers every plugin agent as a subagent unless told otherwise). `model`, `effort` and `color` are dropped: Antigravity rejects Claude model names, and the session's model applies |
 | `medra:<agent>` for an agent name, in Markdown | `medra-<agent>` (Antigravity lists plugin subagents without the plugin prefix) |
 | `medra:<skill>` in Markdown | unchanged |
 | `${CLAUDE_PLUGIN_ROOT}` | the plugin's display path |
@@ -598,6 +615,8 @@ The implementation is done when a test suite covers at least the following:
 - [ ] `task done --run` enforces red/green exit codes and `after` ordering.
 - [ ] A gate goes `stale` after a document edit, and does not go stale after `task done`.
 - [ ] `context --stage apply` returns the correct `next_task` with only its requirements.
+- [ ] A `security` report never satisfies `verify.report`, and the latest `verify` report is chosen correctly with security reports present in `reviews/`.
+- [ ] The plan gate goes `stale` after a threat-model.md edit; the verify gate goes `stale` after a new security report.
 - [ ] `learn` add / bump / merge / retire / promote, plus the `status` budget and staleness arithmetic.
 - [ ] `install --target antigravity` output matches the rewrite table, verified on the bundled plugin, is idempotent, removes an unedited legacy install, and passes `agy plugin validate --strict` when `agy` is on `PATH`.
 - [ ] `--json` output of every command validates against the envelope schema in `cli/schemas/envelope.schema.json`.

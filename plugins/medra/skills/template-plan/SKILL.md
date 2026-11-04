@@ -65,6 +65,8 @@ The title, using the exact change name.
 
 **Fill rules:** write one `### D-NN` per consequential choice, each with Choice, Alternatives and Rationale. A choice is consequential when reversing it would rewrite more than one task.
 
+When the change has a `threat-model.md`, every mitigation in it gets a Decision: an accepted one names its `M-NN` in Choice and the control it puts in place; a declined one names its `M-NN`, the threats left open, and why the residual risk is acceptable. Write the same `D-NN` into the mitigation's Decision cell (`accepted (D-04)`, `declined (D-05)`). One Decision may cover several mitigations that form one design choice.
+
 **Example:**
 
 ```markdown
@@ -93,6 +95,7 @@ Between Test Strategy and Decisions, add a `##` section only for what this chang
 - [ ] Every `fail` has a Complexity Tracking row, and Complexity Tracking reads "None." when there is no fail.
 - [ ] The Test Strategy maps every delta scenario ID to a level and a location, or states `No automated tests.` with a reason.
 - [ ] Every Decision has Choice, Alternatives and Rationale.
+- [ ] When threat-model.md exists, every mitigation is decided with a `D-NN` that exists here and names its `M-NN`.
 - [ ] Every path or module named was checked against the codebase.
 - [ ] Nothing in the plan exceeds the proposal's In scope.
 - [ ] `medra validate <change> --stage plan` exits `0`.

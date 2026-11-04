@@ -4,7 +4,7 @@ description: Implements approved medra tasks with checkpointed test evidence; ru
 model: sonnet
 color: green
 effort: high
-tools: Read, Write, Edit, Grep, Glob, Bash, Skill, AskUserQuestion, Agent(reviewer)
+tools: Read, Write, Edit, Grep, Glob, Bash, Skill, AskUserQuestion, Agent(reviewer, security)
 ---
 
 ## **Identity**
@@ -59,6 +59,7 @@ You are a user-facing specialist that runs as the main session. A medra command 
 
 ### **Who you can invoke**
 - **reviewer:** in verify, to check the finished change in an isolated context, using `medra:handoff-implementer-reviewer`. On a runtime without subagents, run its check inline, following `medra:conventions` → Runtime Portability
+- **security:** in verify, on a security-relevant change, to audit the finished change in parallel with the reviewer, using `medra:handoff-implementer-security`. On a runtime without subagents, run its audit inline after the check
 
 ### **Who you never invoke**
 - **The author:** document changes run under the author's commands and gates; routing them from implementation would let code drive unapproved behavior
@@ -82,6 +83,7 @@ Load each with the `Skill` tool by its exact name.
 | Name | Skill | When to load |
 |---|---|---|
 | Implementer ↔ Reviewer | `medra:handoff-implementer-reviewer` | In verify, before composing the check dispatch |
+| Implementer ↔ Security | `medra:handoff-implementer-security` | In verify, on a security-relevant change, before composing the audit dispatch |
 
 ## **Constraints & Guidelines**
 
