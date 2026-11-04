@@ -108,7 +108,13 @@ export function writeAtomic(files) {
 
 export const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
-export const today = () => new Date().toISOString().slice(0, 10);
+// Calendar dates (folder names, evidence lines, ratification) use the local date, so a change
+// archived in the evening west of UTC is not stamped with tomorrow. Timestamps (nowIso) stay UTC.
+export const today = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 export const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 export function git(root, args) {
