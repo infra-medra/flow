@@ -55,8 +55,21 @@ export function archive(root, change, { dryRun = false } = {}) {
 
   state.phase = 'archived';
   state.archived = { at: date, sequence };
-  writeAtomic([...writes, [indexFile, `${indexText.replace(/\n+$/, '')}\n${row}\n`], [statePath(root, change), stateContent(state)]]);
-  for (const f of deletes) fs.rmSync(path.dirname(f), { recursive: true, force: true });
+  // Move the folder before writing anything: it is the step most likely to fail (a folder locked
+  // by an editor or by Windows), and failing here leaves the project untouched. If the writes then
+  // fail, the folder goes back, so the change is either fully archived or not archived at all.
+  fs.mkdirSync(path.dirname(archivedDir), { recursive: true });
   fs.renameSync(dir, archivedDir);
+  try {
+    writeAtomic([
+      ...writes,
+      [indexFile, `${indexText.replace(/\n+$/, '')}\n${row}\n`],
+      [path.join(archivedDir, path.basename(statePath(root, change))), stateContent(state)],
+    ]);
+  } catch (err) {
+    fs.renameSync(archivedDir, dir);
+    throw err;
+  }
+  for (const f of deletes) fs.rmSync(path.dirname(f), { recursive: true, force: true });
   return result;
 }

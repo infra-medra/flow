@@ -580,7 +580,7 @@ medra archive <change> [--dry-run]
    - **Retire capability: yes** deletes the living spec when it has no requirements left.
    - Removed and dropped scenario IDs are appended to the `retired` comment.
 3. Validates the resulting living specs with `--project specs` rules.
-4. Appends the INDEX row, moves the change folder to `archive/<YYYY-MM-DD>-<change>/`, and sets the phase to `archived`.
+4. Moves the change folder to `archive/<YYYY-MM-DD>-<change>/`, then writes the merged living specs, the INDEX row and the phase `archived` atomically. If the move fails, nothing is written; if the writes fail, the folder is moved back. `<YYYY-MM-DD>` is the local calendar date, as are all CLI-written dates; timestamps are UTC.
 
 - **`--dry-run`:** performs steps 1–3 in memory and writes nothing.
 - **Conflicts:** any target missing, an ADDED collision, or post-merge validation failing causes exit `3` with `{"conflicts": [{capability, id, operation, problem}]}`. Nothing is written.

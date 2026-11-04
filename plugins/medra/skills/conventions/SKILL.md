@@ -55,7 +55,7 @@ Run the CLI from the project root. Add `--json` whenever you consume the output,
 | `medra constitution ratify [--bump major\|minor] --note "…" [--source]` | Ratify or amend the constitution |
 | `medra learn add\|bump\|merge\|retire\|promote\|status\|candidates` | Maintain the learnings store |
 | `medra archive <change> [--dry-run]` | Merge deltas into living specs and archive the change |
-| `medra install --target antigravity` · `medra update` | Install or refresh the Antigravity skills |
+| `medra install --target antigravity` · `medra update` | Install or refresh the native Antigravity plugin in `.agents/plugins/medra/` |
 
 | Exit | Meaning | Your move |
 |---|---|---|

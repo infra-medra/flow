@@ -96,8 +96,8 @@ Each command adopts the agent that owns its routed pipeline by reading `${CLAUDE
 
 | Agent | Job | Model · effort | Run mode | Pipelines | Invokes |
 |---|---|---|---|---|---|
-| `author` | Writes the what, and the how in outline: constitution, proposals, deltas, plans, tasks. Archives changes into living specs and curates the learnings. Never writes code | opus · high | Main session (adopted by commands) | init, propose, plan, tasks, archive | `Explore` (Claude only) |
-| `implementer` | Executes approved tasks in code, with evidence per task. Runs the verify gate | sonnet · high | Main session (adopted by commands) | apply, verify | `reviewer`, via `handoff-implementer-reviewer` |
+| `author` | Writes the what, and the how in outline: constitution, proposals, deltas, plans, tasks. Archives changes into living specs and curates the learnings. Never writes code | opus · high | Main session (adopted by commands) | init, propose, plan, tasks, archive | `Explore` (Claude only); `security`, via `handoff-author-security` |
+| `implementer` | Executes approved tasks in code, with evidence per task. Runs the verify gate | sonnet · high | Main session (adopted by commands) | apply, verify | `reviewer`, via `handoff-implementer-reviewer`; `security`, via `handoff-implementer-security` |
 | `reviewer` | Adversarial reader: judges documents and implementation against the specs, the constitution and the templates. Edits nothing except its own report | opus · high | Both: main session for `review`, delegated for `check` | review (interactive), check (single-shot) | No one (leaf) |
 | `security` | Sentinel. Threat-models security-relevant designs and audits their implementation: attack surface, STRIDE, OWASP/ASVS/API Top 10, dependencies (CVE, KEV, EPSS), secrets, configuration. Verifies against authoritative sources; never fabricates a CVE or a scan. Writes only its own documents | opus · high | Delegated only | threat-model (single-shot), audit (single-shot) | No one (leaf) |
 
