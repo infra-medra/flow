@@ -5,7 +5,7 @@ import YAML from 'yaml';
 import fg from 'fast-glob';
 import ignore from 'ignore';
 import { envError, readText, readIf, sha256, writeAtomic, rel, loadConfig, docsPath, DOCS_DIR } from './core.js';
-import { tasksHashBasis, parseTasks, parseReport } from './documents.js';
+import { tasksHashBasis, parseTasks, parseReport, parseProposal } from './documents.js';
 import { loadDeltas } from './specs.js';
 
 export const GATES = ['proposal', 'plan', 'tasks', 'verify'];
@@ -42,11 +42,20 @@ function walk(dir) {
 
 export function latestReport(root, change, stage) {
   const dir = path.join(changeDir(root, change), 'reviews');
+  // A verify report carries its round as a `-r<N>` suffix; the highest round wins, and a file
+  // without one (1.2 and earlier, or a document stage) ranks below any suffixed round.
+  const round = (f) => Number(/-r(\d+)\.md$/.exec(f)?.[1] ?? 0);
   const files = walk(dir).filter((f) => f.endsWith('.md'))
-    .map((f) => ({ file: f, ...parseReport(readText(f)), mtime: fs.statSync(f).mtimeMs }))
+    .map((f) => ({ file: f, ...parseReport(readText(f)), round: round(f), mtime: fs.statSync(f).mtimeMs }))
     .filter((r) => r.stage === stage)
-    .sort((a, b) => a.mtime - b.mtime);
+    .sort((a, b) => a.round - b.round || a.mtime - b.mtime);
   return files.pop() ?? null;
+}
+
+/** The proposal's `**Security:**` value; a proposal without the line (before 1.4) is not-relevant. */
+export function securityRelevance(root, change) {
+  const text = readIf(path.join(changeDir(root, change), 'proposal.md'));
+  return text !== null && parseProposal(text).security === 'relevant' ? 'relevant' : 'not-relevant';
 }
 
 /** Stage documents per gate (SPEC §5), as absolute paths in sorted order. */
@@ -55,14 +64,15 @@ export function stageDocuments(root, change, gate, state) {
   const deltas = walk(path.join(dir, 'specs')).filter((f) => f.endsWith('.md'));
   const proposal = [path.join(dir, 'proposal.md'), ...deltas];
   const tasks = path.join(dir, 'tasks.md');
-  const plan = [path.join(dir, 'plan.md'), ...walk(path.join(dir, 'contracts'))];
+  // threat-model.md is filtered out below when absent, so plans approved before 1.4 keep their hash.
+  const plan = [path.join(dir, 'plan.md'), path.join(dir, 'threat-model.md'), ...walk(path.join(dir, 'contracts'))];
   let files;
   if (gate === 'proposal') files = state.track === 'fast' ? [...proposal, tasks] : proposal;
   else if (gate === 'plan') files = plan;
   else if (gate === 'tasks') files = [tasks];
   else {
-    const report = latestReport(root, change, 'verify');
-    files = [...proposal, ...plan, tasks, ...(report ? [report.file] : [])];
+    const reports = ['verify', 'security'].map((stage) => latestReport(root, change, stage)).filter(Boolean);
+    files = [...proposal, ...plan, tasks, ...reports.map((r) => r.file)];
   }
   return files.filter((f) => fs.existsSync(f)).sort();
 }

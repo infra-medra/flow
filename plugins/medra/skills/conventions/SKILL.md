@@ -28,7 +28,7 @@ docs/
 ├── learnings.md                L-NNN lessons and preferences
 ├── specs/<capability>/spec.md  living specs — current behavior
 └── changes/
-    ├── <change>/               proposal.md · specs/<capability>/spec.md (deltas) · plan.md · contracts/ · tasks.md · reviews/ · .medra.yaml
+    ├── <change>/               proposal.md · specs/<capability>/spec.md (deltas) · plan.md · contracts/ · threat-model.md · tasks.md · reviews/ (review, verify and security reports) · .medra.yaml
     └── archive/                INDEX.md · <YYYY-MM-DD>-<change>/
 ```
 
@@ -42,12 +42,12 @@ Run the CLI from the project root. Add `--json` whenever you consume the output,
 |---|---|
 | `medra --version` | Check the CLI is installed with major version `1` |
 | `medra init [--language] [--integrations] [--testing-mode] [--testing-command]` | Create the `docs/` scaffold; never overwrites |
-| `medra status [<change>]` | Read project or change state: track, phase, gates, tasks, blockers |
+| `medra status [<change>]` | Read project or change state: track, phase, security relevance, gates, tasks, blockers |
 | `medra index [--learnings <capabilities>]` | Get capability and requirement titles, each capability's `next_id`, and optionally the matching learnings, before a change exists |
 | `medra context <change> --stage <stage>` | Get the bounded context pack for one stage |
 | `medra new <change> [--track fast\|full]` | Create a change folder and its state |
 | `medra validate <change> --stage <stage>` · `--project <constitution\|specs\|learnings>` | Check document structure and cross-document rules |
-| `medra gate <change> <gate> --approve \| --request-changes --note "…"` | Record a human gate decision |
+| `medra gate <change> <gate> --approve [--note "…"] \| --request-changes --note "…"` | Record a human gate decision; an approval note records what the approver accepted |
 | `medra track <change> fast\|full --reason "…"` | Switch a change's track |
 | `medra task done <change> <T-NNN> --run "…" \| --evidence "…" [--kind]` · `task block` · `task unblock` | Checkpoint a task with evidence, or record a blocker |
 | `medra coverage <change> \| --all` | Map scenario IDs to the tests that cite them |
@@ -105,7 +105,7 @@ medra runs from the same instructions on Claude Code and on Antigravity, where i
 |---|---|---|---|
 | Load a skill | `Skill` tool with the exact name | Read `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md`, where `<name>` is the skill name after `medra:` | Same as Antigravity |
 | Ask a structured question | `AskUserQuestion`, at most 4 questions per call | `ask_question` | Numbered options in chat; wait for an explicit reply |
-| Delegate to another agent | `Agent` tool, under the handoff contract the pipeline names | `invoke_subagent` with the agent the handoff names, under the same contract | Run the receiver's pipeline yourself, in a separate section headed with the receiver's name. Apply its constraints for the duration, then return to your own role with only its response fields |
+| Delegate to another agent | `Agent` tool, under the handoff contract the pipeline names | `invoke_subagent` with the agent the handoff names, under the same contract | Run the receiver's pipeline yourself, in a separate section headed with the receiver's name. Apply its constraints for the duration, then return to your own role with only its response fields. When a pipeline dispatches two receivers in parallel, run them one after the other |
 | Command arguments | Given to the command skill | The text the user typed after the command | Same as Antigravity |
 
 ## Commit Suggestions

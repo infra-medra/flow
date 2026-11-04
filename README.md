@@ -43,11 +43,11 @@ The commands are the same on Antigravity.
 | Command | What it does | Gate |
 |---|---|---|
 | `init` | Scaffolds `docs/`, sets the language and testing mode, writes the constitution, and can bootstrap specs from existing code | constitution · bootstrap specs |
-| `propose` | Writes the proposal and delta specs (`ADDED/MODIFIED/REMOVED`) and picks the fast or full track. On the fast track it also writes the tasks | proposal (+ tasks) |
-| `plan` | Full track: writes the design, the Constitution Check, the test strategy and the decisions | plan |
+| `propose` | Writes the proposal and delta specs (`ADDED/MODIFIED/REMOVED`) picks the fast or full track, and marks whether the change is security-relevant. On the fast track it also writes the tasks | proposal (+ tasks) |
+| `plan` | Full track: writes the design, the Constitution Check, the test strategy and the decisions. On a security-relevant change, the security agent threat-models the design first | plan |
 | `tasks` | Full track: writes a traceable, test-first task list | tasks |
 | `apply` | Implements tasks one at a time, with red/green evidence. Resumable | — |
-| `verify` | Runs an independent reviewer check against the specs, then a fix loop | verify |
+| `verify` | Runs an independent reviewer check against the specs (plus a parallel security audit on a security-relevant change), then a fix loop | verify |
 | `review` | Lets anyone review a change's documents and record a verdict | reviewer's verdict |
 | `archive` | Merges deltas into living specs, harvests lessons, compacts them, and proposes constitution amendments | amendment |
 
@@ -59,9 +59,11 @@ docs/
 ├── constitution.md      principles, each with a gate question
 ├── learnings.md         lessons and team preferences
 ├── specs/<capability>/spec.md
-└── changes/<change>/    proposal · delta specs · plan · tasks · reviews
+└── changes/<change>/    proposal · delta specs · plan · threat model · tasks · reviews
     └── archive/
 ```
+
+The security agent (Sentinel) runs only on security-relevant changes. It audits but never edits code, checks its claims against OWASP, NVD, CISA KEV and vendor documentation over the network, and informs the gate without blocking it.
 
 Commit `docs/` with your code. medra never commits or creates branches for you; it suggests a commit message at the end of every step.
 

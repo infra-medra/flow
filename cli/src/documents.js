@@ -1,4 +1,4 @@
-// Parsers for constitution, proposal, plan, tasks, review reports, and the archive index.
+// Parsers for constitution, proposal, plan, tasks, review and security reports, threat models, and the archive index.
 import { toLines, headings, section, label, tableRows, trimBlank, firstSentence } from './markdown.js';
 import { ROMAN, finding } from './core.js';
 
@@ -96,6 +96,9 @@ export function parseProposal(text) {
     title: (hs.find((h) => h.level === 1) || {}).text,
     track: label(lines, 'Track'),
     rationale: label(lines, 'Rationale'),
+    // Absent in proposals written before 1.4, which read as not-relevant.
+    security: label(lines, 'Security'),
+    securityRationale: label(lines, 'Security rationale'),
     why: why ? trimBlank(why.body).join(' ') : '',
     capabilities: caps ? tableRows(caps.body).map(([c, op, reqs]) => ({ capability: (c || '').replace(/`/g, ''), operation: op, requirements: reqs })) : [],
   };
@@ -179,14 +182,46 @@ export function tickTask(text, taskId, evidenceLine) {
 
 // ---------- Review report ----------
 
+const REVIEW_COUNTS = /critical (\d+) · major (\d+) · minor (\d+)/;
+const SECURITY_COUNTS = /critical (\d+) · high (\d+) · medium (\d+) · low (\d+) · info (\d+)/;
+
 export function parseReport(text) {
   const lines = toLines(text);
-  const counts = label(lines, 'Counts');
-  const m = counts && counts.match(/critical (\d+) · major (\d+) · minor (\d+)/);
+  const stage = label(lines, 'Stage');
+  const raw = label(lines, 'Counts') ?? '';
+  let counts = null;
+  if (stage === 'security') {
+    const m = raw.match(SECURITY_COUNTS);
+    if (m) counts = { critical: +m[1], high: +m[2], medium: +m[3], low: +m[4], info: +m[5] };
+  } else {
+    const m = raw.match(REVIEW_COUNTS);
+    if (m) counts = { critical: +m[1], major: +m[2], minor: +m[3] };
+  }
+  return { stage, verdict: label(lines, 'Verdict'), counts };
+}
+
+// ---------- Threat model ----------
+
+export const THREAT_MODEL_ANCHORS = ['Scope', 'Assets', 'Trust Boundaries', 'Entry Points', 'Threats', 'Mitigations', 'Residual Risks', 'Sources'];
+
+const idsIn = (cell, prefix) => [...(cell || '').matchAll(new RegExp(`\\b${prefix}-\\d{2,}\\b`, 'g'))].map((m) => m[0]);
+
+export function parseThreatModel(text) {
+  const lines = toLines(text);
+  const hs = headings(lines);
+  const threats = section(lines, 'Threats', 2);
+  const mitigations = section(lines, 'Mitigations', 2);
   return {
-    stage: label(lines, 'Stage'),
-    verdict: label(lines, 'Verdict'),
-    counts: m ? { critical: +m[1], major: +m[2], minor: +m[3] } : null,
+    title: (hs.find((h) => h.level === 1) || {}).text,
+    h2: hs.filter((h) => h.level === 2).map((h) => h.text),
+    threats: threats ? tableRows(threats.body).map(([id, stride, threat, boundary, severity, likelihood, mits]) => ({
+      id: (id || '').trim(), stride, threat, boundary, severity, likelihood,
+      mitigations: idsIn(mits, 'M'), none: (mits || '').trim() === '—',
+    })) : [],
+    mitigations: mitigations ? tableRows(mitigations.body).map(([id, mitigation, threatIds, decision]) => {
+      const d = (decision || '').trim().match(/^(pending|accepted|declined)(?: \((D-\d{2,})\))?$/);
+      return { id: (id || '').trim(), mitigation, threats: idsIn(threatIds, 'TM'), decision: d ? d[1] : null, ref: d?.[2] ?? null };
+    }) : [],
   };
 }
 

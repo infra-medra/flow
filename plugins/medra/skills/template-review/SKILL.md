@@ -15,7 +15,8 @@ A review report records one reviewer's judgment of one stage of a change, so tha
 | Item | Value |
 |---|---|
 | Path | `docs/changes/<change>/reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md`. `<reviewer>` is the human's name in kebab-case, or `agent` for the check |
-| Lifecycle | Final when written. A re-review is a new file |
+| Verify rounds | The check adds the round: `<YYYY-MM-DD>-verify-agent-r<round>.md`, with `<round>` from the handoff dispatch. Rounds often fall on the same day, and the suffix keeps each one; the highest round is the current report for the gate, and archive harvests all of them |
+| Lifecycle | Final when written. A re-review, or a later verify round, is a new file; never rewrite an earlier one |
 
 ## Structure
 

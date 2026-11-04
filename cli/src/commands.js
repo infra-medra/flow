@@ -10,7 +10,7 @@ import {
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
 import { loadLivingSpecs } from './specs.js';
 import { loadLearnings, saveLearnings, nextLearningId, learningsPath, renderLearnings, STAGES as LEARN_STAGES } from './learnings.js';
-import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, coverage, changeScenarios } from './change.js';
+import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, coverage, changeScenarios, latestReport, securityRelevance } from './change.js';
 import { changeFindings, projectFindings, STAGES } from './validate.js';
 import { archiveIndexPath } from './context.js';
 import { install } from './install.js';
@@ -94,13 +94,15 @@ export function status(root, change) {
   const tasks = loadTasks(root, change)?.tasks ?? [];
   const next = nextTask(tasks, state);
   const last = state.reviews[state.reviews.length - 1];
+  const sec = latestReport(root, change, 'security');
   return {
-    change, track: state.track, phase: state.phase,
+    change, track: state.track, phase: state.phase, security: securityRelevance(root, change),
     gates: Object.fromEntries(GATES.map((g) => [g, { status: gateStatus(root, change, state, g), by: state.gates[g]?.by ?? null, at: state.gates[g]?.at ?? null }])),
     tasks: { total: tasks.length, done: tasks.filter((t) => t.done).length, next: next ? next.id : null },
     blockers_open: state.blockers.filter((b) => !b.resolved).length,
     reviews: state.reviews.length,
     last_review: last ? { stage: last.stage, verdict: last.verdict } : null,
+    last_security: sec ? { path: rel(root, sec.file), round: sec.round, verdict: sec.verdict } : null,
   };
 }
 

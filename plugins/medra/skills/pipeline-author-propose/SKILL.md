@@ -1,6 +1,6 @@
 ---
 name: pipeline-author-propose
-description: Load when the user runs propose — turns an intent (or revises an existing change) into a proposal and delta specs, classifies the change onto the fast or full track, writes the tasks on the fast track, and runs the proposal gate.
+description: Load when the user runs propose — turns an intent (or revises an existing change) into a proposal and delta specs, classifies the change onto the fast or full track and its security relevance, writes the tasks on the fast track, and runs the proposal gate.
 user-invocable: false
 ---
 
@@ -84,14 +84,16 @@ A change folder created by `medra new`, with a kebab-case name and a track justi
 **Actions**
 - Run `medra index --learnings <capabilities the intent touches> --json`, then evaluate the intent against every row of Knowledge → Track Criteria and the matching learnings, and record which criteria fire
 - Choose a name that starts with a verb and is at most 8 words, then run `medra new <change> --track <fast|full>`. On a revision, skip `new` and run `medra track` only when the criteria now point to a different track
-- Tell the user the track and the criteria that fired; the user can override it at the gate
+- Classify security relevance against the criteria in `medra:template-proposal` → Track, recording which fired and where
+- Tell the user the track, the security relevance and the criteria behind each; the user can override either at the gate
 
 **Avoid**
 - Don't pick the fast track for a change that fires any full-track criterion — because skipping the plan on such a change moves design decisions into code, where reviewers cannot see them
+- Don't mark a change `not-relevant` when a security criterion fires or you are unsure — because that mark is what skips the security agent; an unaudited security change is the costlier mistake, and the human can lower it at the gate
 
 **Exit when:**
 - [ ] `medra new` (or `medra status` on a revision) reports the change with the chosen track
-- [ ] The criteria that fired are recorded, ready for the proposal's Track Rationale
+- [ ] The track and security criteria that fired are recorded, ready for the proposal's Rationale and Security rationale
 
 ---
 
@@ -101,7 +103,7 @@ A change folder created by `medra new`, with a kebab-case name and a track justi
 A `proposal.md` and one delta per touched capability, written to their templates, with every unknown marked rather than guessed.
 
 **Actions**
-- Copy the proposal template and fill it, keeping the scope fence from Intake and the track rationale from Classification
+- Copy the proposal template and fill it, keeping the scope fence from Intake, and the track rationale and security relevance from Classification
 - For each requirement to MODIFY or REMOVE, read its current block in the living spec, then copy the delta template and write ADDED, MODIFIED and REMOVED blocks with IDs following `medra:template-delta`
 - Write `[NEEDS CLARIFICATION: {specific question}]` wherever the intent leaves a behavior open, and list every marker under Open Questions
 - On a revision, apply every pending gate note and every request-changes finding from the change's reviews
@@ -181,8 +183,8 @@ A change that passes CLI validation and an adversarial read against the template
 A proposal-gate decision recorded by `medra gate`.
 
 **Actions**
-- Run the gate as `medra:conventions` → Gate Protocol describes it, for gate `proposal`. List the proposal and every delta (plus `tasks.md` on the fast track), and put the track, the scope fence and any recorded residual failure up for decision
-- When the user overrides the track, run `medra track <change> <track> --reason "<user's words>"` and return to Classification's consequences: on full, the fast tasks stay as a draft for the tasks step
+- Run the gate as `medra:conventions` → Gate Protocol describes it, for gate `proposal`. List the proposal and every delta (plus `tasks.md` on the fast track), and put the track, the security relevance, the scope fence and any recorded residual failure up for decision
+- When the user overrides the track, run `medra track <change> <track> --reason "<user's words>"` and return to Classification's consequences: on full, the fast tasks stay as a draft for the tasks step. When the user overrides the security relevance, edit the `**Security:**` and `**Security rationale:**` lines with the user's reason and re-run `medra validate`
 - Record the decision with `medra gate`
 
 **Avoid**
@@ -200,7 +202,7 @@ A proposal-gate decision recorded by `medra gate`.
 A bounded summary that names the next command for this track.
 
 **Actions**
-- Report the change path, the track, and the counts of requirements added, modified and removed (plus tasks on the fast track)
+- Report the change path, the track, the security relevance, and the counts of requirements added, modified and removed (plus tasks on the fast track)
 - Suggest a commit as `medra:conventions` → Commit Suggestions describes it
 - Name the next command: `/medra:plan` on the full track, `/medra:apply` on the fast track
 

@@ -2,10 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { finding, readIf, readText, loadConfig, rel, docsPath } from './core.js';
-import { parseConstitution, constitutionFindings, liveArticles, parseProposal, PROPOSAL_HEADINGS, parsePlan, PLAN_ANCHORS } from './documents.js';
+import { parseConstitution, constitutionFindings, liveArticles, parseProposal, PROPOSAL_HEADINGS, parsePlan, PLAN_ANCHORS, parseThreatModel, THREAT_MODEL_ANCHORS } from './documents.js';
 import { loadLivingSpecs, loadDeltas, livingSpecFindings, deltaFindings } from './specs.js';
 import { loadLearnings, learningsFindings } from './learnings.js';
-import { changeDir, loadState, loadTasks, latestReport, coverage, changeScenarios } from './change.js';
+import { changeDir, loadState, loadTasks, latestReport, coverage, changeScenarios, securityRelevance } from './change.js';
 
 export const STAGES = ['proposal', 'plan', 'tasks', 'verify'];
 
@@ -37,6 +37,11 @@ function proposalFindings(root, change, state) {
   if (!['fast', 'full'].includes(p.track)) out.push(finding('proposal.structure', '**Track:** must be fast or full', { file }));
   else if (p.track !== state.track) out.push(finding('proposal.structure', `**Track:** ${p.track} differs from the change track ${state.track}`, { file }));
   if (!p.rationale) out.push(finding('proposal.structure', 'Missing **Rationale:** under ## Track', { file }));
+  // proposal.security: optional line (absent before 1.4); when present, a valid value and a rationale
+  if (p.security !== null) {
+    if (!['relevant', 'not-relevant'].includes(p.security)) out.push(finding('proposal.security', '**Security:** must be relevant or not-relevant', { file }));
+    if (!p.securityRationale) out.push(finding('proposal.security', 'Missing **Security rationale:** after **Security:**', { file }));
+  }
   // proposal.markers
   const deltas = loadDeltas(dir);
   for (const [f, t] of [[file, text], ...Object.values(deltas).map((d) => [rel(root, d.file), readText(d.file)])]) {
@@ -97,7 +102,53 @@ function planFindings(root, change) {
   const mode = loadConfig(root).testing.mode;
   if (!p.testStrategy) out.push(finding('plan.test-strategy', '## Test Strategy is empty', { file }));
   else if (mode === 'none' && !/No automated tests\.\s*\S+/.test(p.testStrategy)) out.push(finding('plan.test-strategy', 'Mode none requires "No automated tests." followed by a reason', { file }));
+  if (securityRelevance(root, change) === 'relevant') out.push(...threatModelFindings(root, change, p));
   return out;
+}
+
+const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
+const LIKELIHOODS = ['high', 'medium', 'low'];
+
+/** plan.threat-model (SPEC §4.8b): structure, threat ↔ mitigation links, and decided mitigations. */
+function threatModelFindings(root, change, plan) {
+  const dir = changeDir(root, change);
+  const file = rel(root, path.join(dir, 'threat-model.md'));
+  const text = readIf(path.join(dir, 'threat-model.md'));
+  const f = (message, ref = null) => finding('plan.threat-model', message, { file, ref });
+  if (text === null) return [f('threat-model.md is missing; the proposal says **Security:** relevant')];
+  const tm = parseThreatModel(text);
+  const out = [];
+  if (tm.title !== `Threat Model: ${change}`) out.push(f(`Title must be "# Threat Model: ${change}"`));
+  const seen = tm.h2.filter((h) => THREAT_MODEL_ANCHORS.includes(h));
+  if (seen.join() !== THREAT_MODEL_ANCHORS.join()) out.push(f(`Headings must be, in order: ${THREAT_MODEL_ANCHORS.join(', ')}`));
+  const dupes = (rows) => rows.map((r) => r.id).filter((id, i, all) => all.indexOf(id) !== i);
+  for (const id of new Set([...dupes(tm.threats), ...dupes(tm.mitigations)])) out.push(f(`${id} is duplicated`, id));
+  const threatIds = new Set(tm.threats.map((t) => t.id));
+  const mitigationIds = new Set(tm.mitigations.map((m) => m.id));
+  for (const t of tm.threats) {
+    if (!/^TM-\d{2,}$/.test(t.id)) out.push(f(`Threat ID "${t.id}" must be TM-NN`, t.id));
+    if (!/^[STRIDE](?:[ ,]*[STRIDE])*$/.test((t.stride || '').trim())) out.push(f(`${t.id}: STRIDE must be letters from S T R I D E`, t.id));
+    if (!SEVERITIES.includes((t.severity || '').trim())) out.push(f(`${t.id}: Severity must be one of ${SEVERITIES.join(', ')}`, t.id));
+    if (!LIKELIHOODS.includes((t.likelihood || '').trim())) out.push(f(`${t.id}: Likelihood must be one of ${LIKELIHOODS.join(', ')}`, t.id));
+    if (!t.none && !t.mitigations.length) out.push(f(`${t.id} names no mitigation and is not marked —`, t.id));
+    for (const m of t.mitigations) if (!mitigationIds.has(m)) out.push(f(`${t.id} names unknown mitigation ${m}`, t.id));
+  }
+  const decisions = new Set((plan.decisions ?? []).map((d) => (d.heading.match(/^(D-\d{2,}):/) || [])[1]).filter(Boolean));
+  for (const m of tm.mitigations) {
+    if (!/^M-\d{2,}$/.test(m.id)) out.push(f(`Mitigation ID "${m.id}" must be M-NN`, m.id));
+    if (!m.threats.length) out.push(f(`${m.id} names no threat`, m.id));
+    for (const t of m.threats) if (!threatIds.has(t)) out.push(f(`${m.id} names unknown threat ${t}`, m.id));
+    if (m.decision === 'pending') out.push(f(`${m.id} is still pending; accept or decline it with a plan Decision`, m.id));
+    else if (!m.decision || !m.ref) out.push(f(`${m.id}: Decision must be pending, accepted (D-NN) or declined (D-NN)`, m.id));
+    else if (!decisions.has(m.ref)) out.push(f(`${m.id} cites ${m.ref}, which is not a Decision in plan.md`, m.id));
+  }
+  return out;
+}
+
+/** Mitigations accepted in threat-model.md, or [] when the change has none. */
+function acceptedMitigations(root, change) {
+  const text = readIf(path.join(changeDir(root, change), 'threat-model.md'));
+  return text === null ? [] : parseThreatModel(text).mitigations.filter((m) => m.decision === 'accepted').map((m) => m.id);
 }
 
 function tasksFindings(root, change) {
@@ -139,6 +190,11 @@ function tasksFindings(root, change) {
       }
     }
   }
+  // tasks.mitigations: every accepted mitigation reaches a task
+  for (const m of acceptedMitigations(root, change)) {
+    const cited = tasks.some((t) => new RegExp(`\\b${m}\\b`).test(`${t.description} — verify: ${t.verify}`));
+    if (!cited) out.push(finding('tasks.mitigations', `Accepted mitigation ${m} is not cited by any task`, { file, ref: m }));
+  }
   return out;
 }
 
@@ -160,6 +216,12 @@ function verifyFindings(root, change, state) {
   else {
     if (report.mtime < lastDone) out.push(finding('verify.report', 'The verify report is older than the last task done; re-run the check', { file: rel(root, report.file) }));
     if (!['pass', 'pass-with-findings'].includes(report.verdict)) out.push(finding('verify.report', `Verify verdict is ${report.verdict}`, { file: rel(root, report.file) }));
+  }
+  // verify.security-report: presence only. Its verdict informs the gate and never blocks it.
+  if (securityRelevance(root, change) === 'relevant') {
+    const sec = latestReport(root, change, 'security');
+    if (!sec) out.push(finding('verify.security-report', 'No security report in reviews/; the proposal says **Security:** relevant'));
+    else if (sec.mtime < lastDone) out.push(finding('verify.security-report', 'The security report is older than the last task done; re-run the audit', { file: rel(root, sec.file) }));
   }
   return out;
 }

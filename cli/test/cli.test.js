@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { medra, write, read, project, req, livingSpec, proposal, delta, tasks, verifyReport } from './helpers.js';
+import { medra, write, read, project, req, livingSpec, proposal, delta, tasks, verifyReport, securityReport } from './helpers.js';
 
 const rules = (r) => (r.json?.findings ?? []).filter((f) => f.severity === 'error').map((f) => f.rule);
 
@@ -120,6 +120,74 @@ test('plan stage: anchors, one row per article, fail needs complexity row', () =
   assert.equal(medra(root, 'validate', change, '--stage', 'plan').code, 0);
   write(root, `docs/changes/${change}/plan.md`, plan('| I | gate | fail | none |'));
   assert.ok(rules(medra(root, 'validate', change, '--stage', 'plan')).includes('plan.constitution'));
+});
+
+test('security: proposal line, threat model rules, accepted mitigations reach tasks, plan gate covers the model', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  medra(root, 'track', change, 'full', '--reason', 'needs design');
+  const p = `docs/changes/${change}/proposal.md`;
+  const base = read(root, p).replace('**Track:** fast', '**Track:** full');
+  write(root, p, base.replace('**Rationale:** Criteria checked.', '**Rationale:** Criteria checked.\n**Security:** maybe'));
+  assert.ok(rules(medra(root, 'validate', change, '--stage', 'proposal')).includes('proposal.security'), 'bad value and missing rationale');
+  write(root, p, base.replace('**Rationale:** Criteria checked.', '**Rationale:** Criteria checked.\n**Security:** relevant\n**Security rationale:** External input: new endpoint.'));
+  assert.equal(medra(root, 'validate', change, '--stage', 'proposal').code, 0);
+  assert.equal(medra(root, 'status', change).json.security, 'relevant');
+
+  const plan = `# Plan: ${change}\n\n## Summary\n\nDo it.\n\n## Constitution Check\n\n| Article | Gate | Result | Note |\n|---|---|---|---|\n| I | gate | pass | tests first |\n\n## Complexity Tracking\n\nNone.\n\n## Test Strategy\n\n- **Command:** \`npm test\`\n\n## Decisions\n\n### D-01: Hash tokens\n\n**Choice:** M-01\n**Alternatives:** Raw\n**Rationale:** Dumps\n`;
+  write(root, `docs/changes/${change}/plan.md`, plan);
+  assert.ok(rules(medra(root, 'validate', change, '--stage', 'plan')).includes('plan.threat-model'), 'missing threat model');
+  const model = (decision, threatMits = 'M-01') => `# Threat Model: ${change}\n\n## Scope\n\n- **In:** reset\n\n## Assets\n\n- Tokens\n\n## Trust Boundaries\n\n| ID | Boundary | From → To |\n|---|---|---|\n| B-01 | API | Internet → API |\n\n## Entry Points\n\n- \`POST /reset\` (B-01)\n\n## Threats\n\n| ID | STRIDE | Threat | Boundary | Severity | Likelihood | Mitigations |\n|---|---|---|---|---|---|---|\n| TM-01 | S, I | Token guessed | B-01 | high | medium | ${threatMits} |\n\n## Mitigations\n\n| ID | Mitigation | Threats | Decision |\n|---|---|---|---|\n| M-01 | Hash and expire tokens | TM-01 | ${decision} |\n\n## Residual Risks\n\nNone.\n\n## Sources\n\n- https://cheatsheetseries.owasp.org — M-01\n`;
+  const tm = `docs/changes/${change}/threat-model.md`;
+  for (const [decision, mits] of [['pending', 'M-01'], ['accepted (D-09)', 'M-01'], ['accepted (D-01)', 'M-07']]) {
+    write(root, tm, model(decision, mits));
+    assert.ok(rules(medra(root, 'validate', change, '--stage', 'plan')).includes('plan.threat-model'), `${decision} / ${mits}`);
+  }
+  write(root, tm, model('accepted (D-01)'));
+  assert.equal(medra(root, 'validate', change, '--stage', 'plan').code, 0);
+
+  assert.ok(rules(medra(root, 'validate', change, '--stage', 'tasks')).includes('tasks.mitigations'), 'accepted M-01 has no task');
+  const t = `docs/changes/${change}/tasks.md`;
+  write(root, t, read(root, t).replace('Implement in `src/a.js`', 'Implement hashed tokens (M-01) in `src/a.js`'));
+  assert.equal(medra(root, 'validate', change, '--stage', 'tasks').code, 0);
+
+  assert.equal(medra(root, 'gate', change, 'proposal', '--approve').code, 0);
+  assert.equal(medra(root, 'gate', change, 'plan', '--approve').code, 0);
+  write(root, tm, model('accepted (D-01)').replace('Token guessed', 'Token guessed or reused'));
+  assert.equal(medra(root, 'status', change).json.gates.plan.status, 'stale', 'the plan gate hashes threat-model.md');
+});
+
+test('security: verify needs a security report (presence only), which never counts as the verify report', () => {
+  const root = project();
+  const change = 'add-billing-area';
+  medra(root, 'new', change);
+  proposal(root, change, { caps: [['billing', 'new', '—']], security: 'relevant' });
+  write(root, `docs/changes/${change}/specs/billing/spec.md`, delta('billing', `## Purpose\n\nBills.\n\n## ADDED Requirements\n\n${req('BILL-001', 'Invoice', [['BILL-001.S1', 'Sent']])}`, '**ID prefix:** `BILL`'));
+  tasks(root, change, ['- [ ] T001 [TEST] [BILL-001] Test BILL-001.S1 in `test/b.test.js` — verify: red', '- [ ] T002 [BILL-001] after T001 Do in `src/b.js` — verify: green']);
+  assert.equal(medra(root, 'gate', change, 'proposal', '--approve').code, 0);
+  write(root, 'test/b.test.js', '// BILL-001.S1\n');
+  medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
+  medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  const reviews = `docs/changes/${change}/reviews`;
+
+  write(root, `${reviews}/2026-11-04-security-agent-r1.md`, securityReport('pass'));
+  let r = rules(medra(root, 'validate', change, '--stage', 'verify'));
+  assert.ok(r.includes('verify.report'), 'a security report is not a verify report');
+  assert.ok(!r.includes('verify.security-report'));
+
+  fs.rmSync(path.join(root, `${reviews}/2026-11-04-security-agent-r1.md`));
+  write(root, `${reviews}/2026-11-04-verify-agent-r1.md`, verifyReport('pass'));
+  assert.ok(rules(medra(root, 'validate', change, '--stage', 'verify')).includes('verify.security-report'), 'missing security report');
+
+  write(root, `${reviews}/2026-11-04-security-agent-r2.md`, securityReport('fail', 'critical 0 · high 1 · medium 0 · low 0 · info 0'));
+  assert.equal(medra(root, 'validate', change, '--stage', 'verify').code, 0, 'a fail verdict informs and never blocks');
+  assert.deepEqual(medra(root, 'status', change).json.last_security, { path: `${reviews}/2026-11-04-security-agent-r2.md`, round: 2, verdict: 'fail' });
+
+  const g = medra(root, 'gate', change, 'verify', '--approve', '--note', 'accepted-risk: S-01 — internal endpoint only');
+  assert.equal(g.code, 0, g.stdout);
+  assert.match(read(root, `docs/changes/${change}/.medra.yaml`), /note: "?accepted-risk: S-01/);
+  write(root, `${reviews}/2026-11-05-security-agent-r3.md`, securityReport('pass'));
+  assert.equal(medra(root, 'status', change).json.gates.verify.status, 'stale', 'the verify gate hashes the latest security report');
 });
 
 test('gates: prerequisites, stale after edit, not stale after task done', () => {
@@ -266,6 +334,32 @@ test('verify stage: uncovered scenarios and missing report block the gate', () =
   assert.equal(cov.scenarios, 3);
 });
 
+test('verify stage: the highest -r<N> round is the current report, and every round is archived', () => {
+  const root = project();
+  const change = 'add-billing-area';
+  medra(root, 'new', change);
+  proposal(root, change, { caps: [['billing', 'new', '—']] });
+  write(root, `docs/changes/${change}/specs/billing/spec.md`, delta('billing', `## Purpose\n\nBills.\n\n## ADDED Requirements\n\n${req('BILL-001', 'Invoice', [['BILL-001.S1', 'Sent']])}`, '**ID prefix:** `BILL`'));
+  tasks(root, change, ['- [ ] T001 [TEST] [BILL-001] Test BILL-001.S1 in `test/b.test.js` — verify: red', '- [ ] T002 [BILL-001] after T001 Do in `src/b.js` — verify: green']);
+  medra(root, 'gate', change, 'proposal', '--approve');
+  write(root, 'test/b.test.js', '// BILL-001.S1\n');
+  medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
+  medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  const reviews = `docs/changes/${change}/reviews`;
+  write(root, `${reviews}/2026-10-30-verify-agent-r1.md`, verifyReport('fail'));
+  write(root, `${reviews}/2026-10-30-verify-agent-r2.md`, verifyReport('pass-with-findings'));
+  write(root, `${reviews}/2026-10-30-verify-agent-r3.md`, verifyReport('pass'));
+  // Round 1 and an unsuffixed 1.2 report are touched last: the round, not the mtime, decides.
+  write(root, `${reviews}/2026-10-30-verify-agent.md`, verifyReport('fail'));
+  const later = new Date(Date.now() + 60_000);
+  for (const f of ['2026-10-30-verify-agent-r1.md', '2026-10-30-verify-agent.md']) fs.utimesSync(path.join(root, reviews, f), later, later);
+  assert.equal(medra(root, 'validate', change, '--stage', 'verify').code, 0);
+  assert.equal(medra(root, 'gate', change, 'verify', '--approve').code, 0);
+  const archived = medra(root, 'archive', change).json.archived_path;
+  const kept = fs.readdirSync(path.join(root, archived, 'reviews')).filter((f) => /-r\d+\.md$/.test(f)).sort();
+  assert.deepEqual(kept, ['2026-10-30-verify-agent-r1.md', '2026-10-30-verify-agent-r2.md', '2026-10-30-verify-agent-r3.md']);
+});
+
 test('learnings: add, bump, merge, retire, promote, status budget and staleness', () => {
   const root = project();
   write(root, 'docs/config-flow.yaml', read(root, 'docs/config-flow.yaml').replace('max_active: 40', 'max_active: 1').replace('promote_after: 3', 'promote_after: 2').replace('stale_after: 10', 'stale_after: 0'));
@@ -311,6 +405,8 @@ test('install --target antigravity: plugin rewrite table, manifest, idempotent, 
   assert.match(reviewer, /^---\nname: medra-reviewer\ndescription: [^\n]+\ntools: \[read_file, write_file, run_command, ask_question\]\nmainAgent: true\nsubagent: true\n---\n/);
   assert.match(read(root, `${P}/agents/implementer.md`), /tools: \[read_file, write_file, edit_file, run_command, ask_question, invoke_subagent\]\nmainAgent: true\nsubagent: false\n---/);
   assert.match(read(root, `${P}/skills/handoff-implementer-reviewer/SKILL.md`), /subagent_type: medra-reviewer/);
+  assert.match(read(root, `${P}/agents/security.md`), /tools: \[read_file, write_file, run_command, search_web\]\nmainAgent: true\nsubagent: true\n---/, 'a dispatched agent is a subagent');
+  assert.match(read(root, `${P}/agents/author.md`), /tools: \[[^\]]*invoke_subagent\]/, 'Agent(Explore, security) is one entry');
   assert.equal(read(root, `${P}/VERSION`).trim(), version);
   assert.equal(medra(root, 'install', '--target', 'antigravity').code, 0, 'idempotent');
   write(root, `${P}/skills/propose/SKILL.md`, 'hand edited');

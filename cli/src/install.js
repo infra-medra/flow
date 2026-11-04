@@ -44,7 +44,8 @@ function agentFrontmatter(text, name, { subagent }) {
   const fm = splitFrontmatter(text);
   if (!fm) return text;
   const tools = [];
-  for (const raw of (field(fm.lines, 'tools') ?? 'tools:').slice('tools:'.length).split(',').map((t) => t.trim()).filter(Boolean)) {
+  // Split on commas outside parentheses, so `Agent(reviewer, security)` stays one entry.
+  for (const raw of (field(fm.lines, 'tools') ?? 'tools:').slice('tools:'.length).split(/,(?![^(]*\))/).map((t) => t.trim()).filter(Boolean)) {
     const mapped = TOOLS[raw.replace(/\(.*\)$/, '')];
     if (!mapped) throw envError(`agents/${name}.md: tool ${raw} has no Antigravity equivalent; extend the tool table (SPEC §8.13)`);
     if (!tools.includes(mapped)) tools.push(mapped);

@@ -65,7 +65,7 @@ The title, using the exact change name.
 
 ## Writing Standards
 
-- **Traceable.** Every ADDED or MODIFIED requirement is referenced by at least one task, and every task that delivers behavior names its requirement IDs.
+- **Traceable.** Every ADDED or MODIFIED requirement is referenced by at least one task, and every task that delivers behavior names its requirement IDs. When the change has a `threat-model.md`, every `accepted` mitigation is cited by its `M-NN` in the description of at least one task, for example `` - [ ] T007 [AUTH-004] after T006 Store only the SHA-256 of reset tokens (M-02) in `src/auth/reset.ts` — verify: T006 tests pass (green) ``.
 - **Grounded.** Every path is one that exists, or one the plan creates.
 - **Inside the fence.** Write no task that delivers behavior outside the approved deltas.
 - **Never tick by hand.** Leave every box `[ ]`. Only `medra task done` ticks a task, and it writes the evidence line at the same time.
@@ -76,6 +76,7 @@ The title, using the exact change name.
 - [ ] Every task line matches the grammar, and IDs are unique and sequential.
 - [ ] Every `after` reference points to an earlier task.
 - [ ] Every ADDED or MODIFIED requirement is referenced by at least one task.
+- [ ] Every `accepted` mitigation in `threat-model.md`, when present, is cited by at least one task.
 - [ ] In `tdd`, every such requirement has a `[TEST]` task, and its implementation tasks are `after` it.
 - [ ] Every task has a concrete verify clause.
 - [ ] Every path exists in the codebase or is created by an earlier task or the plan.

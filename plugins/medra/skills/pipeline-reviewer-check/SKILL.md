@@ -49,10 +49,11 @@ A validated dispatch, plus the bounded context for the check.
 **Actions**
 - Load `medra:handoff-implementer-reviewer`, `medra:conventions` and `medra:template-review`, then validate the dispatch against the handoff's receiver rules
 - Run `medra context <change> --stage verify --json` for the requirements, constitution, test strategy and coverage
-- Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, without reading the full diff yet. On later rounds, read the previous verify report's findings for the IDs in `fixed_findings`
+- Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, without reading the full diff yet. On later rounds, read the findings for the IDs in `fixed_findings` from `previous_report`
 
 **Avoid**
 - Don't start inspecting after a failed dispatch validation — because a check against the wrong change or base produces a confident, wrong verdict
+- Don't write to `previous_report` or any earlier round's file — because each round's findings are the evidence archive harvests; a major finding fixed in round 2 must still be on disk at archive
 
 **Exit when:**
 - [ ] The dispatch passed the receiver validation, or the failing fields are recorded for an `invalid-dispatch` response
@@ -75,6 +76,7 @@ An evidence-backed judgment for every ADDED and MODIFIED requirement, and findin
 **Avoid**
 - Don't accept coverage as proof — because a test that cites a scenario ID can still assert nothing; read every covering test
 - Don't review style or your preferred design — because the contract is the deltas, plan and constitution; preference findings bury the real ones
+- Don't run a security audit when `medra status` reports `security: relevant` — because the security agent audits that change in parallel, and a duplicated finding costs the implementer two fixes for one problem; report a security problem only when it makes a requirement `unmet`, and leave the rest to the security report
 
 **Exit when:**
 - [ ] Every ADDED and MODIFIED requirement has a status of `met`, `partial`, `unmet` or `unverified`, with evidence
@@ -88,7 +90,7 @@ An evidence-backed judgment for every ADDED and MODIFIED requirement, and findin
 A verification report at `report_path`, with a verdict set by Knowledge → Verdict Rules.
 
 **Actions**
-- Copy the template to `report_path`, with stage `verify`, reviewer `reviewer agent`, the findings and one Coverage row per requirement
+- Copy the template to `report_path` (a new file, distinct from every earlier round), with stage `verify`, reviewer `reviewer agent`, the findings and one Coverage row per requirement
 - Set the Verdict by Knowledge → Verdict Rules, and make the Counts match the findings
 - Read the file back and run the `medra:template-review` Quality Checklist
 
