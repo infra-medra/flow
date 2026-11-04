@@ -1,6 +1,6 @@
 ---
 name: pipeline-implementer-verify
-description: Load when the user runs verify on a change whose tasks are all done — confirms readiness, obtains an independent check through the reviewer handoff (or runs it inline where subagents are unavailable), fixes findings for up to two rounds, and runs the verify gate.
+description: Load when the user runs verify on a change whose tasks are all done — confirms readiness, obtains an independent check through the reviewer handoff (or runs it inline where subagents are unavailable), fixes findings for up to two rounds (plus one per request-changes at the gate), and runs the verify gate.
 user-invocable: false
 ---
 
@@ -40,7 +40,7 @@ flowchart TD
     Fix -->|"Max 2 rounds"| Gate
     Gate --> Decision{{"User decision?"}}
     Decision -->|"Approved"| Delivery["Delivery\nNext command"]
-    Decision -->|"Changes"| Fix
+    Decision -->|"Changes: new round"| Fix
     Decision -->|"Rejected"| Stop2["Stop\nChange stays implementing"]
     Delivery --> Done["Done"]
 ```
@@ -72,7 +72,7 @@ Confirmation that the change satisfies the handoff's dispatch preconditions and 
 A verification report at the dispatched `report_path`, and a validated response payload.
 
 **Actions**
-- Compose the dispatch payload exactly as the handoff's Dispatch section defines it, using `round: 1` on the first pass and adding `fixed_findings` on later rounds
+- Compose the dispatch payload exactly as the handoff's Dispatch section defines it, using `round: 1` on the first pass. On later rounds, set `round` to one more than the highest `-r<N>` report in `reviews/`, and add `previous_report` (that report) and `fixed_findings`
 - On Claude Code, call the Agent tool with the reviewer agent and the payload; on Antigravity, `invoke_subagent`. On a runtime without subagents, run the reviewer's check inline, following `medra:conventions` → Runtime Portability
 - Validate the response against the handoff's Validation rules. When it fails, follow its Error Handling
 - When the response is `needs-decision`, put its question to the user with `AskUserQuestion`, then re-dispatch with the answer recorded in the change's documents (through `/medra:propose <change>` when the answer changes behavior)
@@ -95,10 +95,12 @@ Every critical and major finding from the latest report resolved in code, ready 
 - Read the report's findings in severity order, and fix each critical and major finding in code and tests, re-running the affected tests to green
 - Fix a minor finding when the fix is local and safe. Otherwise leave it for the gate, noting why
 - Collect the fixed finding IDs for the next dispatch's `fixed_findings`, then return to Check with `round` incremented. After round 2, go to the gate with whatever remains
+- When the gate returns request-changes, fix the gate notes here, then always run one more Check with the next `round`, outside the two-round limit, and go back to the gate with its verdict without further Fix rounds. Each request-changes at the gate opens exactly one such round
 
 **Avoid**
 - Don't argue a finding by editing the report — because the report is the reviewer's record; disagreement goes to the user at the gate
 - Don't change behavior beyond what a finding asks — because each fix must stay inside the approved deltas, like any apply work
+- Don't go to the gate after a code change without a new Check round — because the current report then describes code that no longer exists, and `verify.report` only detects changes made through `medra task done`
 
 **Exit when:**
 - [ ] Every critical and major finding is fixed or explicitly left for the gate
@@ -113,7 +115,7 @@ A verify-gate decision recorded by `medra gate`.
 
 **Actions**
 - Run `medra validate <change> --stage verify --json`. When `verify.report` fails because code changed after the last check, return to Check
-- Run the gate as `medra:conventions` → Gate Protocol describes it, for gate `verify`. Present the verdict, the counts, the coverage ratio, and any finding left unresolved together with its reason
+- Run the gate as `medra:conventions` → Gate Protocol describes it, for gate `verify`. Present the report of the highest round (the one `verify.report` validated) with its verdict and counts, the number of check rounds, the coverage ratio, and any finding left unresolved together with its reason
 - Record the decision with `medra gate`
 
 **Avoid**

@@ -48,7 +48,7 @@ docs/
     │   ├── plan.md                         # full track only
     │   ├── contracts/                      # optional, free-form
     │   ├── tasks.md
-    │   └── reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md
+    │   └── reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md   # verify: …-verify-agent-r<round>.md
     └── archive/
         ├── INDEX.md
         └── <YYYY-MM-DD>-<change>/
@@ -246,6 +246,8 @@ The CLI flips `[ ]` to `[x]` only through `task done`.
 
 ### 4.8 Review report — `docs/changes/<change>/reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md`
 
+A verify report written by the check carries its round as a suffix: `<YYYY-MM-DD>-verify-agent-r<round>.md`. The **latest** `verify` report is the one with the highest round; a file without the suffix ranks below every suffixed one, and the modification time breaks ties.
+
 The required lines are `**Stage:** proposal|plan|tasks|verify`, `**Verdict:** approve|request-changes|comment|pass|pass-with-findings|fail`, and `**Counts:** critical <n> · major <n> · minor <n>`. The rest follows `medra:template-review`. The CLI reads only these three lines.
 
 ### 4.9 Learnings — `docs/learnings.md`
@@ -324,7 +326,7 @@ The Requirements cell uses the prefixes `+` (added), `~` (modified) and `-` (rem
 | `proposal` | proposal.md and every delta; on the fast track also tasks.md | — | `proposed` (full) or `tasked` (fast) |
 | `plan` | plan.md and `contracts/**` | `proposal` approved; track `full` | `planned` |
 | `tasks` | tasks.md, ignoring checkboxes and evidence lines | `plan` approved | `tasked` |
-| `verify` | every stage document, plus the latest `verify` review report | every task done; `tasks` approved (full) or `proposal` approved (fast) | `verified` |
+| `verify` | every stage document, plus the latest `verify` review report (§4.8) | every task done; `tasks` approved (full) or `proposal` approved (fast) | `verified` |
 
 On the fast track there are no `plan` or `tasks` gates, and `status` reports them as `skipped`.
 
@@ -356,7 +358,7 @@ On the fast track there are no `plan` or `tasks` gates, and `status` reports the
 | `tasks.test-before-impl` | tasks | Mode `tdd`: every non-test task that references requirement R is `after` (directly or transitively) a `[TEST]` task referencing R |
 | `verify.tasks-done` | verify | Every task is `[x]` with at least one evidence line |
 | `verify.coverage` | verify | Mode `tdd` or `test-after`: `coverage` reports no uncovered scenario among the change's ADDED and MODIFIED requirements |
-| `verify.report` | verify | A `verify` review report exists, newer than the last task done, with Verdict `pass` or `pass-with-findings` |
+| `verify.report` | verify | The latest `verify` review report (§4.8) exists, is newer than the last task done, and has Verdict `pass` or `pass-with-findings` |
 | `learnings.structure` | learnings | §4.9 grammar; IDs unique |
 
 ## 7. Hashing

@@ -266,6 +266,32 @@ test('verify stage: uncovered scenarios and missing report block the gate', () =
   assert.equal(cov.scenarios, 3);
 });
 
+test('verify stage: the highest -r<N> round is the current report, and every round is archived', () => {
+  const root = project();
+  const change = 'add-billing-area';
+  medra(root, 'new', change);
+  proposal(root, change, { caps: [['billing', 'new', '—']] });
+  write(root, `docs/changes/${change}/specs/billing/spec.md`, delta('billing', `## Purpose\n\nBills.\n\n## ADDED Requirements\n\n${req('BILL-001', 'Invoice', [['BILL-001.S1', 'Sent']])}`, '**ID prefix:** `BILL`'));
+  tasks(root, change, ['- [ ] T001 [TEST] [BILL-001] Test BILL-001.S1 in `test/b.test.js` — verify: red', '- [ ] T002 [BILL-001] after T001 Do in `src/b.js` — verify: green']);
+  medra(root, 'gate', change, 'proposal', '--approve');
+  write(root, 'test/b.test.js', '// BILL-001.S1\n');
+  medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
+  medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  const reviews = `docs/changes/${change}/reviews`;
+  write(root, `${reviews}/2026-10-30-verify-agent-r1.md`, verifyReport('fail'));
+  write(root, `${reviews}/2026-10-30-verify-agent-r2.md`, verifyReport('pass-with-findings'));
+  write(root, `${reviews}/2026-10-30-verify-agent-r3.md`, verifyReport('pass'));
+  // Round 1 and an unsuffixed 1.2 report are touched last: the round, not the mtime, decides.
+  write(root, `${reviews}/2026-10-30-verify-agent.md`, verifyReport('fail'));
+  const later = new Date(Date.now() + 60_000);
+  for (const f of ['2026-10-30-verify-agent-r1.md', '2026-10-30-verify-agent.md']) fs.utimesSync(path.join(root, reviews, f), later, later);
+  assert.equal(medra(root, 'validate', change, '--stage', 'verify').code, 0);
+  assert.equal(medra(root, 'gate', change, 'verify', '--approve').code, 0);
+  const archived = medra(root, 'archive', change).json.archived_path;
+  const kept = fs.readdirSync(path.join(root, archived, 'reviews')).filter((f) => /-r\d+\.md$/.test(f)).sort();
+  assert.deepEqual(kept, ['2026-10-30-verify-agent-r1.md', '2026-10-30-verify-agent-r2.md', '2026-10-30-verify-agent-r3.md']);
+});
+
 test('learnings: add, bump, merge, retire, promote, status budget and staleness', () => {
   const root = project();
   write(root, 'docs/config-flow.yaml', read(root, 'docs/config-flow.yaml').replace('max_active: 40', 'max_active: 1').replace('promote_after: 3', 'promote_after: 2').replace('stale_after: 10', 'stale_after: 0'));

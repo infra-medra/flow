@@ -42,10 +42,13 @@ function walk(dir) {
 
 export function latestReport(root, change, stage) {
   const dir = path.join(changeDir(root, change), 'reviews');
+  // A verify report carries its round as a `-r<N>` suffix; the highest round wins, and a file
+  // without one (1.2 and earlier, or a document stage) ranks below any suffixed round.
+  const round = (f) => Number(/-r(\d+)\.md$/.exec(f)?.[1] ?? 0);
   const files = walk(dir).filter((f) => f.endsWith('.md'))
-    .map((f) => ({ file: f, ...parseReport(readText(f)), mtime: fs.statSync(f).mtimeMs }))
+    .map((f) => ({ file: f, ...parseReport(readText(f)), round: round(f), mtime: fs.statSync(f).mtimeMs }))
     .filter((r) => r.stage === stage)
-    .sort((a, b) => a.mtime - b.mtime);
+    .sort((a, b) => a.round - b.round || a.mtime - b.mtime);
   return files.pop() ?? null;
 }
 

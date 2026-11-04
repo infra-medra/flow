@@ -26,16 +26,29 @@ On Claude Code, the sender passes this payload to the Agent tool, with `subagent
 | change | string | yes | The change name, from `medra status` |
 | change_path | path | yes | `docs/changes/<change>` |
 | diff_base | string | yes | The `diff_base` value from `.medra.yaml` (a git ref, or `none`) |
-| report_path | path | yes | `docs/changes/<change>/reviews/<YYYY-MM-DD>-verify-agent.md`, using today's date |
-| round | integer | yes | `1` for the first check. Increment it on every re-check after fixes |
-| fixed_findings | list | no | On rounds after the first: the finding IDs from the previous report that the implementer claims are fixed |
+| report_path | path | yes | `docs/changes/<change>/reviews/<YYYY-MM-DD>-verify-agent-r<round>.md`, using today's date and this dispatch's `round`. Each round gets its own file, so no round overwrites another |
+| round | integer | yes | `1` for the first check. Increment it on every re-check, including a re-check after a Request changes at the verify gate |
+| previous_report | path | no | Required on rounds after the first: the `report_path` of round `round - 1`, which may carry an earlier date |
+| fixed_findings | list | no | On rounds after the first: the finding IDs from `previous_report` that the implementer claims are fixed |
 
 ```yaml
 change: add-password-reset
 change_path: docs/changes/add-password-reset
 diff_base: 3f2a9c1
-report_path: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent.md
+report_path: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent-r1.md
 round: 1
+```
+
+A later round points at the report it follows up on:
+
+```yaml
+change: add-password-reset
+change_path: docs/changes/add-password-reset
+diff_base: 3f2a9c1
+report_path: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent-r2.md
+round: 2
+previous_report: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent-r1.md
+fixed_findings: [F-01, F-03]
 ```
 
 The code, the deltas and the task list never appear in the payload. The receiver reads them from disk through `medra context` and git.
@@ -56,7 +69,7 @@ The receiver's final message ends with this block:
 ```yaml
 status: done
 verdict: fail
-report_path: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent.md
+report_path: docs/changes/add-password-reset/reviews/2026-10-31-verify-agent-r1.md
 counts: { critical: 1, major: 2, minor: 1 }
 unverified: 0
 ```
@@ -66,12 +79,14 @@ unverified: 0
 **The sender checks before dispatch:**
 - `medra status <change> --json` reports `tasks.done == tasks.total`.
 - `medra validate <change> --stage tasks` exits `0`.
-- The parent directory of `report_path` exists.
+- The parent directory of `report_path` exists, and no file exists at `report_path` yet (a re-dispatch under Error Handling excepted).
+- On rounds after the first, `previous_report` exists and ends in `-r<round - 1>.md`.
 
 **The receiver checks on receipt:**
 - `change_path` exists and contains `.medra.yaml`.
 - `diff_base` is `none` or resolves with `git rev-parse`.
-- On rounds after the first, `fixed_findings` names IDs present in the previous verify report.
+- `report_path` ends in `-r<round>.md`.
+- On rounds after the first, `previous_report` exists, ends in `-r<round - 1>.md`, and every ID in `fixed_findings` is a finding in it.
 
 **The sender checks the response:**
 - The file at `report_path` exists, and its `**Verdict:**` and `**Counts:**` lines equal `verdict` and `counts`.
@@ -86,4 +101,4 @@ unverified: 0
 | The receiver gets an invalid dispatch | Write no report. Return `status: invalid-dispatch`, naming each failing field |
 | The receiver hits a decision it cannot make (for example, a requirement that is ambiguous in the spec) | Finish everything else, mark the affected requirement `unverified` in the report, and return `status: needs-decision` with the question. The sender puts the question to the user |
 | The work fails partway (a CLI exit `2` or `4`) | Return `status: needs-decision`, with the command, its exit code and stderr as the question |
-| The sender gets an invalid response | Re-dispatch once with the same payload. If the second response is also invalid, read the report file directly when it exists and present it to the user, noting that the response failed validation |
+| The sender gets an invalid response | Re-dispatch once with the same payload; the receiver rewrites that same round's report, never an earlier one. If the second response is also invalid, read the report file directly when it exists and present it to the user, noting that the response failed validation |
