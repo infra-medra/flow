@@ -59,7 +59,7 @@ flowchart TD
 A restated intent — who it serves, what changes for them, and what is out of scope — that the user confirmed, with any overlapping change surfaced.
 
 **Actions**
-- Load `medra:conventions`, `medra:template-proposal` and `medra:template-delta`, then run `medra index --md`
+- Load `medra:conventions`, `medra:template-proposal` and `medra:template-delta`, then run `medra index`
 - When the input names an existing change, run `medra status <change> --json` and `medra context <change> --stage propose --md`, and take its pending gate notes as the revision brief instead of a new intent
 - Restate the intent in your own words: actors, outcome, the capabilities it likely touches, and what is explicitly out of scope
 - Check the active changes and the archive index for the same capability and outcome, and surface any overlap to the user
@@ -82,7 +82,7 @@ A restated intent — who it serves, what changes for them, and what is out of s
 A change folder created by `medra new`, with a kebab-case name and a track justified against Knowledge → Track Criteria.
 
 **Actions**
-- Run `medra index --learnings <capabilities the intent touches> --md`, then evaluate the intent against every row of Knowledge → Track Criteria and the matching learnings, and record which criteria fire
+- Run `medra index --learnings <capabilities the intent touches>`, then evaluate the intent against every row of Knowledge → Track Criteria and the matching learnings, and record which criteria fire
 - Choose a name that starts with a verb and is at most 8 words, then run `medra new <change> --track <fast|full>`. On a revision, skip `new` and run `medra track` only when the criteria now point to a different track
 - Classify security relevance against the criteria in `medra:template-proposal` → Track, recording which fired and where
 - Tell the user the track, the security relevance and the criteria behind each; the user can override either at the gate
