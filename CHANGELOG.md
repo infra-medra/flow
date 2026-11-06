@@ -2,6 +2,11 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.5.1] — 2026-11-06
+
+### Added
+- **Package documentation:** Bundled `README.md` (with full CLI reference, configuration guide, and changelog) and `CHANGELOG.md` into the published `@medra.dev/flow` npm package, plus `repository`, `homepage`, and `keywords` metadata in `package.json`.
+
 ## [1.5.0] — 2026-11-06
 
 ### Added

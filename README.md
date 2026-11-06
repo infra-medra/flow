@@ -149,6 +149,7 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
+- **1.5.1 (2026-11-06):** Bundled `README.md` (with full CLI reference and configuration guide), `CHANGELOG.md`, and repository metadata into the published `@medra.dev/flow` npm package.
 - **1.5.0 (2026-11-06):** Token-optimized context packs (`task done` returns `next_task`, `MODIFIED` living specs collapse unchanged scenarios, default Markdown output on `index` and `context`, slimmer `conventions`), optional capability `**Paths:**` globs, test-tampering guard (`task.test-tampered` + `--allow-test-edit`), and static checks on green tasks (`testing.checks` / `task.check`).
 - **1.4.1 (2026-11-04):** Fixed documentation drift and hardened `medra archive` atomicity.
 - **1.4.0 (2026-11-04):** Added the `security` agent (Sentinel) for STRIDE threat modeling in `plan` (`threat-model.md`) and parallel security auditing in `verify` (`*-security-agent-r<round>.md`).
