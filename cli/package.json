@@ -7,10 +7,26 @@
     "medra": "bin/medra.js"
   },
   "files": [
+    "README.md",
     "bin/",
     "src/",
     "schemas/",
     "plugin/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/infra-medra/flow.git"
+  },
+  "homepage": "https://github.com/infra-medra/flow#readme",
+  "keywords": [
+    "spec-driven-development",
+    "sdd",
+    "openspec",
+    "spec-kit",
+    "tdd",
+    "bdd",
+    "claude-code",
+    "antigravity"
   ],
   "engines": {
     "node": ">=20"
