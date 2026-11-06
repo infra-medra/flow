@@ -145,6 +145,18 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 [plugins/medra/BLUEPRINT.md](plugins/medra/BLUEPRINT.md) covers the topology, contracts and decisions. [cli/SPEC.md](cli/SPEC.md) is the CLI contract.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+- **1.5.0 (2026-11-06):** Token-optimized context packs (`task done` returns `next_task`, `MODIFIED` living specs collapse unchanged scenarios, default Markdown output on `index` and `context`, slimmer `conventions`), optional capability `**Paths:**` globs, test-tampering guard (`task.test-tampered` + `--allow-test-edit`), and static checks on green tasks (`testing.checks` / `task.check`).
+- **1.4.1 (2026-11-04):** Fixed documentation drift and hardened `medra archive` atomicity.
+- **1.4.0 (2026-11-04):** Added the `security` agent (Sentinel) for STRIDE threat modeling in `plan` (`threat-model.md`) and parallel security auditing in `verify` (`*-security-agent-r<round>.md`).
+- **1.3.0 (2026-11-04):** Preserved every verify round as its own `-r<round>.md` report for archive learning harvest.
+- **1.2.0 (2026-10-30):** Native Google Antigravity plugin generation (`medra install --target antigravity`) and automatic 1.1 cleanup.
+- **1.1.0 (2026-10-30):** Moved project layout from `medra/` to `docs/` (`docs/config-flow.yaml`) with automatic `git mv` migration and gate hash preservation.
+- **1.0.0 (2026-10-29):** Initial release of the `medra` spec-driven workflow and CLI.
+
 ## Developing the CLI
 
 ```bash
