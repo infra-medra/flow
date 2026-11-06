@@ -4,7 +4,7 @@ import { Command, CommanderError } from 'commander';
 import { MedraError, EXIT, requireRoot, findRoot } from '../src/core.js';
 import { migrateLayout } from '../src/migrate.js';
 import * as cmd from '../src/commands.js';
-import { index, context, contextMarkdown } from '../src/context.js';
+import { index, indexMarkdown, context, contextMarkdown } from '../src/context.js';
 import { archive } from '../src/archive.js';
 import { install, cliVersion } from '../src/install.js';
 
@@ -62,8 +62,12 @@ j(program.command('validate [change]').description('Run validation rules').optio
     return cmd.validate(root(), change, o);
   }));
 
-j(program.command('index').description('Bounded project overview').option('--learnings <capabilities>'))
-  .action(run((o) => index(root(), { learnings: o.learnings ? o.learnings.split(',').map((s) => s.trim()) : undefined })));
+j(program.command('index').description('Bounded project overview').option('--learnings <capabilities>').option('--md', 'Markdown output'))
+  .action((o) => {
+    const pack = index(root(), { learnings: o.learnings ? o.learnings.split(',').map((s) => s.trim()) : undefined });
+    if (o.md && !jsonMode) process.stdout.write(indexMarkdown(pack));
+    else emit(pack, jsonMode ? undefined : indexMarkdown(pack));
+  });
 
 j(program.command('context <change>').description('Bounded context pack for one stage').requiredOption('--stage <stage>').option('--md', 'Markdown output'))
   .action((change, o) => {
@@ -98,7 +102,7 @@ j(program.command('install').description('Install the medra skills for another r
 j(program.command('update').description('Refresh installed integrations')).action(run(() => cmd.update(root())));
 
 const task = program.command('task').description('Task checkpoints');
-j(task.command('done <change> <task>').option('--run <command>').option('--evidence <text>').option('--kind <kind>'))
+j(task.command('done <change> <task>').option('--run <command>').option('--evidence <text>').option('--kind <kind>').option('--allow-test-edit'))
   .action(run((change, t, o) => cmd.taskDone(root(), change, t, o)));
 j(task.command('block <change> <task>').requiredOption('--note <text>')).action(run((change, t, o) => cmd.taskBlock(root(), change, t, o)));
 j(task.command('unblock <change> <task>')).action(run((change, t) => cmd.taskBlock(root(), change, t, {}, true)));

@@ -80,6 +80,7 @@ integrations: [claude, antigravity]
 testing:
   mode: tdd                     # tdd | test-after | none
   command: "npm test --"        # optional; base command for --run
+  checks: ["npm run lint"]      # optional; static checks (lint, typecheck) run on green implementation tasks
   paths: ["test/**", "**/*.test.*", "**/*_test.*", "tests/**"]
 learning:
   max_active: 40
@@ -416,11 +417,11 @@ medra new <change> [--track fast|full]
 
 Runs the rules in §6. Exit `0` with `{"findings": [warnings]}`, or exit `1`.
 
-### 8.5 `medra index [--learnings <capability,…>]`
+### 8.5 `medra index [--learnings <capability,…>] [--md]`
 
-- Returns a bounded project overview for agents that do not yet have a change: `{"constitution": [{article, title}], "capabilities": [{name, prefix, purpose, next_id, requirements: [{id, title}]}], "active_changes": [{name, phase, capabilities}], "learnings": {"active": n}}`. `next_id` is the first requirement ID above every living and retired ID in that capability.
-- `--learnings <capability,…>` adds `"matching_learnings"`: active entries scoped to any listed capability, or unscoped, capped at `learning.context_max`, as `{id, type, title, statement}`.
-- `purpose` holds only the first sentence. Requirement and scenario bodies are never included.
+- Returns a bounded project overview for agents that do not yet have a change: `{"constitution": [{article, title}], "capabilities": [{name, prefix, paths?, purpose, next_id, requirements: [{id, title}]}], "active_changes": [{name, phase, capabilities}], "learnings": {"active": n}}`. `next_id` is the first requirement ID above every living and retired ID in that capability.
+- `--learnings <capability,…>` adds `"matching_learnings"`: active entries scoped to any listed capability or its declared `**Paths:**`, or unscoped, capped at `learning.context_max`, as `{id, type, title, statement}`.
+- `purpose` holds only the first sentence. Requirement and scenario bodies are never included. With `--md` (or without `--json`), prints a compact Markdown summary.
 
 ### 8.6 `medra context <change> --stage <stage>`
 
@@ -433,9 +434,9 @@ The CLI's main token-saving tool. It returns only what the stage needs:
 | Field | Stages | Content |
 |---|---|---|
 | `constitution` | plan, tasks, review, verify | Every live article: `{article, title, gate}` |
-| `requirements` | all | For each requirement the change touches: the `delta` block in full and the `living` block in full (MODIFIED and REMOVED), plus `last_changed_by` (the archive folder path from INDEX, or `null`) |
+| `requirements` | propose, plan, tasks, review, verify, archive | For each requirement the change touches: the `delta` block in full and the `living` block (for MODIFIED, scenarios byte-identical to the delta are collapsed to a one-line `*(unchanged in delta)*` marker; for REMOVED, in full), plus `last_changed_by` (the archive folder path from INDEX, or `null`). Omitted in `apply`, where `next_task.requirements` carries only the current task's requirements |
 | `siblings` | propose, plan, review | The `{id, title}` of the other requirements in the touched capabilities |
-| `learnings` | all | Active entries whose scope matches the change (§8.10 matching), most occurrences first, capped at `learning.context_max`: `{id, type, title, statement}` |
+| `learnings` | all | Active entries whose scope matches the change (§8.10 matching, including capability `**Paths:**`), most occurrences first, capped at `learning.context_max`: `{id, type, title, statement}` |
 | `gate_notes` | all | Open request-changes notes for the stage's own gate |
 | `documents` | all | The paths of the change documents that exist |
 | `test_strategy` | apply, verify | The plan's `## Test Strategy` section text (full track), or `null` |
@@ -501,7 +502,7 @@ medra learn candidates
 ### 8.12 `medra task …`
 
 ```
-medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual]
+medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit]
 medra task block <change> <T-NNN> --note "<text>"
 medra task unblock <change> <T-NNN>
 ```
@@ -519,12 +520,13 @@ medra task unblock <change> <T-NNN>
 | `none` | not applicable | `manual` |
 
    When `--kind` is omitted, the CLI uses the first allowed kind.
-4. **With `--run`:** the CLI runs the command (in the project root, with a 10-minute timeout) and records its exit code and the last 3 non-empty output lines. `red` requires a non-zero exit, and `green` requires exit `0`. A mismatch exits `1` with the captured output. Exit `4` when the command is not found.
-5. **With `--evidence`:** the CLI records the text as given. Skills use `--run` whenever a test command exists.
+4. **Test-tampering guard (`tdd` mode):** when a `[TEST]` task completes with `red`, the CLI records the SHA-256 of its test files in `.medra.yaml` (`test_hashes`). When a subsequent implementation task completes with `green`, the CLI verifies that none of those locked test files were modified or deleted (`task.test-tampered`), unless `--allow-test-edit` is explicitly passed (which stamps `[test-edited]` on the evidence line for the reviewer).
+5. **With `--run`:** the CLI runs the command (in the project root, with a 10-minute timeout) and records its exit code and the last 3 non-empty output lines. `red` requires a non-zero exit, and `green` requires exit `0`. On a `green` non-`[TEST]` task, the CLI also runs each command in `testing.checks` (if configured), failing with `task.check` on a non-zero exit. A mismatch exits `1` with the captured output. Exit `4` when the command is not found.
+6. **With `--evidence`:** the CLI records the text as given. Skills use `--run` whenever a test command exists.
 
-On success the CLI ticks the task, appends the evidence line, sets the phase to `implementing` on the first done task, and returns `{"task", "kind", "remaining", "next"}`.
+On success the CLI ticks the task, appends the evidence line, sets the phase to `implementing` on the first done task, and returns `{"task", "kind", "remaining", "next", "next_task"}` (where `next_task` has the same shape as in `context --stage apply`, so agents do not need to re-invoke `context` after each task).
 
-`block` records an open blocker, and `unblock` resolves it.
+`block` records an open blocker, and `unblock` resolves it; both also return `remaining`, `next` and `next_task`.
 
 ### 8.13 `medra install --target antigravity`
 

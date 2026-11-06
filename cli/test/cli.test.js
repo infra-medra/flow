@@ -206,32 +206,67 @@ test('gates: prerequisites, stale after edit, not stale after task done', () => 
   assert.equal(medra(root, 'context', change, '--stage', 'propose').json.gate_notes[0].note, 'split it');
 });
 
-test('task done: red/green exit codes and after ordering with --run', () => {
+test('task done: red/green exit codes, test-tampering guard, static checks, and after ordering with --run', () => {
   const root = project();
   const change = brownfieldChange(root);
   medra(root, 'gate', change, 'proposal', '--approve');
+  write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\nassert(true);\n');
   assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').json.findings[0].rule, 'task.after');
   assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'exit 0').json.findings[0].rule, 'task.red');
   assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1').code, 0);
   assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 2').json.findings[0].rule, 'task.green');
   assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'definitely-not-a-command-xyz').code, 4);
+  // Tamper with the locked test file during implementation: refused without --allow-test-edit.
+  write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\n// weakened\n');
+  const tampered = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  assert.equal(tampered.code, 1);
+  assert.equal(tampered.json.findings[0].rule, 'task.test-tampered');
+  // Restore test file and configure a failing static check, then a passing one.
+  write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\nassert(true);\n');
+  write(root, 'docs/config-flow.yaml', read(root, 'docs/config-flow.yaml').replace('checks: []', 'checks:\n    - exit 1'));
+  const badCheck = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  assert.equal(badCheck.code, 1);
+  assert.equal(badCheck.json.findings[0].rule, 'task.check');
+  write(root, 'docs/config-flow.yaml', read(root, 'docs/config-flow.yaml').replace('- exit 1', '- exit 0'));
   const ok = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
   assert.deepEqual([ok.json.remaining, ok.json.next], [0, null]);
   assert.match(read(root, `docs/changes/${change}/tasks.md`), /- \[x\] T002[\s\S]*evidence green .*exit 0/);
 });
 
-test('context apply: next task with only its requirements; blockers skip tasks', () => {
+test('context apply: next task with only its requirements; blockers skip tasks; MODIFIED compacts unchanged scenarios', () => {
   const root = project();
   const change = brownfieldChange(root);
   const c = medra(root, 'context', change, '--stage', 'apply').json;
   assert.equal(c.next_task.id, 'T001');
   assert.equal(c.next_task.requirements.length, 2);
   assert.equal(c.remaining, 2);
-  assert.equal(c.requirements.find((r) => r.id === 'AUTH-001').operation, 'MODIFIED');
-  assert.ok(c.requirements.find((r) => r.id === 'AUTH-001').living.includes('AUTH-001.S2'));
-  medra(root, 'task', 'block', change, 'T001', '--note', 'no sandbox');
+  assert.equal(c.requirements, undefined, 'apply stage omits change-wide requirements to save tokens');
+  const planCtx = medra(root, 'context', change, '--stage', 'plan').json;
+  const auth001 = planCtx.requirements.find((r) => r.id === 'AUTH-001');
+  assert.equal(auth001.operation, 'MODIFIED');
+  assert.ok(auth001.living.includes('AUTH-001.S2'), 'dropped scenario stays in full');
+  assert.match(auth001.living, /Scenario AUTH-001\.S1: Ok \*\(unchanged in delta\)\*/, 'unchanged scenario is collapsed');
+  assert.doesNotMatch(auth001.living.split('AUTH-001.S2')[0], /- \*\*Given\*\*/, 'unchanged scenario steps are not duplicated');
+  const blockRes = medra(root, 'task', 'block', change, 'T001', '--note', 'no sandbox').json;
+  assert.equal(blockRes.next_task, null);
   assert.equal(medra(root, 'context', change, '--stage', 'apply').json.next_task, null);
   assert.equal(medra(root, 'status', change).json.blockers_open, 1);
+  medra(root, 'task', 'unblock', change, 'T001');
+  medra(root, 'gate', change, 'proposal', '--approve');
+  const done1 = medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1').json;
+  assert.equal(done1.next_task.id, 'T002', 'task done returns next_task directly');
+  assert.equal(done1.next_task.requirements.length, 2);
+});
+
+test('capability Paths and --md output on index and context', () => {
+  const root = project();
+  write(root, 'docs/specs/auth/spec.md', `# Auth\n\n**Capability:** \`auth\`\n**ID prefix:** \`AUTH\`\n**Paths:** \`src/auth/**\`, \`test/auth/**\`\n\n## Purpose\n\nHandles login.\n\n## Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Ok']])}\n`);
+  medra(root, 'learn', 'add', '--type', 'lesson', '--title', 'Path rule', '--statement', 'Hash tokens.', '--change', 'c1', '--paths', 'src/auth/**');
+  const idx = medra(root, 'index', '--learnings', 'auth').json;
+  assert.deepEqual(idx.capabilities[0].paths, ['src/auth/**', 'test/auth/**']);
+  assert.equal(idx.matching_learnings.length, 1, 'capability paths match path-scoped learnings in index');
+  const idxMd = spawnSync(process.execPath, [path.resolve('bin/medra.js'), 'index', '--learnings', 'auth', '--md'], { cwd: root, encoding: 'utf8' });
+  assert.match(idxMd.stdout, /# Project Index[\s\S]*paths `src\/auth\/\*\*`, `test\/auth\/\*\*`[\s\S]*L-001/);
 });
 
 test('archive round-trip: modified/kept/new/dropped scenarios, removed, added, index row, byte-stable', () => {

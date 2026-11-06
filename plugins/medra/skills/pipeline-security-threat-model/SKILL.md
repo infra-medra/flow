@@ -45,7 +45,7 @@ A validated dispatch, plus the bounded context the model is built from.
 
 **Actions**
 - Load `medra:handoff-author-security`, `medra:conventions` and `medra:template-threat-model`, then validate the dispatch against the handoff's receiver rules
-- Run `medra context <change> --stage plan --json` for the requirements, the constitution and the matching learnings
+- Run `medra context <change> --stage plan --md` for the requirements, the constitution and the matching learnings
 - Read the proposal (Why, Scope, the Security rationale), the deltas, and the draft plan at `plan_path`; on a revision, also read the existing threat model at `threat_model_path`
 
 **Avoid**

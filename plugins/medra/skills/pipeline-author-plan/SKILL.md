@@ -54,7 +54,7 @@ flowchart TD
 A verified factual base for the design: the change's requirements, the constitution's gates, the prior decisions behind every requirement being changed, and the code areas involved.
 
 **Actions**
-- Load `medra:conventions` and `medra:template-plan`, then run `medra context <change> --stage plan --json`, and `medra status <change> --json` for the change's `security` relevance, which decides whether Threat Model runs
+- Load `medra:conventions` and `medra:template-plan`, then run `medra context <change> --stage plan --md`, and `medra status <change> --json` for the change's `security` relevance, which decides whether Threat Model runs
 - For each MODIFIED or REMOVED requirement with a `last_changed_by` pointer, read only that archived change's `## Decisions` (or its `## Why` when it has no plan)
 - Read the code the requirements touch: on Claude Code, use the Explore agent when the area is unfamiliar; otherwise read the files directly. Note the paths, patterns and constraints you verified
 - Ask the user, with `AskUserQuestion`, only the technical questions whose answers change the design. Present each as options with your recommendation first

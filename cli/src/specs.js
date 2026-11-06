@@ -33,12 +33,20 @@ function parseBody(raw, offset) {
   const statement = trimBlank(raw.slice(1, statementEnd)).join('\n');
   const scenarios = hs.map((h, i) => {
     const m = h.text.match(SCENARIO_HEADING);
-    const body = raw.slice(h.index + 1, hs[i + 1] ? hs[i + 1].index : raw.length);
+    const end = hs[i + 1] ? hs[i + 1].index : raw.length;
+    const sRaw = trimBlank(raw.slice(h.index, end));
+    const body = raw.slice(h.index + 1, end);
     const steps = body.map((l) => l.match(STEP)).filter(Boolean).map((s) => s[1]);
-    return m ? { id: `${m[1]}.S${m[2]}`, req: m[1], n: Number(m[2]), title: m[3], steps, line: offset + h.index + 1 }
-      : { id: null, heading: h.text, steps, line: offset + h.index + 1 };
+    return m ? { id: `${m[1]}.S${m[2]}`, req: m[1], n: Number(m[2]), title: m[3], steps, raw: sRaw, line: offset + h.index + 1 }
+      : { id: null, heading: h.text, steps, raw: sRaw, line: offset + h.index + 1 };
   });
   return { statement, scenarios, reason: label(raw, 'Reason'), migration: label(raw, 'Migration') };
+}
+
+function parsePaths(lines) {
+  const raw = label(lines, 'Paths');
+  if (!raw) return [];
+  return raw.split(',').map((s) => s.trim().replace(/^`|`$/g, '')).filter(Boolean);
 }
 
 function retiredIds(lines) {
@@ -58,6 +66,7 @@ export function parseLivingSpec(text) {
     title,
     capability: label(lines, 'Capability'),
     prefix: label(lines, 'ID prefix'),
+    paths: parsePaths(lines),
     purpose: purpose ? trimBlank(purpose.body).join('\n') : null,
     retired: reqSection ? retiredIds(reqSection.body) : [],
     requirements: reqSection ? requirementBlocks(reqSection.body, reqSection.start + 1) : [],
@@ -81,6 +90,7 @@ export function parseDelta(text) {
     hasDeltaTitle: !!(h1 && h1.text.startsWith('Delta: ')),
     capability: label(lines, 'Capability'),
     prefix: label(lines, 'ID prefix'),
+    paths: parsePaths(lines),
     retire: (label(lines, 'Retire capability') || '').toLowerCase() === 'yes',
     purpose: purpose ? trimBlank(purpose.body).join('\n') : null,
     sectionOrder: h2.map((h) => h.text),
@@ -213,8 +223,10 @@ export function deltaFindings(root, deltas, living) {
 
 const sortById = (blocks) => [...blocks].sort((a, b) => reqNum(a.id) - reqNum(b.id));
 
-function renderLiving({ title, capability, prefix, purpose, retired, requirements }) {
-  const parts = [`# ${title}`, '', `**Capability:** \`${capability}\``, `**ID prefix:** \`${prefix}\``, '', '## Purpose', '', purpose, '', '## Requirements', ''];
+function renderLiving({ title, capability, prefix, paths, purpose, retired, requirements }) {
+  const parts = [`# ${title}`, '', `**Capability:** \`${capability}\``, `**ID prefix:** \`${prefix}\``];
+  if (paths?.length) parts.push(`**Paths:** ${paths.map((p) => `\`${p}\``).join(', ')}`);
+  parts.push('', '## Purpose', '', purpose, '', '## Requirements', '');
   if (retired.length) parts.push(`<!-- retired: ${retired.join(', ')} -->`, '');
   for (const r of requirements) parts.push(...r.raw, '');
   return `${parts.join('\n').replace(/\n+$/, '')}\n`;
@@ -230,10 +242,10 @@ export function mergeDelta(cap, delta, spec) {
   const conflict = (id, operation, problem) => conflicts.push({ capability: cap, id, operation, problem });
   let model;
   if (!spec) {
-    model = { title: delta.title, capability: cap, prefix: delta.prefix, purpose: delta.purpose, retired: [], requirements: [] };
+    model = { title: delta.title, capability: cap, prefix: delta.prefix, paths: delta.paths ?? [], purpose: delta.purpose, retired: [], requirements: [] };
   } else {
     // Keep the living header (title, labels, purpose) as written; requirements are re-rendered.
-    model = { title: spec.title, capability: spec.capability, prefix: spec.prefix, purpose: spec.purpose, retired: [...spec.retired], requirements: spec.requirements.filter((r) => r.id).map((r) => ({ ...r })) };
+    model = { title: spec.title, capability: spec.capability, prefix: spec.prefix, paths: delta.paths?.length ? delta.paths : (spec.paths ?? []), purpose: spec.purpose, retired: [...spec.retired], requirements: spec.requirements.filter((r) => r.id).map((r) => ({ ...r })) };
   }
   const byId = () => new Map(model.requirements.map((r) => [r.id, r]));
   for (const b of delta.ops.REMOVED ?? []) {

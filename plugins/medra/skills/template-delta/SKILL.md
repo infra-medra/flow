@@ -28,7 +28,7 @@ Fixed, with one exception: an operation section with no entries is omitted rathe
 
 **Why:** this tells the parser and the reviewer which capability the operations target.
 
-**Fill rules:** use the living spec's title and capability name. For a new capability, also write the `**ID prefix:**` line. Add `**Retire capability:** yes` only when REMOVED removes every requirement and the capability should disappear.
+**Fill rules:** use the living spec's title and capability name. For a new capability, also write the `**ID prefix:**` line (and optionally `**Paths:**` with comma-separated code globs). Add `**Retire capability:** yes` only when REMOVED removes every requirement and the capability should disappear.
 
 ### Purpose
 

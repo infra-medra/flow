@@ -49,7 +49,7 @@ A validated dispatch, plus the bounded context the audit is built from.
 
 **Actions**
 - Load `medra:handoff-implementer-security`, `medra:conventions` and `medra:template-security-report`, then validate the dispatch against the handoff's receiver rules
-- Run `medra context <change> --stage verify --json` for the requirements, the constitution, the matching learnings and the paths of the change's documents
+- Run `medra context <change> --stage verify --md` for the requirements, the constitution, the matching learnings and the paths of the change's documents
 - Read the proposal's Security rationale and, when `threat-model.md` exists, its entry points and accepted mitigations. On later rounds, read `previous_report`
 
 **Avoid**

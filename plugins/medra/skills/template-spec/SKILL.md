@@ -28,7 +28,7 @@ Fixed. Copy `${CLAUDE_SKILL_DIR}/template.md` to the placement path, then fill i
 
 **Why:** humans browsing `docs/specs/` and `medra index` show this name.
 
-**Fill rules:** write a noun phrase naming the capability. Under it, write the `**Capability:**` line holding the folder name, and the `**ID prefix:**` line holding 2–10 uppercase characters that are unique across the project.
+**Fill rules:** write a noun phrase naming the capability. Under it, write the `**Capability:**` line holding the folder name, the `**ID prefix:**` line holding 2–10 uppercase characters that are unique across the project, and optionally `**Paths:**` with comma-separated code globs (e.g. ``**Paths:** `src/auth/**`, `test/auth/**` ``) so `medra index` and `medra context` route path-scoped learnings and code locations without exploratory searches.
 
 ### Purpose
 

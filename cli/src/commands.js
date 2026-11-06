@@ -4,15 +4,15 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import YAML from 'yaml';
 import {
-  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, git,
+  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, git, sha256,
   identity, today, nowIso, loadConfig, configWarnings, DEFAULT_CONFIG, CHANGE_NAME, ROMAN, listOpt, docsPath, docsRel, CONFIG_FILE,
 } from './core.js';
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
-import { loadLivingSpecs } from './specs.js';
+import { loadLivingSpecs, loadDeltas } from './specs.js';
 import { loadLearnings, saveLearnings, nextLearningId, learningsPath, renderLearnings, STAGES as LEARN_STAGES } from './learnings.js';
 import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, coverage, changeScenarios, latestReport, securityRelevance } from './change.js';
 import { changeFindings, projectFindings, STAGES } from './validate.js';
-import { archiveIndexPath } from './context.js';
+import { archiveIndexPath, nextTaskPayload } from './context.js';
 import { install } from './install.js';
 
 const constitutionPath = (root) => docsPath(root, 'constitution.md');
@@ -199,7 +199,21 @@ const ALLOWED_KINDS = {
   none: { test: [], other: ['manual'] },
 };
 
-export function taskDone(root, change, id, { run, evidence, kind }) {
+/** Collects existing test files named in backticks in a [TEST] task or covering its requirement scenarios. */
+function testFilesForTask(root, change, task) {
+  const fromDesc = [...task.description.matchAll(/`([^`\s]+)`/g)].map((m) => m[1]).filter((f) => fs.existsSync(path.join(root, f)));
+  const deltas = loadDeltas(changeDir(root, change));
+  const reqSet = new Set(task.reqs);
+  const sids = Object.values(deltas).flatMap((d) => [...(d.ops.ADDED ?? []), ...(d.ops.MODIFIED ?? [])])
+    .filter((b) => reqSet.has(b.id))
+    .flatMap((b) => (b.scenarios ?? []).map((s) => s.id).filter(Boolean));
+  const fromCov = sids.length
+    ? Object.values(coverage(root, sids).locations).flat().map((loc) => loc.replace(/:\d+$/, ''))
+    : [];
+  return [...new Set([...fromDesc, ...fromCov])].sort();
+}
+
+export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit }) {
   if (!!run === !!evidence) throw usageError('Pass exactly one of --run or --evidence');
   const state = loadState(root, change);
   const file = path.join(changeDir(root, change), 'tasks.md');
@@ -211,11 +225,38 @@ export function taskDone(root, change, id, { run, evidence, kind }) {
   if (t.done) throw refused([finding('task.done', `${id} is already done`, { ref: id })]);
   const pending = t.after.filter((a) => !tasks.find((x) => x.id === a)?.done);
   if (pending.length) throw refused([finding('task.after', `${id} is after ${pending.join(', ')}, not done yet`, { ref: id })]);
-  const mode = loadConfig(root).testing.mode;
+  const config = loadConfig(root);
+  const mode = config.testing.mode;
   const allowed = ALLOWED_KINDS[mode][t.test ? 'test' : 'other'];
   if (!allowed.length) throw refused([finding('task.kind', `[TEST] tasks are not used in testing mode ${mode}`, { ref: id })]);
   const k = kind ?? allowed[0];
   if (!allowed.includes(k)) throw refused([finding('task.kind', `${id} needs ${allowed.join(' or ')} evidence in mode ${mode}`, { ref: id })]);
+  let testEdited = false;
+  if (k === 'green' && !t.test && state.test_hashes) {
+    const seen = new Set();
+    const queue = [...t.after];
+    while (queue.length) {
+      const dep = queue.pop();
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      const dt = tasks.find((x) => x.id === dep);
+      if (dt) queue.push(...dt.after);
+    }
+    for (const dt of tasks) if (dt.test && dt.reqs.some((r) => t.reqs.includes(r))) seen.add(dt.id);
+    const tampered = [];
+    for (const tid of seen) {
+      for (const [f, hash] of Object.entries(state.test_hashes[tid] ?? {})) {
+        const cur = readIf(path.join(root, f));
+        if (cur === null || sha256(cur) !== hash) {
+          testEdited = true;
+          if (!allowTestEdit) {
+            tampered.push(finding('task.test-tampered', `${id} modified or deleted test file "${f}" locked at red by ${tid} (pass --allow-test-edit if intentional)`, { file: f, ref: id }));
+          }
+        }
+      }
+    }
+    if (tampered.length) throw refused(tampered);
+  }
   let detail;
   if (run) {
     const res = spawnSync(run, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000 });
@@ -225,15 +266,36 @@ export function taskDone(root, change, id, { run, evidence, kind }) {
     const tail = `${res.stdout ?? ''}\n${res.stderr ?? ''}`.split('\n').map((l) => l.trim()).filter(Boolean).slice(-3);
     if (k === 'red' && code === 0) throw refused([finding('task.red', `${id} needs a failing run (red), but the command exited 0`, { ref: id })], tail.join('\n'));
     if (k === 'green' && code !== 0) throw refused([finding('task.green', `${id} needs a passing run (green), but the command exited ${code}`, { ref: id })], tail.join('\n'));
+    if (k === 'green' && !t.test) {
+      const checks = config.testing.checks ?? [];
+      for (const chk of Array.isArray(checks) ? checks : [checks]) {
+        if (!chk) continue;
+        const cres = spawnSync(chk, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000 });
+        if (cres.error && cres.error.code === 'ETIMEDOUT') throw envError(`Check timed out after 10 minutes: ${chk}`);
+        const ccode = cres.status ?? 1;
+        if (ccode === 127) throw envError(`Check command not found: ${chk}`);
+        if (ccode !== 0) {
+          const ctail = `${cres.stdout ?? ''}\n${cres.stderr ?? ''}`.split('\n').map((l) => l.trim()).filter(Boolean).slice(-3);
+          throw refused([finding('task.check', `${id} passed tests, but check "${chk}" exited ${ccode}`, { ref: id })], ctail.join('\n'));
+        }
+      }
+    }
     detail = `\`${run.replace(/`/g, "'")}\` exit ${code}${tail.length ? ` — "${tail.join(' | ').replace(/"/g, "'").slice(0, 300)}"` : ''}`;
   } else detail = evidence.replace(/\n/g, ' ');
+  if (testEdited) detail += ' [test-edited]';
+  if (k === 'red' && t.test) {
+    const files = testFilesForTask(root, change, t);
+    if (files.length) {
+      state.test_hashes ??= {};
+      state.test_hashes[id] = Object.fromEntries(files.map((f) => [f, sha256(readText(path.join(root, f)))]));
+    }
+  }
   writeAtomic([[file, tickTask(text, id, `- evidence ${k} ${today()}: ${detail}`)]]);
   if (['tasked', 'proposed'].includes(state.phase)) state.phase = 'implementing';
   state.last_task_done_at = nowIso();
   saveState(root, change, state);
-  const after = parseTasks(readText(file)).tasks;
-  const nxt = nextTask(after, state);
-  return { task: id, kind: k, remaining: after.filter((x) => !x.done).length, next: nxt ? nxt.id : null };
+  const { next_task, remaining } = nextTaskPayload(root, change, state);
+  return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task };
 }
 
 export function taskBlock(root, change, id, { note }, unblock = false) {
@@ -248,7 +310,8 @@ export function taskBlock(root, change, id, { note }, unblock = false) {
     state.blockers.push({ task: id, at: nowIso(), note, resolved: false });
   }
   saveState(root, change, state);
-  return { task: id, blocked: !unblock };
+  const { next_task, remaining } = nextTaskPayload(root, change, state);
+  return { task: id, blocked: !unblock, remaining, next: next_task ? next_task.id : null, next_task };
 }
 
 // ---------- coverage ----------

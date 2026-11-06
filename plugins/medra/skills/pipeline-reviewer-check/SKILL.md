@@ -48,7 +48,7 @@ A validated dispatch, plus the bounded context for the check.
 
 **Actions**
 - Load `medra:handoff-implementer-reviewer`, `medra:conventions` and `medra:template-review`, then validate the dispatch against the handoff's receiver rules
-- Run `medra context <change> --stage verify --json` for the requirements, constitution, test strategy and coverage
+- Run `medra context <change> --stage verify --md` for the requirements, constitution, test strategy and coverage
 - Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, without reading the full diff yet. On later rounds, read the findings for the IDs in `fixed_findings` from `previous_report`
 
 **Avoid**

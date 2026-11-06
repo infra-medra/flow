@@ -53,7 +53,7 @@ flowchart TD
 The next executable task identified from disk, with its requirements, test strategy and any open blockers in hand.
 
 **Actions**
-- Load `medra:conventions`, then run `medra status <change> --json` and `medra context <change> --stage apply --json`
+- Load `medra:conventions`, then run `medra status <change> --json` and `medra context <change> --stage apply --md`
 - Read the next task, its requirements (full blocks) and the Test Strategy, plus `testing.mode` and `testing.command` from `docs/config-flow.yaml`
 - Show the user the open blockers and ask, with `AskUserQuestion`, whether each one is resolved. Run `medra task unblock` for each resolved one
 - Read the code files the next task names, and the matching active learnings from the context pack
@@ -76,11 +76,11 @@ The current task implemented in code and checkpointed by `medra task done`, with
 - **For a `[TEST]` task:** write tests that cite each scenario ID they cover (in a comment, tag or test name), run the focused test command, and in `tdd` mode confirm they fail for the reason the scenario predicts. Then run `medra task done <change> <T> --run "<focused command>" --kind red` (`green` in `test-after`)
 - **For an implementation task:** write the minimum code that satisfies the requirement, run its tests to green, refactor while they stay green, then run `medra task done <change> <T> --run "<focused command>"`
 - When there is no test command (mode `none`), perform the task's verify step and record it with `--evidence "<what was checked and observed>" --kind manual`
-- When the task cannot proceed (missing access, unclear spec, an external failure), run `medra task block <change> <T> --note "<cause>"` and continue with the next task whose dependencies allow it
-- Fetch the following task with `medra context <change> --stage apply --json`, then repeat
+- When the task cannot proceed (missing access, unclear spec, an external failure), run `medra task block <change> <T> --note "<cause>" --json` and continue with the next task whose dependencies allow it
+- Take the following task (`next_task`, including its requirements) directly from the `medra task done ... --json` or `medra task block ... --json` output without re-running `medra context`, then repeat
 
 **Avoid**
-- Don't weaken, skip or delete a test to reach green — because the reviewer diffs the tests against the base, and a weakened test turns a requirement into an unverified claim
+- Don't weaken, skip or delete a test to reach green — `medra task done` hashes the test files at `red` and refuses `green` (`task.test-tampered`) if they were modified, and runs `testing.checks` (`task.check`) when configured
 - Don't edit `tasks.md` checkboxes or evidence lines by hand — because `medra task done` enforces ordering and evidence; a hand tick is a task with no proof
 - Don't batch several tasks before checkpointing — because a compaction mid-batch loses every unrecorded task
 

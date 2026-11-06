@@ -41,7 +41,7 @@ export const DEFAULT_CONFIG = {
   version: 1,
   language: 'en',
   integrations: ['claude'],
-  testing: { mode: 'tdd', command: null, paths: ['test/**', '**/*.test.*', '**/*_test.*', 'tests/**'] },
+  testing: { mode: 'tdd', command: null, checks: [], paths: ['test/**', '**/*.test.*', '**/*_test.*', 'tests/**'] },
   learning: { max_active: 40, promote_after: 3, stale_after: 10, context_max: 10 },
 };
 

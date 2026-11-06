@@ -12,50 +12,22 @@ medra keeps a project's specifications, changes, and lessons under `docs/` at th
 
 ## Constraints
 
-- **Change CLI-owned data only through the CLI.** That data is `.medra.yaml`, task checkboxes and evidence lines, the constitution's status/version lines and amendments table, the structure of `learnings.md`, and `changes/archive/INDEX.md`. The CLI checks preconditions and hashes documents for gates, so a hand edit either bypasses a gate or makes an approved gate silently stale.
-- **Read project knowledge through `medra index` and `medra context`.** Open a living spec file only when the index or the context pack names it and you need lines it did not include, and never glob `docs/specs/` or list the archive. The pack is sized to the change; reading the whole spec tree costs tokens in proportion to the project's history and buries the requirements that matter.
-- **Open an archived change only through a `last_changed_by` pointer, and only when your change MODIFIES or REMOVES that requirement.** Then read only the `## Decisions` section of its `plan.md`, or the `## Why` section of its `proposal.md` when it has no plan. The living spec already holds the current behavior and the learnings hold the distilled lessons; the archive is consulted only to learn why a requirement exists before changing it.
-- **Persist progress the moment it happens.** Tick each task with `medra task done` as you finish it, and record every gate decision with `medra gate`. Any session, including one started after a context compaction, resumes from `medra status` and `medra context` alone. State that exists only in the conversation is lost on compaction.
-- **When a CLI result carries `migration`, tell the user that the 1.0 `medra/` folder was moved to `docs/`, and include the move in your commit suggestion.** On a `layout.collision` refusal, show the user which `docs/` entries block the move and stop; they decide how to rename them, because those files belong to the project, not to medra.
-- **On CLI exit `2` or `4`, stop and report the command, the exit code, and stderr to the user.** Exit `2` is a defect in the instructions and exit `4` is a broken environment. Working around either produces documents the CLI will later refuse.
+- **Change CLI-owned data only through the CLI:** `.medra.yaml`, task checkboxes and evidence lines, the constitution's status/version lines and amendments table, the structure of `learnings.md`, and `changes/archive/INDEX.md`.
+- **Read project knowledge through `medra index --md` and `medra context <change> --stage <stage> --md`.** Open a living spec file only when the index or context pack names it and you need lines it did not include; never glob `docs/specs/` or list the archive.
+- **Open an archived change only through a `last_changed_by` pointer, and only when your change MODIFIES or REMOVES that requirement.** Read only the `## Decisions` section of its `plan.md`, or `## Why` of its `proposal.md` when it has no plan.
+- **Persist progress immediately.** Tick each task with `medra task done` as you finish it, and record every gate decision with `medra gate`. Any session resumes from `medra status` and `medra context` alone.
+- **When a CLI result carries `migration`, tell the user that the 1.0 `medra/` folder was moved to `docs/`, and include the move in your commit suggestion.** On `layout.collision`, show the colliding `docs/` entries and stop.
+- **On CLI exit `2` or `4`, stop and report the command, exit code, and stderr to the user.**
 
 ## Layout
 
-```
-docs/
-├── config-flow.yaml            language, integrations, testing, learning budget
-├── constitution.md             numbered articles with gate questions
-├── learnings.md                L-NNN lessons and preferences
-├── specs/<capability>/spec.md  living specs — current behavior
-└── changes/
-    ├── <change>/               proposal.md · specs/<capability>/spec.md (deltas) · plan.md · contracts/ · threat-model.md · tasks.md · reviews/ (review, verify and security reports) · .medra.yaml
-    └── archive/                INDEX.md · <YYYY-MM-DD>-<change>/
-```
+`docs/` holds `config-flow.yaml`, `constitution.md`, `learnings.md`, `specs/<capability>/spec.md`, `changes/<change>/` (`proposal.md`, `specs/<capability>/spec.md`, `plan.md`, `contracts/`, `threat-model.md`, `tasks.md`, `reviews/`, `.medra.yaml`), and `changes/archive/` (`INDEX.md`, `<YYYY-MM-DD>-<change>/`).
 
-Write document prose in the language set by `language` in `docs/config-flow.yaml`. Keep every heading, ID, bold label, and keyword exactly as its template defines them, in English (`## Why`, `REQ AUTH-004`, `**Given**`, `SHALL`, `[NEEDS CLARIFICATION: …]`). The CLI parses those tokens, and a translated heading breaks validation and merge.
+Write document prose in the `language` from `docs/config-flow.yaml`. Keep every heading, ID, bold label, and keyword in English (`## Why`, `REQ AUTH-004`, `**Given**`, `SHALL`, `[NEEDS CLARIFICATION: …]`).
 
 ## CLI
 
-Run the CLI from the project root. Add `--json` whenever you consume the output, then read the `ok`, `findings`, and payload fields.
-
-| Command | Use it to |
-|---|---|
-| `medra --version` | Check the CLI is installed with major version `1` |
-| `medra init [--language] [--integrations] [--testing-mode] [--testing-command]` | Create the `docs/` scaffold; never overwrites |
-| `medra status [<change>]` | Read project or change state: track, phase, security relevance, gates, tasks, blockers |
-| `medra index [--learnings <capabilities>]` | Get capability and requirement titles, each capability's `next_id`, and optionally the matching learnings, before a change exists |
-| `medra context <change> --stage <stage>` | Get the bounded context pack for one stage |
-| `medra new <change> [--track fast\|full]` | Create a change folder and its state |
-| `medra validate <change> --stage <stage>` · `--project <constitution\|specs\|learnings>` | Check document structure and cross-document rules |
-| `medra gate <change> <gate> --approve [--note "…"] \| --request-changes --note "…"` | Record a human gate decision; an approval note records what the approver accepted |
-| `medra track <change> fast\|full --reason "…"` | Switch a change's track |
-| `medra task done <change> <T-NNN> --run "…" \| --evidence "…" [--kind]` · `task block` · `task unblock` | Checkpoint a task with evidence, or record a blocker |
-| `medra coverage <change> \| --all` | Map scenario IDs to the tests that cite them |
-| `medra review <change> --report <path>` | Record a review report's verdict |
-| `medra constitution ratify [--bump major\|minor] --note "…" [--source]` | Ratify or amend the constitution |
-| `medra learn add\|bump\|merge\|retire\|promote\|status\|candidates` | Maintain the learnings store |
-| `medra archive <change> [--dry-run]` | Merge deltas into living specs and archive the change |
-| `medra install --target antigravity` · `medra update` | Install or refresh the native Antigravity plugin in `.agents/plugins/medra/` |
+Run from the project root. Use `--md` on `medra index` and `medra context` (compact Markdown without JSON string-escaping overhead). Use `--json` on state and mutation commands (`status`, `validate`, `new`, `gate`, `track`, `task`, `coverage`, `review`, `constitution`, `learn`, `archive`), then read `ok`, `findings`, and payload fields.
 
 | Exit | Meaning | Your move |
 |---|---|---|
