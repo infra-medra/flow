@@ -258,15 +258,52 @@ test('context apply: next task with only its requirements; blockers skip tasks; 
   assert.equal(done1.next_task.requirements.length, 2);
 });
 
-test('capability Paths and --md output on index and context', () => {
+test('capability Paths, spec drift detection, parallel [P] batching, and --md output on index and context', () => {
   const root = project();
-  write(root, 'docs/specs/auth/spec.md', `# Auth\n\n**Capability:** \`auth\`\n**ID prefix:** \`AUTH\`\n**Paths:** \`src/auth/**\`, \`test/auth/**\`\n\n## Purpose\n\nHandles login.\n\n## Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Ok']])}\n`);
+  write(root, 'docs/specs/auth/spec.md', `# Auth\n\n**Capability:** \`auth\`\n**ID prefix:** \`AUTH\`\n**Paths:** \`src/auth/**\`, \`test/auth/**\`\n\n## Purpose\n\nHandles login.\n\n## Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Ok']])}\n${req('AUTH-002', 'Logout', [['AUTH-002.S1', 'Cleared']])}\n`);
   medra(root, 'learn', 'add', '--type', 'lesson', '--title', 'Path rule', '--statement', 'Hash tokens.', '--change', 'c1', '--paths', 'src/auth/**');
   const idx = medra(root, 'index', '--learnings', 'auth').json;
   assert.deepEqual(idx.capabilities[0].paths, ['src/auth/**', 'test/auth/**']);
   assert.equal(idx.matching_learnings.length, 1, 'capability paths match path-scoped learnings in index');
   const idxMd = spawnSync(process.execPath, [path.resolve('bin/medra.js'), 'index', '--learnings', 'auth', '--md'], { cwd: root, encoding: 'utf8' });
   assert.match(idxMd.stdout, /# Project Index[\s\S]*paths `src\/auth\/\*\*`, `test\/auth\/\*\*`[\s\S]*L-001/);
+
+  // Spec drift: modifying a file under src/auth/** without an active change triggers drift.
+  spawnSync('git', ['add', '-A'], { cwd: root });
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'add auth spec'], { cwd: root });
+  assert.deepEqual(medra(root, 'drift').json.drifted, []);
+  write(root, 'src/auth/login.js', 'export const login = () => true;\n');
+  const d = medra(root, 'drift').json.drifted;
+  assert.equal(d.length, 1);
+  assert.equal(d[0].capability, 'auth');
+  assert.deepEqual(d[0].changed_files, ['src/auth/login.js']);
+  assert.equal(medra(root, 'status').json.drift[0].capability, 'auth');
+
+  // Once an active change touches `auth`, drift is suppressed for `auth`; also test [P] batching.
+  medra(root, 'new', 'update-auth-session');
+  proposal(root, 'update-auth-session', { caps: [['auth', 'modified', 'AUTH-001, AUTH-002']] });
+  write(root, 'docs/changes/update-auth-session/specs/auth/spec.md', delta('auth', [
+    '## MODIFIED Requirements', '',
+    req('AUTH-001', 'Login v2', [['AUTH-001.S1', 'Ok']]),
+    req('AUTH-002', 'Logout v2', [['AUTH-002.S1', 'Cleared']]),
+  ].join('\n')));
+  tasks(root, 'update-auth-session', [
+    '- [ ] T001 [P] [TEST] [AUTH-001] Write tests in `test/auth/login.test.js` — verify: red',
+    '- [ ] T002 [P] [TEST] [AUTH-002] Write tests in `test/auth/logout.test.js` — verify: red',
+    '- [ ] T003 [P] [AUTH-001] after T001 Implement in `src/auth/login.js` — verify: green',
+    '- [ ] T004 [P] [AUTH-002] after T002 Implement in `src/auth/logout.js` — verify: green',
+  ]);
+  assert.deepEqual(medra(root, 'drift').json.drifted, [], 'active change covering auth suppresses drift');
+  const applyCtx = medra(root, 'context', 'update-auth-session', '--stage', 'apply').json;
+  assert.deepEqual(applyCtx.parallel_batch.map((t) => t.id), ['T001', 'T002'], 'ready [P] tasks in the same phase and kind form a parallel_batch');
+  const applyMd = spawnSync(process.execPath, [path.resolve('bin/medra.js'), 'context', 'update-auth-session', '--stage', 'apply', '--md'], { cwd: root, encoding: 'utf8' });
+  assert.match(applyMd.stdout, /## Parallel batch \(\[P\] — Phase 1: Work\)[\s\S]*T001[\s\S]*T002/);
+  medra(root, 'gate', 'update-auth-session', 'proposal', '--approve');
+  write(root, 'test/auth/login.test.js', '// AUTH-001.S1\n');
+  write(root, 'test/auth/logout.test.js', '// AUTH-002.S1\n');
+  medra(root, 'task', 'done', 'update-auth-session', 'T001', '--run', 'exit 1');
+  const afterT002 = medra(root, 'task', 'done', 'update-auth-session', 'T002', '--run', 'exit 1').json;
+  assert.deepEqual(afterT002.parallel_batch.map((t) => t.id), ['T003', 'T004'], 'completing red [P] batch unlocks green [P] batch');
 });
 
 test('archive round-trip: modified/kept/new/dropped scenarios, removed, added, index row, byte-stable', () => {

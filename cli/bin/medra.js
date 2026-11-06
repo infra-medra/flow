@@ -56,6 +56,8 @@ j(program.command('new <change>').description('Create a change folder and its st
 
 j(program.command('status [change]').description('Project or change state')).action(run((change) => cmd.status(root(), change)));
 
+j(program.command('drift').description('Detect capabilities whose code paths changed outside active changes')).action(run(() => cmd.driftCmd(root())));
+
 j(program.command('validate [change]').description('Run validation rules').option('--stage <stage>').option('--project <scope>'))
   .action(run((change, o) => {
     if (!o.project && !change) throw new MedraError(EXIT.USAGE, 'Pass a change with --stage, or --project <scope>');

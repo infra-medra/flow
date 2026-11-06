@@ -10,7 +10,7 @@ import {
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
 import { loadLivingSpecs, loadDeltas } from './specs.js';
 import { loadLearnings, saveLearnings, nextLearningId, learningsPath, renderLearnings, STAGES as LEARN_STAGES } from './learnings.js';
-import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, coverage, changeScenarios, latestReport, securityRelevance } from './change.js';
+import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, specDrift, coverage, changeScenarios, latestReport, securityRelevance } from './change.js';
 import { changeFindings, projectFindings, STAGES } from './validate.js';
 import { archiveIndexPath, nextTaskPayload } from './context.js';
 import { install } from './install.js';
@@ -81,6 +81,7 @@ export function status(root, change) {
     const c = constitutionOf(root);
     const store = loadLearnings(root);
     const active = store.entries.filter((e) => e.section === 'Active').length;
+    const drift = specDrift(root);
     return {
       project: {
         constitution: { status: c.status ?? 'missing', version: c.version ?? null },
@@ -88,6 +89,7 @@ export function status(root, change) {
         learnings: { active, over_budget: active > loadConfig(root).learning.max_active },
       },
       changes: activeChanges(root).map((name) => { const s = loadState(root, name); return { name, track: s.track, phase: s.phase }; }),
+      ...(drift.length ? { drift } : {}),
     };
   }
   const state = loadState(root, change);
@@ -104,6 +106,10 @@ export function status(root, change) {
     last_review: last ? { stage: last.stage, verdict: last.verdict } : null,
     last_security: sec ? { path: rel(root, sec.file), round: sec.round, verdict: sec.verdict } : null,
   };
+}
+
+export function driftCmd(root) {
+  return { drifted: specDrift(root) };
 }
 
 export function track(root, change, to, { reason }) {
@@ -294,8 +300,8 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
   if (['tasked', 'proposed'].includes(state.phase)) state.phase = 'implementing';
   state.last_task_done_at = nowIso();
   saveState(root, change, state);
-  const { next_task, remaining } = nextTaskPayload(root, change, state);
-  return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task };
+  const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state);
+  return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}) };
 }
 
 export function taskBlock(root, change, id, { note }, unblock = false) {
@@ -310,8 +316,8 @@ export function taskBlock(root, change, id, { note }, unblock = false) {
     state.blockers.push({ task: id, at: nowIso(), note, resolved: false });
   }
   saveState(root, change, state);
-  const { next_task, remaining } = nextTaskPayload(root, change, state);
-  return { task: id, blocked: !unblock, remaining, next: next_task ? next_task.id : null, next_task };
+  const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state);
+  return { task: id, blocked: !unblock, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}) };
 }
 
 // ---------- coverage ----------

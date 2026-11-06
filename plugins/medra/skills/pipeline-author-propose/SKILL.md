@@ -62,7 +62,7 @@ A restated intent — who it serves, what changes for them, and what is out of s
 - Load `medra:conventions`, `medra:template-proposal` and `medra:template-delta`, then run `medra index`
 - When the input names an existing change, run `medra status <change> --json` and `medra context <change> --stage propose --md`, and take its pending gate notes as the revision brief instead of a new intent
 - Restate the intent in your own words: actors, outcome, the capabilities it likely touches, and what is explicitly out of scope
-- Check the active changes and the archive index for the same capability and outcome, and surface any overlap to the user
+- Check the active changes and the archive index for the same capability and outcome, and surface any overlap (or any `Spec drift` reported by `medra index`) to the user
 - Confirm the restatement with the user, using `AskUserQuestion` for the gaps that change scope
 
 **Avoid**

@@ -4,9 +4,10 @@ import path from 'node:path';
 import YAML from 'yaml';
 import fg from 'fast-glob';
 import ignore from 'ignore';
-import { envError, readText, readIf, sha256, writeAtomic, rel, loadConfig, docsPath, DOCS_DIR } from './core.js';
+import picomatch from 'picomatch';
+import { envError, readText, readIf, sha256, writeAtomic, rel, loadConfig, docsPath, DOCS_DIR, git } from './core.js';
 import { tasksHashBasis, parseTasks, parseReport, parseProposal } from './documents.js';
-import { loadDeltas } from './specs.js';
+import { loadDeltas, loadLivingSpecs } from './specs.js';
 
 export const GATES = ['proposal', 'plan', 'tasks', 'verify'];
 export const changesDir = (root) => docsPath(root, 'changes');
@@ -110,6 +111,56 @@ export function nextTask(tasks, state) {
   const done = new Set(tasks.filter((t) => t.done).map((t) => t.id));
   const blocked = new Set(state.blockers.filter((b) => !b.resolved).map((b) => b.task));
   return tasks.find((t) => !t.done && !blocked.has(t.id) && t.after.every((a) => done.has(a))) ?? null;
+}
+
+/**
+ * When the next runnable task is marked `[P]`, returns up to `max` runnable `[P]` tasks from the
+ * same phase and kind (`[TEST]` vs implementation) so the agent can batch edits in one session turn.
+ */
+export function readyBatch(tasks, state, max = 3) {
+  const first = nextTask(tasks, state);
+  if (!first) return [];
+  if (!first.parallel) return [first];
+  const done = new Set(tasks.filter((t) => t.done).map((t) => t.id));
+  const blocked = new Set(state.blockers.filter((b) => !b.resolved).map((b) => b.task));
+  return tasks
+    .filter((t) => !t.done && !blocked.has(t.id) && t.parallel && t.phase === first.phase && t.test === first.test && t.after.every((a) => done.has(a)))
+    .slice(0, max);
+}
+
+/**
+ * Detects reverse spec drift: capabilities with `**Paths:**` whose matching files were modified in
+ * git (commits since the living spec was last updated, or working-tree edits) without an active change.
+ */
+export function specDrift(root) {
+  const specs = loadLivingSpecs(root);
+  const coveredByActive = new Set(
+    activeChanges(root).flatMap((c) => Object.keys(loadDeltas(changeDir(root, c)))),
+  );
+  const statusOut = git(root, ['status', '--porcelain', '-uall']) ?? '';
+  const dirtyFiles = statusOut.split('\n').filter(Boolean).map((l) => l.slice(3).trim().split(' -> ').pop());
+  const drifted = [];
+  for (const [cap, spec] of Object.entries(specs)) {
+    if (!spec.paths?.length || coveredByActive.has(cap)) continue;
+    const specRel = rel(root, spec.file);
+    const specSha = git(root, ['log', '-1', '--format=%H', '--', specRel]);
+    const committedSince = specSha
+      ? (git(root, ['diff', '--name-only', `${specSha}..HEAD`]) ?? '').split('\n').filter(Boolean)
+      : [];
+    const candidates = [...new Set([...committedSince, ...dirtyFiles])]
+      .filter((f) => f && !f.startsWith(`${DOCS_DIR}/`) && !f.startsWith('.agents/'));
+    const isMatch = picomatch(spec.paths);
+    const changed = candidates.filter((f) => isMatch(f)).sort();
+    if (changed.length) {
+      drifted.push({
+        capability: cap,
+        paths: spec.paths,
+        changed_files: changed,
+        since_commit: specSha ? specSha.slice(0, 7) : 'uncommitted',
+      });
+    }
+  }
+  return drifted;
 }
 
 /** Scenario IDs a change adds or modifies, or all living scenarios with `all`. */

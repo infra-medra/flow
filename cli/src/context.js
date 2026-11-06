@@ -5,7 +5,7 @@ import { parseConstitution, liveArticles, parsePlan, parseArchiveIndex } from '.
 import { firstSentence } from './markdown.js';
 import { loadLivingSpecs, loadDeltas, nextId } from './specs.js';
 import { loadLearnings, selectLearnings } from './learnings.js';
-import { changeDir, loadState, activeChanges, loadTasks, nextTask, coverage, changeScenarios, gateStatus } from './change.js';
+import { changeDir, loadState, activeChanges, loadTasks, nextTask, readyBatch, specDrift, coverage, changeScenarios, gateStatus } from './change.js';
 
 export const CONTEXT_STAGES = ['propose', 'plan', 'tasks', 'apply', 'verify', 'review', 'archive'];
 
@@ -15,6 +15,7 @@ export const archiveIndexPath = (root) => docsPath(root, 'changes', 'archive', '
 export function index(root, { learnings: caps } = {}) {
   const specs = loadLivingSpecs(root);
   const store = loadLearnings(root);
+  const drift = specDrift(root);
   const out = {
     constitution: liveArticles(constitutionOf(root)).map((a) => ({ article: a.roman, title: a.title })),
     capabilities: Object.entries(specs).map(([name, s]) => ({
@@ -27,6 +28,7 @@ export function index(root, { learnings: caps } = {}) {
       return { name: c, phase: st.phase, capabilities: Object.keys(loadDeltas(changeDir(root, c))) };
     }),
     learnings: { active: store.entries.filter((e) => e.section === 'Active').length },
+    ...(drift.length ? { drift } : {}),
   };
   if (caps) {
     const capPaths = caps.flatMap((c) => specs[c]?.paths ?? []);
@@ -49,6 +51,11 @@ export function indexMarkdown(pack) {
       for (const r of c.requirements) out.push(`- ${r.id}: ${r.title}`);
       out.push('');
     }
+  }
+  if (pack.drift?.length) {
+    out.push('## Spec drift (code modified outside active changes)', '');
+    for (const d of pack.drift) out.push(`- \`${d.capability}\` (since \`${d.since_commit}\`): ${d.changed_files.map((f) => `\`${f}\``).join(', ')}`);
+    out.push('');
   }
   if (pack.active_changes.length) {
     out.push('## Active changes', '', ...pack.active_changes.map((c) => `- \`${c.name}\` (${c.phase}) — ${c.capabilities.join(', ') || 'no deltas'}`), '');
@@ -94,9 +101,9 @@ function compactLiving(living, deltaBlock) {
 export function nextTaskPayload(root, change, state = loadState(root, change), specs = loadLivingSpecs(root), deltas = loadDeltas(changeDir(root, change))) {
   const parsed = loadTasks(root, change);
   const tasks = parsed?.tasks ?? [];
-  const t = nextTask(tasks, state);
+  const batch = readyBatch(tasks, state);
   const remaining = tasks.filter((x) => !x.done).length;
-  if (!t) return { next_task: null, remaining };
+  if (!batch.length) return { next_task: null, parallel_batch: null, remaining };
   const deltaMap = new Map();
   for (const d of Object.values(deltas)) {
     for (const blocks of Object.values(d.ops)) {
@@ -108,8 +115,11 @@ export function nextTaskPayload(root, change, state = loadState(root, change), s
     for (const s of Object.values(specs)) { const l = s.requirements.find((x) => x.id === id); if (l) return l.raw.join('\n'); }
     return null;
   };
+  const toPayload = (t) => ({ id: t.id, line: parsed.lines[t.index], requirements: t.reqs.map(blockFor).filter(Boolean), phase_title: t.phase });
+  const mapped = batch.map(toPayload);
   return {
-    next_task: { id: t.id, line: parsed.lines[t.index], requirements: t.reqs.map(blockFor).filter(Boolean), phase_title: t.phase },
+    next_task: mapped[0],
+    parallel_batch: mapped.length > 1 ? mapped : null,
     remaining,
   };
 }
@@ -164,8 +174,9 @@ export function context(root, change, stage) {
     out.test_strategy = planText ? parsePlan(planText).testStrategy : null;
   }
   if (stage === 'apply') {
-    const { next_task, remaining } = nextTaskPayload(root, change, state, specs, deltas);
+    const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state, specs, deltas);
     out.next_task = next_task;
+    if (parallel_batch) out.parallel_batch = parallel_batch;
     out.remaining = remaining;
   }
   if (stage === 'verify') out.coverage = coverage(root, changeScenarios(root, change));
@@ -192,8 +203,16 @@ export function contextMarkdown(pack) {
   if (pack.gate_notes.length) out.push('## Open gate notes', '', ...pack.gate_notes.map((n) => `- ${n.by} (${n.at}): ${n.note ?? n.report}`), '');
   if (pack.test_strategy) out.push('## Test strategy', '', pack.test_strategy, '');
   if (pack.stage === 'apply') {
-    out.push('## Next task', '', pack.next_task ? `${pack.next_task.phase_title ? `[${pack.next_task.phase_title}] ` : ''}${pack.next_task.line}` : 'None.', '');
-    if (pack.next_task) out.push(...pack.next_task.requirements.flatMap((b) => [b, '']));
+    if (pack.parallel_batch?.length > 1) {
+      out.push(`## Parallel batch ([P]${pack.next_task?.phase_title ? ` — ${pack.next_task.phase_title}` : ''})`, '');
+      for (const t of pack.parallel_batch) out.push(t.line);
+      out.push('');
+      const uniqueReqs = [...new Set(pack.parallel_batch.flatMap((t) => t.requirements))];
+      out.push(...uniqueReqs.flatMap((b) => [b, '']));
+    } else {
+      out.push('## Next task', '', pack.next_task ? `${pack.next_task.phase_title ? `[${pack.next_task.phase_title}] ` : ''}${pack.next_task.line}` : 'None.', '');
+      if (pack.next_task) out.push(...pack.next_task.requirements.flatMap((b) => [b, '']));
+    }
     out.push(`Remaining: ${pack.remaining}`, '');
   }
   if (pack.coverage) {

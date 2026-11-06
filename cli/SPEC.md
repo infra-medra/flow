@@ -408,9 +408,9 @@ medra new <change> [--track fast|full]
 - Adds a warning when the archive INDEX holds a change with the same name.
 - Result: `{"change", "path", "track"}`.
 
-### 8.3 `medra status [<change>]`
+### 8.3 `medra status [<change>]` · `medra drift`
 
-- **Without a change:** returns `{"project": {"constitution": {status, version}, "capabilities": n, "learnings": {active, over_budget}}, "changes": [{name, track, phase}]}`. The changes list is bounded by the number of active changes.
+- **Without a change:** returns `{"project": {"constitution": {status, version}, "capabilities": n, "learnings": {active, over_budget}}, "changes": [{name, track, phase}], "drift"?: [{capability, paths, changed_files, since_commit}]}`. The changes list is bounded by the number of active changes. `drift` lists capabilities with `**Paths:**` whose matching code files were modified in git (since the living spec's last commit, or in the working tree) without an active change covering that capability. `medra drift` returns `{"drifted": [...]}` directly.
 - **With a change:** returns `{"change", "track", "phase", "security": "relevant"|"not-relevant", "gates": {name: {status: pending|approved|changes-requested|stale|skipped, by, at}}, "tasks": {"total", "done", "next": "T004"|null}, "blockers_open": n, "reviews": n, "last_review": {stage, verdict}|null, "last_security": {path, round, verdict}|null}`. `security` comes from the proposal's `**Security:**` line, `not-relevant` when the line is absent.
 
 ### 8.4 `medra validate <change> --stage <stage>` · `medra validate --project <scope>`
@@ -441,6 +441,7 @@ The CLI's main token-saving tool. It returns only what the stage needs:
 | `documents` | all | The paths of the change documents that exist |
 | `test_strategy` | apply, verify | The plan's `## Test Strategy` section text (full track), or `null` |
 | `next_task` | apply | The first unticked task whose `after` dependencies are all done: `{id, line, requirements: [full blocks of the requirements it references], phase_title}` |
+| `parallel_batch` | apply | Present when `next_task` is marked `[P]` and ≥ 2 `[P]` tasks of the same phase and kind (`[TEST]` vs implementation) have all `after` dependencies done (up to 3 tasks) |
 | `remaining` | apply | Count of unticked tasks |
 | `coverage` | verify | The output of §8.11 for the change |
 

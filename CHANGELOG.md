@@ -2,6 +2,13 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.6.0] — 2026-11-06
+
+### Added
+- **Reverse spec drift detection (`medra drift`):** Capabilities that declare `**Paths:**` globs in their living spec are checked against git commits since the spec's last update and working-tree modifications (`git status --porcelain -uall`). When code files change without an active change covering that capability, `medra drift`, `medra status`, and `medra index` report the drifted capability and files.
+- **Same-session `[P]` task batching (`parallel_batch`):** When the next runnable task in `tasks.md` is marked `[P]`, `medra context --stage apply`, `medra task done`, and `medra task block` group up to 3 ready `[P]` tasks from the same phase and kind (`[TEST]` vs implementation) into `parallel_batch`, allowing the implementer to batch file edits in parallel tool calls within a single warm session before running per-task `medra task done` checkpoints.
+- **Expanded README documentation:** Added `Why Use This Workflow?`, `Key Benefits in Detail`, `Upgrading medra`, and the maintainer `Release checklist`.
+
 ## [1.5.1] — 2026-11-06
 
 ### Added
