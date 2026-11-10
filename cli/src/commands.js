@@ -207,7 +207,13 @@ const ALLOWED_KINDS = {
 
 /** Collects existing test files named in backticks in a [TEST] task or covering its requirement scenarios. */
 function testFilesForTask(root, change, task) {
-  const fromDesc = [...task.description.matchAll(/`([^`\s]+)`/g)].map((m) => m[1]).filter((f) => fs.existsSync(path.join(root, f)));
+  const fromDesc = [...task.description.matchAll(/`([^`\s]+)`/g)].map((m) => m[1]).filter((f) => {
+    try {
+      return fs.statSync(path.join(root, f)).isFile();
+    } catch {
+      return false;
+    }
+  });
   const deltas = loadDeltas(changeDir(root, change));
   const reqSet = new Set(task.reqs);
   const sids = Object.values(deltas).flatMap((d) => [...(d.ops.ADDED ?? []), ...(d.ops.MODIFIED ?? [])])
