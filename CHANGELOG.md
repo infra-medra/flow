@@ -2,6 +2,11 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.6.1] — 2026-11-10
+
+### Fixed
+- **`medra task done --kind red` no longer crashes with EISDIR (exit 4)** when a `[TEST]` task description has a backticked token that names a directory (for example `/`, `.`, `src`). Only regular files are now hashed for the test-tampering guard.
+
 ## [1.6.0] — 2026-11-06
 
 ### Added

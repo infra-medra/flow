@@ -190,6 +190,7 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
+- **1.6.1 (2026-11-10):** Fixed `medra task done --kind red` crashing with EISDIR when a `[TEST]` task description backticks a directory token.
 - **1.6.0 (2026-11-06):** Added reverse spec drift detection (`medra drift`, `status`, and `index`), same-session `[P]` task batching (`parallel_batch` in `context` and `task done`), and expanded documentation (benefits, comparison table, upgrade & release checklists).
 - **1.5.1 (2026-11-06):** Bundled `README.md` (with full CLI reference and configuration guide), `CHANGELOG.md`, and repository metadata into the published `@medra.dev/flow` npm package.
 - **1.5.0 (2026-11-06):** Token-optimized context packs (`task done` returns `next_task`, `MODIFIED` living specs collapse unchanged scenarios, default Markdown output on `index` and `context`, slimmer `conventions`), optional capability `**Paths:**` globs, test-tampering guard (`task.test-tampered` + `--allow-test-edit`), and static checks on green tasks (`testing.checks` / `task.check`).
