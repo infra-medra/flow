@@ -49,7 +49,7 @@ flowchart TD
 A verified factual base for the design: the change's requirements, the constitution's gates, the prior decisions behind every requirement being changed, and the code areas involved.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/plan/guide.md`, then run `medra context <change> --stage plan --md`, and `medra status <change> --json` for the change's `security` relevance, which decides whether Threat Model runs
+- Read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/plan/guide.md`, then run `medra context <change> --stage plan --md`, and `medra status <change> --json` for the change's `security` relevance, which decides whether Threat Model runs
 - For each MODIFIED or REMOVED requirement with a `last_changed_by` pointer, read only that archived change's `## Decisions` (or its `## Why` when it has no plan)
 - Read the code the requirements touch: on Claude Code, use the Explore agent when the area is unfamiliar; otherwise read the files directly. Note the paths, patterns and constraints you verified
 - Ask the user, with `AskUserQuestion`, only the technical questions whose answers change the design. Present each as options with your recommendation first
@@ -93,7 +93,7 @@ A `plan.md` whose anchors are filled and whose design satisfies every delta requ
 A `threat-model.md` from the security agent whose every mitigation is decided, with each decision recorded as a plan Decision.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, check the sender rules, then dispatch the security agent under that contract: on Claude Code, the Agent tool with `subagent_type: medra:security`; elsewhere, as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Runtime Portability describes. Name in `focus` the decisions with the most exposure, and set `revision: true` when a threat model already exists
+- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, check the sender rules, then dispatch the security agent under that contract: on Claude Code, the Agent tool with `subagent_type: medra:security`; elsewhere, as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Runtime Portability describes. Name in `focus` the decisions with the most exposure, and set `revision: true` when a threat model already exists
 - Validate the response against the handoff's sender rules; on `needs-decision`, put the question to the user with `AskUserQuestion` and re-dispatch with `revision: true` when the answer changes the model
 - Decide each mitigation: accept it into the design as a `D-NN` Decision (and the plan sections it changes), or decline it with a `D-NN` that names the threats left open and why the residual risk is acceptable; write the `D-NN` into the mitigation's Decision cell
 - When accepting a mitigation would change observable behavior (a new error response, a limit users can hit), stop and tell the user to revise the change with `/medra:propose <change>`

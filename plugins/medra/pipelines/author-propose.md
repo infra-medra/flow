@@ -54,7 +54,7 @@ flowchart TD
 A restated intent — who it serves, what changes for them, and what is out of scope — that the user confirmed, with any overlapping change surfaced.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, `${CLAUDE_PLUGIN_ROOT}/templates/proposal/guide.md` and `${CLAUDE_PLUGIN_ROOT}/templates/delta/guide.md`, then run `medra index`
+- Read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, `${CLAUDE_PLUGIN_ROOT}/templates/proposal/guide.md` and `${CLAUDE_PLUGIN_ROOT}/templates/delta/guide.md`, then run `medra index`
 - When the input names an existing change, run `medra status <change> --json` and `medra context <change> --stage propose --md`, and take its pending gate notes as the revision brief instead of a new intent
 - Restate the intent in your own words: actors, outcome, the capabilities it likely touches, and what is explicitly out of scope
 - Check the active changes and the archive index for the same capability and outcome, and surface any overlap (or any `Spec drift` reported by `medra index`) to the user
@@ -139,7 +139,7 @@ A proposal and deltas with zero open clarification markers, each resolved by the
 A `tasks.md` for a fast-track change that covers every ADDED and MODIFIED requirement, in test-first order when the mode is `tdd`.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md`, then read `testing.mode` and `testing.command` from `docs/config-flow.yaml`
+- Read `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md`, then read `testing.mode` and `testing.command` from `docs/config-flow.yaml`
 - Write the task list from the deltas. For a defect fix, the first task is a `[TEST]` that reproduces the defect (regression-first)
 - Run `medra validate <change> --stage tasks` and fix every `tasks.*` error it reports
 

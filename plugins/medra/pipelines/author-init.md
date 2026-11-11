@@ -45,7 +45,7 @@ flowchart TD
 A `docs/` scaffold whose `config-flow.yaml` records the user's language, integrations, testing mode and test command.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, then run `medra --version` and confirm major version `1`
+- Read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, then run `medra --version` and confirm major version `1`
 - Read `docs/config-flow.yaml` when it exists. For each setting it lacks, ask the user with `AskUserQuestion`: prose language, integrations (`claude`, `antigravity`, or both), testing mode (`tdd` as the recommended first option, then `test-after` and `none`), and the project's test command
 - Run `medra init` with the answers as flags. When the config already exists, show the user the settings that differ from their answers and edit only the keys they confirm
 - Read the JSON result and report what was created and what already existed
@@ -67,7 +67,7 @@ A `docs/` scaffold whose `config-flow.yaml` records the user's language, integra
 A `docs/constitution.md` of 3–9 checkable articles that the user approved and `medra constitution ratify` ratified.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/templates/constitution/guide.md`, then read the project's README, CLAUDE.md or AGENTS.md and its build and test configuration, to propose candidate principles grounded in the codebase
+- Read `${CLAUDE_PLUGIN_ROOT}/templates/constitution/guide.md`, then read the project's README, CLAUDE.md or AGENTS.md and its build and test configuration, to propose candidate principles grounded in the codebase
 - Interview the user in `AskUserQuestion` batches of at most 4 questions: what must never break, architectural boundaries, testing floor (consistent with the chosen testing mode), simplicity limits, security and compliance floors
 - Copy the template and write the articles, each with a MUST or MUST NOT principle, a yes/no Gate and a Rationale, then run `medra validate --project constitution`
 - Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Gate Protocol describes it, presenting the articles. On approval, run `medra constitution ratify --note "Initial constitution" --source init`. Constitution approvals are recorded by `ratify`, not by `medra gate`
@@ -91,7 +91,7 @@ Living specs under `docs/specs/` that describe the existing code's current behav
 **Actions**
 - Ask the user whether to bootstrap now, and which areas to cover. Map the codebase's user-facing capabilities: on Claude Code, use the Explore agent for broad navigation; elsewhere, read the entry points and routes directly
 - Present the capability map (names, ID prefixes, one-line purposes) and confirm it with the user before writing any spec
-- Load `${CLAUDE_PLUGIN_ROOT}/templates/spec/guide.md` and write one living spec per confirmed capability, describing behavior the code shows today and marking doubts `[NEEDS CLARIFICATION: …]`
+- Read `${CLAUDE_PLUGIN_ROOT}/templates/spec/guide.md` and write one living spec per confirmed capability, describing behavior the code shows today and marking doubts `[NEEDS CLARIFICATION: …]`
 - Resolve every marker with the user, run `medra validate --project specs`, then gate the specs with the Gate Protocol's render and options. Bootstrap specs belong to no change, so the decision is recorded in the conversation and in the suggested commit, not with `medra gate`
 
 **Avoid**

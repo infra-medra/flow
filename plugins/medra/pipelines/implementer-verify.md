@@ -48,7 +48,7 @@ flowchart TD
 Confirmation that the change satisfies the handoff's dispatch preconditions and that every changed scenario has a covering test.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md`, then run `medra status <change> --json` and confirm that every task is done. When it reports `security: relevant`, also load `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md`
+- Read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md`, then run `medra status <change> --json` and confirm that every task is done. When it reports `security: relevant`, also read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md`
 - Run `medra validate <change> --stage tasks --json` and `medra coverage <change> --json`
 - When the mode is `tdd` or `test-after` and coverage lists uncovered scenarios, stop and tell the user to resume `/medra:apply` with a test task for each one
 

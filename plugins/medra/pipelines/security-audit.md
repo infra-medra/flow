@@ -43,7 +43,7 @@ flowchart LR
 A validated dispatch, plus the bounded context the audit is built from.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/security-report/guide.md`, then validate the dispatch against the handoff's receiver rules
+- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/security-report/guide.md`, then validate the dispatch against the handoff's receiver rules
 - Run `medra context <change> --stage verify --md` for the requirements, the constitution, the matching learnings and the paths of the change's documents
 - Read the proposal's Security rationale and, when `threat-model.md` exists, its entry points and accepted mitigations. On later rounds, read `previous_report`
 

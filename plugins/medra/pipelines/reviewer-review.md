@@ -43,7 +43,7 @@ flowchart TD
 The stage under review, the reviewer's identity and the bounded context, all fixed before reading.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md`, then run `medra status <change> --json`
+- Read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md`, then run `medra status <change> --json`
 - Choose the stage: the most advanced of `proposal`, `plan` and `tasks` whose document exists. When the user names a stage, use that one. Confirm the stage and the reviewer's name with the user (default: `git config user.name`)
 - Run `medra context <change> --stage review --md`. For each MODIFIED or REMOVED requirement with a `last_changed_by` pointer, read only that archived change's `## Decisions` (or its `## Why`)
 

@@ -39,7 +39,7 @@ flowchart LR
 A validated dispatch, plus the bounded context the model is built from.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, then validate the dispatch against the handoff's receiver rules
+- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, then validate the dispatch against the handoff's receiver rules
 - Run `medra context <change> --stage plan --md` for the requirements, the constitution and the matching learnings
 - Read the proposal (Why, Scope, the Security rationale), the deltas, and the draft plan at `plan_path`; on a revision, also read the existing threat model at `threat_model_path`
 

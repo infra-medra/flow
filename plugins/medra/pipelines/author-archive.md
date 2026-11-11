@@ -52,7 +52,7 @@ flowchart TD
 The change's deltas merged into `docs/specs/`, with the change folder moved into the archive by `medra archive`.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, then run `medra archive <change> --dry-run --json`
+- Read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, then run `medra archive <change> --dry-run --json`
 - On exit `3`, resolve each conflict according to Knowledge → Conflict Resolution. Any edit to a stage document makes the verify gate stale, so present the fix with the Gate Protocol for gate `verify` and record the decision with `medra gate`
 - Once the dry run exits `0`, run `medra archive <change> --json` and note the archived path, the sequence number and the spec counts
 
@@ -72,7 +72,7 @@ The change's deltas merged into `docs/specs/`, with the change folder moved into
 Every lesson and preference evidenced by this change recorded in the learnings store as an add or a bump, with everything else deliberately skipped.
 
 **Actions**
-- Load `${CLAUDE_PLUGIN_ROOT}/templates/learnings/guide.md`, then read the harvest sources in the archived folder: the critical and major findings of every report in `reviews/`, including every verify round (`*-verify-agent-r<N>.md`), not only the last, and the critical and high findings of every security round (`*-security-agent-r<N>.md`), plus `gate_notes`, the verify gate's `accepted-risk` note, resolved `blockers` and `track_history` in `.medra.yaml`. A finding fixed in a later round is still evidence: it is the failure the lesson prevents
+- Read `${CLAUDE_PLUGIN_ROOT}/templates/learnings/guide.md`, then read the harvest sources in the archived folder: the critical and major findings of every report in `reviews/`, including every verify round (`*-verify-agent-r<N>.md`), not only the last, and the critical and high findings of every security round (`*-security-agent-r<N>.md`), plus `gate_notes`, the verify gate's `accepted-risk` note, resolved `blockers` and `track_history` in `.medra.yaml`. A finding fixed in a later round is still evidence: it is the failure the lesson prevents
 - For each candidate, check the active entries (`medra context` is no longer available after archive, so read the `## Active` section of `docs/learnings.md`), then decide add, bump or skip using the template's rules
 - Run `medra learn bump` or `medra learn add` for each decision, with the narrowest scope that changes behavior
 
@@ -113,7 +113,7 @@ A user decision on each promotion candidate: approved and ratified as a constitu
 
 **Actions**
 - Run `medra learn candidates --json`. For each candidate, judge whether it can be written as a gateable article (MUST principle, yes/no Gate). Leave the ones that cannot as active learnings
-- Load `${CLAUDE_PLUGIN_ROOT}/templates/constitution/guide.md` and draft each gateable candidate as a new article, or as an edit to an existing one
+- Read `${CLAUDE_PLUGIN_ROOT}/templates/constitution/guide.md` and draft each gateable candidate as a new article, or as an edit to an existing one
 - Gate each amendment with the Gate Protocol's render and options. On approval, run `medra constitution ratify --bump minor --note "<summary>" --source <L-NNN>`, then `medra learn promote <L-NNN> --article <Roman>`
 
 **Avoid**
