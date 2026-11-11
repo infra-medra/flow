@@ -472,6 +472,11 @@ test('install --target antigravity: plugin rewrite table, manifest, idempotent, 
   assert.doesNotMatch(cmd, /disable-model-invocation|argument-hint|\$ARGUMENTS|\$\{CLAUDE_/);
   assert.match(cmd, /\.agents\/plugins\/medra\/agents\/author\.md/);
   assert.match(cmd, /\.agents\/plugins\/medra\/pipelines\/author-propose\.md/);
+  assert.match(cmd, /## Operating Persona \(Author\)/);
+  assert.match(cmd, /### Phase 1 — Intake/);
+  const applyCmd = read(root, `${P}/skills/apply/SKILL.md`);
+  assert.match(applyCmd, /## Operating Persona \(Implementer\)/);
+  assert.match(applyCmd, /### Phase 1 — Resume/);
   assert.equal(fs.readdirSync(path.join(root, P, 'skills')).length, 8, 'only 8 user commands installed as skills');
   assert.match(read(root, `${P}/templates/spec/guide.md`), /`\.agents\/plugins\/medra\/templates\/spec\/template\.md`/);
   const reviewer = read(root, `${P}/agents/reviewer.md`);

@@ -2,6 +2,14 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.7.1] — 2026-11-11
+
+### Changed
+- **Token optimization via self-contained command skills (eliminated multi-hop start):**
+  - Inlined essential operating persona principles and complete pipeline phase specifications directly into each of the 8 user-facing command skills (`init`, `propose`, `plan`, `tasks`, `apply`, `verify`, `archive`, `review`).
+  - Commands begin execution immediately at Phase 1 without requiring 2–4 sequential `read_file` tool call round-trips to load intermediate agent persona and pipeline files.
+  - Standalone personas (`agents/`) and pipeline specifications (`pipelines/`) remain intact on disk for subagents (`medra-reviewer`, `medra-security`), references, and offline inspection.
+
 ## [1.7.0] — 2026-11-11
 
 ### Changed
