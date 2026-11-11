@@ -24,7 +24,7 @@ An optional step any team member can run at any point before archive. It produce
 
 ## Route
 
-Read `${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md` in full and adopt it as your operating instructions for the rest of this command. Then load `medra:pipeline-reviewer-review` with the Skill tool (or read it from the installed skills where there is no Skill tool) and follow it from Phase 1, using the input and preconditions above.
+Read `${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md` in full and adopt it as your operating instructions for the rest of this command. Then read `${CLAUDE_PLUGIN_ROOT}/pipelines/reviewer-review.md` and follow it from Phase 1, using the input and preconditions above.
 
 ## Output
 
