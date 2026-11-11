@@ -110,8 +110,9 @@ export function install(projectRoot, { scope = 'workspace', force = false } = {}
 
   const agents = fs.readdirSync(path.join(src, 'agents')).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3)).sort();
   const skills = fs.readdirSync(path.join(src, 'skills')).sort();
-  const skillText = skills.flatMap((s) => walk(path.join(src, 'skills', s))).map(readText).join('\n');
-  const dispatched = new Set([...skillText.matchAll(/subagent_type: medra:([a-z][a-z0-9-]*)/g)].map((m) => m[1]));
+  const allPluginFiles = walk(src).filter((f) => f.endsWith('.md'));
+  const allPluginText = allPluginFiles.map(readText).join('\n');
+  const dispatched = new Set([...allPluginText.matchAll(/subagent_type: (?:medra:)?([a-z][a-z0-9-]*)/g)].map((m) => m[1]));
 
   const source = JSON.parse(readText(path.join(src, '.claude-plugin', 'plugin.json')));
   const manifestJson = { $schema: SCHEMA, ...Object.fromEntries(MANIFEST_KEYS.filter((k) => k in source).map((k) => [k, source[k]])) };
@@ -123,6 +124,15 @@ export function install(projectRoot, { scope = 'workspace', force = false } = {}
       if (path.basename(file) === 'SKILL.md') text = skillFrontmatter(text, skill);
       text = rewriteBody(text, { root: display, skillDir: `${display}/skills/${skill}`, agents });
       files.push([path.join(plugin, 'skills', skill, path.relative(dir, file)), text]);
+    }
+  }
+  for (const extraDir of ['pipelines', 'templates', 'handoffs', 'references']) {
+    const dir = path.join(src, extraDir);
+    if (!fs.existsSync(dir)) continue;
+    for (const file of walk(dir)) {
+      let text = readText(file);
+      text = rewriteBody(text, { root: display, skillDir: `${display}/${extraDir}`, agents });
+      files.push([path.join(plugin, extraDir, path.relative(dir, file)), text]);
     }
   }
   for (const agent of agents) {

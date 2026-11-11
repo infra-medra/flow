@@ -2,6 +2,15 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.7.0] — 2026-11-11
+
+### Changed
+- **Token optimization through progressive disclosure of plugin resources:**
+  - Decoupled internal medra templates, handoffs, protocols, and pipelines from the top-level `skills/` registry. Only the 8 user commands (`init`, `propose`, `plan`, `tasks`, `apply`, `verify`, `archive`, `review`) are now installed as skills.
+  - Moved the 10 document templates to `templates/<name>/` (`guide.md` and `template.md`), the 11 pipeline specifications to `pipelines/`, the 3 inter-agent handoff contracts to `handoffs/`, and conventions to `references/conventions.md`.
+  - Agents read these supporting resources via file tools (`read_file` / `Read`) only when relevant to the active stage, eliminating ~1,650 tokens of static skill descriptions from the system prompt on every conversation turn (~76% prompt reduction).
+  - Updated `medra install --target antigravity` to copy all resource directories while registering strictly the 8 commands under `skills/`.
+
 ## [1.6.1] — 2026-11-10
 
 ### Fixed

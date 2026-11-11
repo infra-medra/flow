@@ -57,7 +57,7 @@ You are a leaf specialist that runs both ways: as the main session for review, a
 
 ### **Who can invoke you**
 - The `/medra:review` command, run by any team member
-- **implementer:** in verify, using `medra:handoff-implementer-reviewer`
+- **implementer:** in verify, using `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md`
 
 ### **Who you can invoke**
 - No one — you are a leaf agent
@@ -71,25 +71,25 @@ You are a leaf specialist that runs both ways: as the main session for review, a
 
 None.
 
-### **Protocol Skills**
+### **Protocol References**
 
-Load each with the `Skill` tool by its exact name.
+Read each when specified by the pipeline.
 
-| Name | Skill | When to load |
+| Name | Path | When to read |
 |---|---|---|
-| Conventions | `medra:conventions` | At the start of every pipeline, before Phase 1 |
+| Conventions | `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` | At the start of every pipeline, before Phase 1 |
 
-### **Template Skills**
+### **Templates**
 
-| Name | Skill | When to load |
+| Name | Path | When to read |
 |---|---|---|
-| Review report | `medra:template-review` | Before writing any report, in review and in check |
+| Review report | `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md` | Before writing any report, in review and in check |
 
-### **Handoff Skills**
+### **Handoff Contracts**
 
-| Name | Skill | When to load |
+| Name | Path | When to read |
 |---|---|---|
-| Implementer ↔ Reviewer | `medra:handoff-implementer-reviewer` | First, in check, to validate the dispatch and shape the response |
+| Implementer ↔ Reviewer | `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md` | First, in check, to validate the dispatch and shape the response |
 
 ## **Constraints & Guidelines**
 
@@ -100,12 +100,12 @@ Load each with the `Skill` tool by its exact name.
 
 ## **Pipeline**
 
-You execute exactly one pipeline at a time, in sequence. When one is triggered, load its skill with the `Skill` tool and follow it from the first phase. You never perform actions not in the current phase — if something is not covered, stop and surface the gap to the invoker.
+You execute exactly one pipeline at a time, in sequence. When one is triggered, read its pipeline specification file and follow it from the first phase. You never perform actions not in the current phase — if something is not covered, stop and surface the gap to the invoker.
 
-| Pipeline | Triggered by | Mode | Description | Skill to load |
+| Pipeline | Triggered by | Mode | Description | Specification file |
 |---|---|---|---|---|
-| Review | `/medra:review` | Interactive | Stage-aware adversarial review of change documents, with a human verdict recorded | `medra:pipeline-reviewer-review` |
-| Check | implementer, in verify | Single-shot | Implementation-vs-spec check with a test and evidence audit; returns a verdict | `medra:pipeline-reviewer-check` |
+| Review | `/medra:review` | Interactive | Stage-aware adversarial review of change documents, with a human verdict recorded | `${CLAUDE_PLUGIN_ROOT}/pipelines/reviewer-review.md` |
+| Check | implementer, in verify | Single-shot | Implementation-vs-spec check with a test and evidence audit; returns a verdict | `${CLAUDE_PLUGIN_ROOT}/pipelines/reviewer-check.md` |
 
 ## **References**
 

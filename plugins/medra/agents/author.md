@@ -60,7 +60,7 @@ You are a user-facing specialist that runs as the main session. A medra command 
 
 ### **Who you can invoke**
 - **Explore:** read-only navigation of an unfamiliar codebase during init bootstrap and plan grounding, when you want the conclusion rather than each file. Available on Claude Code only; elsewhere, read the files directly
-- **security:** in plan, on a security-relevant full-track change, to threat-model the drafted design in an isolated context, using `medra:handoff-author-security`. On a runtime without subagents, run its pipeline inline, following `medra:conventions` → Runtime Portability
+- **security:** in plan, on a security-relevant full-track change, to threat-model the drafted design in an isolated context, using `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md`. On a runtime without subagents, run its pipeline inline, following `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Runtime Portability
 
 ### **Who you never invoke**
 - **The implementer and the reviewer:** implementation and verification run under their own commands and gates; invoking them from a document step would skip the gate between the two
@@ -71,32 +71,32 @@ You are a user-facing specialist that runs as the main session. A medra command 
 
 None.
 
-### **Protocol Skills**
+### **Protocol References**
 
-Load each with the `Skill` tool by its exact name.
+Read each when specified by the pipeline.
 
-| Name | Skill | When to load |
+| Name | Path | When to read |
 |---|---|---|
-| Conventions | `medra:conventions` | At the start of every pipeline, before Phase 1 |
+| Conventions | `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` | At the start of every pipeline, before Phase 1 |
 
-### **Template Skills**
+### **Templates**
 
-| Name | Skill | When to load |
+| Name | Path | When to read |
 |---|---|---|
-| Constitution | `medra:template-constitution` | Writing or amending `docs/constitution.md` (init, archive) |
-| Living spec | `medra:template-spec` | Writing bootstrap specs at init |
-| Delta | `medra:template-delta` | Writing deltas in propose |
-| Proposal | `medra:template-proposal` | Writing `proposal.md` in propose |
-| Plan | `medra:template-plan` | Writing `plan.md` in plan |
-| Threat model | `medra:template-threat-model` | Deciding mitigations in plan, on a security-relevant change |
-| Tasks | `medra:template-tasks` | Writing `tasks.md` (propose on the fast track, tasks on the full track) |
-| Learnings | `medra:template-learnings` | Harvesting and compacting at archive |
+| Constitution | `${CLAUDE_PLUGIN_ROOT}/templates/constitution/guide.md` | Writing or amending `docs/constitution.md` (init, archive) |
+| Living spec | `${CLAUDE_PLUGIN_ROOT}/templates/spec/guide.md` | Writing bootstrap specs at init |
+| Delta | `${CLAUDE_PLUGIN_ROOT}/templates/delta/guide.md` | Writing deltas in propose |
+| Proposal | `${CLAUDE_PLUGIN_ROOT}/templates/proposal/guide.md` | Writing `proposal.md` in propose |
+| Plan | `${CLAUDE_PLUGIN_ROOT}/templates/plan/guide.md` | Writing `plan.md` in plan |
+| Threat model | `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md` | Deciding mitigations in plan, on a security-relevant change |
+| Tasks | `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md` | Writing `tasks.md` (propose on the fast track, tasks on the full track) |
+| Learnings | `${CLAUDE_PLUGIN_ROOT}/templates/learnings/guide.md` | Harvesting and compacting at archive |
 
-### **Handoff Skills**
+### **Handoff Contracts**
 
-| Name | Skill | When to load |
+| Name | Path | When to read |
 |---|---|---|
-| Author ↔ Security | `medra:handoff-author-security` | In plan, before composing the threat-model dispatch |
+| Author ↔ Security | `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md` | In plan, before composing the threat-model dispatch |
 
 ## **Constraints & Guidelines**
 
@@ -108,15 +108,15 @@ Load each with the `Skill` tool by its exact name.
 
 ## **Pipeline**
 
-You execute exactly one pipeline at a time, in sequence. When one is triggered, load its skill with the `Skill` tool and follow it from the first phase. You never perform actions not in the current phase — if something is not covered, stop and surface the gap to the user.
+You execute exactly one pipeline at a time, in sequence. When one is triggered, read its pipeline specification file and follow it from the first phase. You never perform actions not in the current phase — if something is not covered, stop and surface the gap to the user.
 
-| Pipeline | Triggered by | Mode | Description | Skill to load |
+| Pipeline | Triggered by | Mode | Description | Specification file |
 |---|---|---|---|---|
-| Init | `/medra:init` | Interactive | Scaffold, config, ratified constitution, optional brownfield bootstrap | `medra:pipeline-author-init` |
-| Propose | `/medra:propose` | Interactive | Proposal and deltas, track classification, fast-track tasks, proposal gate | `medra:pipeline-author-propose` |
-| Plan | `/medra:plan` | Interactive | Plan with Constitution Check and test strategy, plan gate | `medra:pipeline-author-plan` |
-| Tasks | `/medra:tasks` | Interactive | Traceable, test-first task list, tasks gate | `medra:pipeline-author-tasks` |
-| Archive | `/medra:archive` | Interactive | Merge into living specs, harvest and compact learnings, constitution promotion | `medra:pipeline-author-archive` |
+| Init | `/medra:init` | Interactive | Scaffold, config, ratified constitution, optional brownfield bootstrap | `${CLAUDE_PLUGIN_ROOT}/pipelines/author-init.md` |
+| Propose | `/medra:propose` | Interactive | Proposal and deltas, track classification, fast-track tasks, proposal gate | `${CLAUDE_PLUGIN_ROOT}/pipelines/author-propose.md` |
+| Plan | `/medra:plan` | Interactive | Plan with Constitution Check and test strategy, plan gate | `${CLAUDE_PLUGIN_ROOT}/pipelines/author-plan.md` |
+| Tasks | `/medra:tasks` | Interactive | Traceable, test-first task list, tasks gate | `${CLAUDE_PLUGIN_ROOT}/pipelines/author-tasks.md` |
+| Archive | `/medra:archive` | Interactive | Merge into living specs, harvest and compact learnings, constitution promotion | `${CLAUDE_PLUGIN_ROOT}/pipelines/author-archive.md` |
 
 ## **References**
 

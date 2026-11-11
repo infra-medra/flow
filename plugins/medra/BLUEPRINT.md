@@ -188,25 +188,25 @@ In build order. Paths are relative to `/home/tcavalli/src/harness/`.
 | # | Type | Runtime name | Path | Job | Depends on |
 |---|---|---|---|---|---|
 | 1 | CLI spec (engineering handoff) | — | `cli/SPEC.md` | Contract for the `medra` Node CLI: commands, flags, exit codes, state and config schemas, validation rules, merge rules, context-pack selection, the learnings store, the installer rewrite table | — |
-| 2 | Protocol | `medra:conventions` | `plugins/medra/skills/conventions/SKILL.md` | Shared rules for every agent: `docs/` layout, language, CLI usage and exit codes, context and memory budget, gate protocol with or without `AskUserQuestion`, delegation and skill-loading fallbacks, resume-from-disk, git suggest-only | 1 |
-| 3 | Template | `medra:template-constitution` | `plugins/medra/skills/template-constitution/` | Versioned, numbered articles with testable gate questions and an amendment log | 2 |
-| 4 | Template | `medra:template-spec` | `plugins/medra/skills/template-spec/` | Living spec per capability: Purpose, ID prefix, `REQ` blocks with SHALL + scenarios | 2 |
-| 5 | Template | `medra:template-delta` | `plugins/medra/skills/template-delta/` | Delta spec: ADDED / MODIFIED / REMOVED requirement sections, in the exact form `medra archive` parses | 4 |
-| 6 | Template | `medra:template-proposal` | `plugins/medra/skills/template-proposal/` | Why, scope fence, track with rationale, capabilities touched, impact, clarification markers | 2 |
-| 7 | Template | `medra:template-plan` | `plugins/medra/skills/template-plan/` | Anchored: approach, constitution gate check, Complexity Tracking, decisions, data and contract changes | 3, 6 |
-| 8 | Template | `medra:template-tasks` | `plugins/medra/skills/template-tasks/` | Phased checkbox tasks `T001 [P] [REQ X-001]` with verification per task and a CLI-written evidence line | 5, 7 |
-| 9 | Template | `medra:template-review` | `plugins/medra/skills/template-review/` | Findings report shared by review and check: stage, verdict, severity-classified findings, requirement coverage | 5, 8 |
-| 10 | Template | `medra:template-learnings` | `plugins/medra/skills/template-learnings/` | `L-NNN` entries: type (lesson / preference), scope, statement, evidence, occurrences, status; harvest, merge and retirement rules | 2 |
-| 11 | Handoff | `medra:handoff-implementer-reviewer` | `plugins/medra/skills/handoff-implementer-reviewer/SKILL.md` | The verify dispatch contract (Contracts row) | 9 |
-| 12 | Pipeline | `medra:pipeline-author-init` | `plugins/medra/skills/pipeline-author-init/SKILL.md` | CLI init, language and integrations, constitution interview + gate, optional brownfield bootstrap + gate | 2, 3, 4 |
-| 13 | Pipeline | `medra:pipeline-author-propose` | `plugins/medra/skills/pipeline-author-propose/SKILL.md` | Intake, track classification, clarification, proposal + deltas, fast-track tasks, self-review, gate | 2, 5, 6, 8 |
-| 14 | Pipeline | `medra:pipeline-author-plan` | `plugins/medra/skills/pipeline-author-plan/SKILL.md` | Grounding in the context pack and code, plan with constitution gates, self-review, gate | 2, 7 |
-| 15 | Pipeline | `medra:pipeline-author-tasks` | `plugins/medra/skills/pipeline-author-tasks/SKILL.md` | Task decomposition with traceability, self-review, gate | 2, 8 |
-| 16 | Pipeline | `medra:pipeline-author-archive` | `plugins/medra/skills/pipeline-author-archive/SKILL.md` | Merge with conflict resolution, harvest learnings, compact when over budget, promote to the constitution with a gate | 2, 3, 5, 10 |
-| 17 | Pipeline | `medra:pipeline-implementer-apply` | `plugins/medra/skills/pipeline-implementer-apply/SKILL.md` | Resume from the context pack, execute tasks with CLI checkpoints, blocker handling, track escalation | 2, 8 |
-| 18 | Pipeline | `medra:pipeline-implementer-verify` | `plugins/medra/skills/pipeline-implementer-verify/SKILL.md` | Dispatch check (or inline fallback), fix loop, gate | 2, 9, 11 |
-| 19 | Pipeline | `medra:pipeline-reviewer-review` | `plugins/medra/skills/pipeline-reviewer-review/SKILL.md` | Interactive, stage-aware document review, report, human verdict | 2, 9 |
-| 20 | Pipeline | `medra:pipeline-reviewer-check` | `plugins/medra/skills/pipeline-reviewer-check/SKILL.md` | Single-shot check of implementation against spec, plus cross-document consistency | 2, 9, 11 |
+| 2 | Protocol | `conventions` | `plugins/medra/references/conventions.md` | Shared rules for every agent: `docs/` layout, language, CLI usage and exit codes, context and memory budget, gate protocol with or without `AskUserQuestion`, delegation and skill-loading fallbacks, resume-from-disk, git suggest-only | 1 |
+| 3 | Template | `template-constitution` | `plugins/medra/templates/constitution/` | Versioned, numbered articles with testable gate questions and an amendment log | 2 |
+| 4 | Template | `template-spec` | `plugins/medra/templates/spec/` | Living spec per capability: Purpose, ID prefix, `REQ` blocks with SHALL + scenarios | 2 |
+| 5 | Template | `template-delta` | `plugins/medra/templates/delta/` | Delta spec: ADDED / MODIFIED / REMOVED requirement sections, in the exact form `medra archive` parses | 4 |
+| 6 | Template | `template-proposal` | `plugins/medra/templates/proposal/` | Why, scope fence, track with rationale, capabilities touched, impact, clarification markers | 2 |
+| 7 | Template | `template-plan` | `plugins/medra/templates/plan/` | Anchored: approach, constitution gate check, Complexity Tracking, decisions, data and contract changes | 3, 6 |
+| 8 | Template | `template-tasks` | `plugins/medra/templates/tasks/` | Phased checkbox tasks `T001 [P] [REQ X-001]` with verification per task and a CLI-written evidence line | 5, 7 |
+| 9 | Template | `template-review` | `plugins/medra/templates/review/` | Findings report shared by review and check: stage, verdict, severity-classified findings, requirement coverage | 5, 8 |
+| 10 | Template | `template-learnings` | `plugins/medra/templates/learnings/` | `L-NNN` entries: type (lesson / preference), scope, statement, evidence, occurrences, status; harvest, merge and retirement rules | 2 |
+| 11 | Handoff | `handoff-implementer-reviewer` | `plugins/medra/handoffs/implementer-reviewer.md` | The verify dispatch contract (Contracts row) | 9 |
+| 12 | Pipeline | `author-init` | `plugins/medra/pipelines/author-init.md` | CLI init, language and integrations, constitution interview + gate, optional brownfield bootstrap + gate | 2, 3, 4 |
+| 13 | Pipeline | `author-propose` | `plugins/medra/pipelines/author-propose.md` | Intake, track classification, clarification, proposal + deltas, fast-track tasks, self-review, gate | 2, 5, 6, 8 |
+| 14 | Pipeline | `author-plan` | `plugins/medra/pipelines/author-plan.md` | Grounding in the context pack and code, plan with constitution gates, self-review, gate | 2, 7 |
+| 15 | Pipeline | `author-tasks` | `plugins/medra/pipelines/author-tasks.md` | Task decomposition with traceability, self-review, gate | 2, 8 |
+| 16 | Pipeline | `author-archive` | `plugins/medra/pipelines/author-archive.md` | Merge with conflict resolution, harvest learnings, compact when over budget, promote to the constitution with a gate | 2, 3, 5, 10 |
+| 17 | Pipeline | `implementer-apply` | `plugins/medra/pipelines/implementer-apply.md` | Resume from the context pack, execute tasks with CLI checkpoints, blocker handling, track escalation | 2, 8 |
+| 18 | Pipeline | `implementer-verify` | `plugins/medra/pipelines/implementer-verify.md` | Dispatch check (or inline fallback), fix loop, gate | 2, 9, 11 |
+| 19 | Pipeline | `reviewer-review` | `plugins/medra/pipelines/reviewer-review.md` | Interactive, stage-aware document review, report, human verdict | 2, 9 |
+| 20 | Pipeline | `reviewer-check` | `plugins/medra/pipelines/reviewer-check.md` | Single-shot check of implementation against spec, plus cross-document consistency | 2, 9, 11 |
 | 21 | Agent | `medra:author` | `plugins/medra/agents/author.md` | See Agents | 12–16 |
 | 22 | Agent | `medra:implementer` | `plugins/medra/agents/implementer.md` | See Agents | 17, 18 |
 | 23 | Agent | `medra:reviewer` | `plugins/medra/agents/reviewer.md` | See Agents | 19, 20 |
@@ -222,21 +222,21 @@ In build order. `U` updates an existing artifact; `N` creates one.
 | # | Op | Type | Runtime name | Path | Job | Depends on |
 |---|---|---|---|---|---|---|
 | S1 | U | CLI spec | — | `cli/SPEC.md` | `**Security:**` proposal line and `proposal.security` rule; `security` in `status --json`; report stage `security` with its own Counts grammar; `threat-model.md` structure rule and its place in the plan gate hash; latest `security` report in the verify gate hash; `verify.security-report` (presence); `gate --approve --note` documented, carrying `accepted-risk: S-NN — <reason>` | — |
-| S2 | U | Protocol | `medra:conventions` | `plugins/medra/skills/conventions/SKILL.md` | Layout gains `threat-model.md` and security reports; the `security` agent in the delegation fallback | S1 |
-| S3 | U | Template | `medra:template-proposal` | `plugins/medra/skills/template-proposal/` | `**Security:**` line under Track, with the relevance criteria | S1 |
-| S4 | N | Template | `medra:template-threat-model` | `plugins/medra/skills/template-threat-model/` | Scope and assets, trust boundaries, data flows and entry points, STRIDE threats `TM-NN` with severity and likelihood, mitigations `M-NN` mapped to threats, residual risks, sources consulted | S1 |
-| S5 | N | Template | `medra:template-security-report` | `plugins/medra/skills/template-security-report/` | Stage/Verdict/Counts lines; scope and methodology; findings `S-NN` in the Sentinel format (severity, confidence, CWE, CVE, CVSS, location, evidence, attack scenario, impact, fix, validation, references, residual risk, origin: tool / verified / manual / hypothesis); status per finding across rounds; limitations | S1 |
-| S6 | U | Template | `medra:template-plan` | `plugins/medra/skills/template-plan/` | Accepted mitigations become `D-NN` Decisions citing `M-NN`; declined ones are a Decision with the reason | S4 |
-| S7 | N | Handoff | `medra:handoff-author-security` | `plugins/medra/skills/handoff-author-security/SKILL.md` | Threat-model contract (Contracts row) | S4 |
-| S8 | N | Handoff | `medra:handoff-implementer-security` | `plugins/medra/skills/handoff-implementer-security/SKILL.md` | Audit contract (Contracts row) | S5 |
-| S9 | N | Pipeline | `medra:pipeline-security-threat-model` | `plugins/medra/skills/pipeline-security-threat-model/SKILL.md` | Single-shot: dispatch validation, context and design reading, attack surface, STRIDE with source checks, threat model, response | S4, S7 |
-| S10 | N | Pipeline | `medra:pipeline-security-audit` | `plugins/medra/skills/pipeline-security-audit/SKILL.md` | Single-shot: dispatch validation, attack surface from the diff, code/config/dependency analysis with source checks, risk classification, report, response | S5, S8 |
-| S11 | U | Pipeline | `medra:pipeline-author-propose` | `plugins/medra/skills/pipeline-author-propose/SKILL.md` | Classify security relevance and present it at the proposal gate | S3 |
-| S12 | U | Pipeline | `medra:pipeline-author-plan` | `plugins/medra/skills/pipeline-author-plan/SKILL.md` | Dispatch the threat model after Drafting; integrate mitigations; present it at the gate | S6, S7 |
-| S13 | U | Pipeline, Template | `medra:pipeline-author-tasks`, `medra:template-tasks` | `plugins/medra/skills/pipeline-author-tasks/SKILL.md`, `plugins/medra/skills/template-tasks/SKILL.md` | Every accepted mitigation reaches a task that cites its `M-NN` | S6 |
-| S14 | U | Pipeline | `medra:pipeline-implementer-verify` | `plugins/medra/skills/pipeline-implementer-verify/SKILL.md` | Parallel dispatch per round, one fix loop over both reports, both presented at the gate, accepted risks as gate notes | S8 |
-| S15 | U | Pipeline | `medra:pipeline-author-archive` | `plugins/medra/skills/pipeline-author-archive/SKILL.md` | Harvest critical and high security findings, from every round | S5 |
-| S16 | U | Pipeline | `medra:pipeline-reviewer-check` | `plugins/medra/skills/pipeline-reviewer-check/SKILL.md` | On security-relevant changes, leave security analysis to the security report instead of duplicating it | S8 |
+| S2 | U | Protocol | `conventions` | `plugins/medra/references/conventions.md` | Layout gains `threat-model.md` and security reports; the `security` agent in the delegation fallback | S1 |
+| S3 | U | Template | `template-proposal` | `plugins/medra/templates/proposal/` | `**Security:**` line under Track, with the relevance criteria | S1 |
+| S4 | N | Template | `template-threat-model` | `plugins/medra/templates/threat-model/` | Scope and assets, trust boundaries, data flows and entry points, STRIDE threats `TM-NN` with severity and likelihood, mitigations `M-NN` mapped to threats, residual risks, sources consulted | S1 |
+| S5 | N | Template | `template-security-report` | `plugins/medra/templates/security-report/` | Stage/Verdict/Counts lines; scope and methodology; findings `S-NN` in the Sentinel format (severity, confidence, CWE, CVE, CVSS, location, evidence, attack scenario, impact, fix, validation, references, residual risk, origin: tool / verified / manual / hypothesis); status per finding across rounds; limitations | S1 |
+| S6 | U | Template | `template-plan` | `plugins/medra/templates/plan/` | Accepted mitigations become `D-NN` Decisions citing `M-NN`; declined ones are a Decision with the reason | S4 |
+| S7 | N | Handoff | `handoff-author-security` | `plugins/medra/handoffs/author-security.md` | Threat-model contract (Contracts row) | S4 |
+| S8 | N | Handoff | `handoff-implementer-security` | `plugins/medra/handoffs/implementer-security.md` | Audit contract (Contracts row) | S5 |
+| S9 | N | Pipeline | `security-threat-model` | `plugins/medra/pipelines/security-threat-model.md` | Single-shot: dispatch validation, context and design reading, attack surface, STRIDE with source checks, threat model, response | S4, S7 |
+| S10 | N | Pipeline | `security-audit` | `plugins/medra/pipelines/security-audit.md` | Single-shot: dispatch validation, attack surface from the diff, code/config/dependency analysis with source checks, risk classification, report, response | S5, S8 |
+| S11 | U | Pipeline | `author-propose` | `plugins/medra/pipelines/author-propose.md` | Classify security relevance and present it at the proposal gate | S3 |
+| S12 | U | Pipeline | `author-plan` | `plugins/medra/pipelines/author-plan.md` | Dispatch the threat model after Drafting; integrate mitigations; present it at the gate | S6, S7 |
+| S13 | U | Pipeline, Template | `author-tasks`, `template-tasks` | `plugins/medra/pipelines/author-tasks.md`, `plugins/medra/templates/tasks/` | Every accepted mitigation reaches a task that cites its `M-NN` | S6 |
+| S14 | U | Pipeline | `implementer-verify` | `plugins/medra/pipelines/implementer-verify.md` | Parallel dispatch per round, one fix loop over both reports, both presented at the gate, accepted risks as gate notes | S8 |
+| S15 | U | Pipeline | `author-archive` | `plugins/medra/pipelines/author-archive.md` | Harvest critical and high security findings, from every round | S5 |
+| S16 | U | Pipeline | `reviewer-check` | `plugins/medra/pipelines/reviewer-check.md` | On security-relevant changes, leave security analysis to the security report instead of duplicating it | S8 |
 | S17 | N | Agent | `medra:security` | `plugins/medra/agents/security.md` | See Agents | S9, S10 |
 | S18 | U | Agent | `medra:author` | `plugins/medra/agents/author.md` | `Agent(Explore, security)`; handoff listed | S7, S17 |
 | S19 | U | Agent | `medra:implementer` | `plugins/medra/agents/implementer.md` | `Agent(reviewer, security)`; handoff listed | S8, S17 |

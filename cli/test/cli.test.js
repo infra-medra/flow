@@ -471,12 +471,13 @@ test('install --target antigravity: plugin rewrite table, manifest, idempotent, 
   assert.match(cmd, /^---\nname: propose\ndescription: [^\n]+\n---\n/);
   assert.doesNotMatch(cmd, /disable-model-invocation|argument-hint|\$ARGUMENTS|\$\{CLAUDE_/);
   assert.match(cmd, /\.agents\/plugins\/medra\/agents\/author\.md/);
-  assert.match(cmd, /`medra:pipeline-author-propose`/, 'skill references keep the plugin namespace');
-  assert.match(read(root, `${P}/skills/template-spec/SKILL.md`), /`\.agents\/plugins\/medra\/skills\/template-spec\/template\.md`/);
+  assert.match(cmd, /\.agents\/plugins\/medra\/pipelines\/author-propose\.md/);
+  assert.equal(fs.readdirSync(path.join(root, P, 'skills')).length, 8, 'only 8 user commands installed as skills');
+  assert.match(read(root, `${P}/templates/spec/guide.md`), /`\.agents\/plugins\/medra\/templates\/spec\/template\.md`/);
   const reviewer = read(root, `${P}/agents/reviewer.md`);
   assert.match(reviewer, /^---\nname: medra-reviewer\ndescription: [^\n]+\ntools: \[read_file, write_file, run_command, ask_question\]\nmainAgent: true\nsubagent: true\n---\n/);
   assert.match(read(root, `${P}/agents/implementer.md`), /tools: \[read_file, write_file, edit_file, run_command, ask_question, invoke_subagent\]\nmainAgent: true\nsubagent: false\n---/);
-  assert.match(read(root, `${P}/skills/handoff-implementer-reviewer/SKILL.md`), /subagent_type: medra-reviewer/);
+  assert.match(read(root, `${P}/handoffs/implementer-reviewer.md`), /subagent_type: medra-reviewer/);
   assert.match(read(root, `${P}/agents/security.md`), /tools: \[read_file, write_file, run_command, search_web\]\nmainAgent: true\nsubagent: true\n---/, 'a dispatched agent is a subagent');
   assert.match(read(root, `${P}/agents/author.md`), /tools: \[[^\]]*invoke_subagent\]/, 'Agent(Explore, security) is one entry');
   assert.equal(read(root, `${P}/VERSION`).trim(), version);

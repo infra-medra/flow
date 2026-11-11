@@ -541,8 +541,12 @@ Generates the bundled plugin as a native Antigravity plugin named `medra`. Antig
 | Source | Generated |
 |---|---|
 | `.claude-plugin/plugin.json` | `<plugin>/plugin.json` with `$schema` (`https://antigravity.google/schemas/v1/plugin.json`), `name`, `version`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`, copying only the keys the source has |
-| `skills/<name>/` | `<plugin>/skills/<name>/` |
+| `skills/<name>/` | `<plugin>/skills/<name>/` (only the 8 user commands: `init`, `propose`, `plan`, `tasks`, `apply`, `verify`, `archive`, `review`) |
 | Skill frontmatter | `name: <name>` and `description` only |
+| `pipelines/<name>.md` | `<plugin>/pipelines/<name>.md` |
+| `templates/<name>/` | `<plugin>/templates/<name>/` |
+| `handoffs/<name>.md` | `<plugin>/handoffs/<name>.md` |
+| `references/<name>.md` | `<plugin>/references/<name>.md` |
 | `agents/<name>.md` | `<plugin>/agents/<name>.md` |
 | Agent frontmatter | `name: medra-<name>`, `description`, `tools` as a YAML list mapped by the tool table below (the source list is split on commas outside parentheses, so `Agent(reviewer, security)` is one entry), `mainAgent: true`, and `subagent: true` for agents some skill dispatches with `subagent_type: medra:<agent>` (`reviewer`), `subagent: false` for the rest (Antigravity offers every plugin agent as a subagent unless told otherwise). `model`, `effort` and `color` are dropped: Antigravity rejects Claude model names, and the session's model applies |
 | `medra:<agent>` for an agent name, in Markdown | `medra-<agent>` (Antigravity lists plugin subagents without the plugin prefix) |
