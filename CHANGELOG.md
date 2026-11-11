@@ -2,6 +2,14 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.7.2] — 2026-11-11
+
+### Changed
+- **CLI payload token optimization and deduplication:**
+  - `nextTaskPayload` (`cli/src/context.js`) now deduplicates requirement blocks in `parallel_batch` and omits duplicate requirements in `next_task` when a parallel batch is present.
+  - Added Markdown formatting (`taskDoneMarkdown` and `taskBlockMarkdown`) for `medra task done` and `medra task block` (invocable with `--md` or by default without `--json`), avoiding escaped JSON token inflation during task checkpoints.
+  - Compacted green evidence lines in `tasks.md` by omitting verbose stdout tails on `exit 0` runs, aligning with SPEC §5.2.
+
 ## [1.7.1] — 2026-11-11
 
 ### Changed

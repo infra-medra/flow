@@ -301,9 +301,12 @@ test('capability Paths, spec drift detection, parallel [P] batching, and --md ou
   medra(root, 'gate', 'update-auth-session', 'proposal', '--approve');
   write(root, 'test/auth/login.test.js', '// AUTH-001.S1\n');
   write(root, 'test/auth/logout.test.js', '// AUTH-002.S1\n');
-  medra(root, 'task', 'done', 'update-auth-session', 'T001', '--run', 'exit 1');
+  const done1Md = spawnSync(process.execPath, [path.resolve('bin/medra.js'), 'task', 'done', 'update-auth-session', 'T001', '--run', 'exit 1', '--md'], { cwd: root, encoding: 'utf8' });
+  assert.match(done1Md.stdout, /# Task checkpoint: T001 \(red\)/);
+  assert.match(done1Md.stdout, /Remaining: 3/);
   const afterT002 = medra(root, 'task', 'done', 'update-auth-session', 'T002', '--run', 'exit 1').json;
   assert.deepEqual(afterT002.parallel_batch.map((t) => t.id), ['T003', 'T004'], 'completing red [P] batch unlocks green [P] batch');
+  assert.deepEqual(afterT002.next_task.requirements, [], 'next_task omits duplicate requirements when parallel_batch is present');
 });
 
 test('archive round-trip: modified/kept/new/dropped scenarios, removed, added, index row, byte-stable', () => {

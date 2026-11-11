@@ -115,11 +115,22 @@ export function nextTaskPayload(root, change, state = loadState(root, change), s
     for (const s of Object.values(specs)) { const l = s.requirements.find((x) => x.id === id); if (l) return l.raw.join('\n'); }
     return null;
   };
-  const toPayload = (t) => ({ id: t.id, line: parsed.lines[t.index], requirements: t.reqs.map(blockFor).filter(Boolean), phase_title: t.phase });
+  const isBatch = batch.length > 1;
+  const seenReqs = new Set();
+  const toPayload = (t) => {
+    const reqs = [];
+    for (const reqId of t.reqs) {
+      if (!isBatch || !seenReqs.has(reqId)) {
+        const b = blockFor(reqId);
+        if (b) { reqs.push(b); seenReqs.add(reqId); }
+      }
+    }
+    return { id: t.id, line: parsed.lines[t.index], requirements: reqs, phase_title: t.phase };
+  };
   const mapped = batch.map(toPayload);
   return {
-    next_task: mapped[0],
-    parallel_batch: mapped.length > 1 ? mapped : null,
+    next_task: isBatch ? { id: mapped[0].id, line: mapped[0].line, phase_title: mapped[0].phase_title, requirements: [] } : mapped[0],
+    parallel_batch: isBatch ? mapped : null,
     remaining,
   };
 }
@@ -223,4 +234,42 @@ export function contextMarkdown(pack) {
   }
   out.push('## Documents', '', ...pack.documents.map((d) => `- \`${d}\``));
   return `${out.join('\n')}\n`;
+}
+
+export function taskDoneMarkdown(res) {
+  const out = [`# Task checkpoint: ${res.task} (${res.kind})`, '', `Remaining: ${res.remaining}`];
+  if (res.parallel_batch?.length > 1) {
+    out.push('', `## Parallel batch ([P]${res.next_task?.phase_title ? ` — ${res.next_task.phase_title}` : ''})`, '');
+    for (const t of res.parallel_batch) out.push(t.line);
+    out.push('');
+    const uniqueReqs = [...new Set(res.parallel_batch.flatMap((t) => t.requirements))];
+    out.push(...uniqueReqs.flatMap((b) => [b, '']));
+  } else if (res.next_task && res.next_task.requirements?.length) {
+    out.push('', '## Next task', '', `${res.next_task.phase_title ? `[${res.next_task.phase_title}] ` : ''}${res.next_task.line}`, '');
+    out.push(...res.next_task.requirements.flatMap((b) => [b, '']));
+  } else if (res.next_task) {
+    out.push('', '## Next task', '', `${res.next_task.phase_title ? `[${res.next_task.phase_title}] ` : ''}${res.next_task.line}`);
+  } else {
+    out.push('', '## Next task', '', 'None. All tasks done.');
+  }
+  return `${out.join('\n').trim()}\n`;
+}
+
+export function taskBlockMarkdown(res) {
+  const out = [`# Task ${res.blocked ? 'blocked' : 'unblocked'}: ${res.task}`, '', `Remaining: ${res.remaining}`];
+  if (res.parallel_batch?.length > 1) {
+    out.push('', `## Parallel batch ([P]${res.next_task?.phase_title ? ` — ${res.next_task.phase_title}` : ''})`, '');
+    for (const t of res.parallel_batch) out.push(t.line);
+    out.push('');
+    const uniqueReqs = [...new Set(res.parallel_batch.flatMap((t) => t.requirements))];
+    out.push(...uniqueReqs.flatMap((b) => [b, '']));
+  } else if (res.next_task && res.next_task.requirements?.length) {
+    out.push('', '## Next task', '', `${res.next_task.phase_title ? `[${res.next_task.phase_title}] ` : ''}${res.next_task.line}`, '');
+    out.push(...res.next_task.requirements.flatMap((b) => [b, '']));
+  } else if (res.next_task) {
+    out.push('', '## Next task', '', `${res.next_task.phase_title ? `[${res.next_task.phase_title}] ` : ''}${res.next_task.line}`);
+  } else {
+    out.push('', '## Next task', '', 'None.');
+  }
+  return `${out.join('\n').trim()}\n`;
 }
