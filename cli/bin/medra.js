@@ -4,7 +4,7 @@ import { Command, CommanderError } from 'commander';
 import { MedraError, EXIT, requireRoot, findRoot } from '../src/core.js';
 import { migrateLayout } from '../src/migrate.js';
 import * as cmd from '../src/commands.js';
-import { index, indexMarkdown, context, contextMarkdown } from '../src/context.js';
+import { index, indexMarkdown, context, contextMarkdown, taskDoneMarkdown, taskBlockMarkdown } from '../src/context.js';
 import { archive } from '../src/archive.js';
 import { install, cliVersion } from '../src/install.js';
 
@@ -104,10 +104,24 @@ j(program.command('install').description('Install the medra skills for another r
 j(program.command('update').description('Refresh installed integrations')).action(run(() => cmd.update(root())));
 
 const task = program.command('task').description('Task checkpoints');
-j(task.command('done <change> <task>').option('--run <command>').option('--evidence <text>').option('--kind <kind>').option('--allow-test-edit'))
-  .action(run((change, t, o) => cmd.taskDone(root(), change, t, o)));
-j(task.command('block <change> <task>').requiredOption('--note <text>')).action(run((change, t, o) => cmd.taskBlock(root(), change, t, o)));
-j(task.command('unblock <change> <task>')).action(run((change, t) => cmd.taskBlock(root(), change, t, {}, true)));
+j(task.command('done <change> <task>').option('--run <command>').option('--evidence <text>').option('--kind <kind>').option('--allow-test-edit').option('--md', 'Markdown output'))
+  .action((change, t, o) => {
+    const res = cmd.taskDone(root(), change, t, o);
+    if (o.md && !jsonMode) process.stdout.write(taskDoneMarkdown(res));
+    else emit(res, jsonMode ? undefined : taskDoneMarkdown(res));
+  });
+j(task.command('block <change> <task>').requiredOption('--note <text>').option('--md', 'Markdown output'))
+  .action((change, t, o) => {
+    const res = cmd.taskBlock(root(), change, t, o);
+    if (o.md && !jsonMode) process.stdout.write(taskBlockMarkdown(res));
+    else emit(res, jsonMode ? undefined : taskBlockMarkdown(res));
+  });
+j(task.command('unblock <change> <task>').option('--md', 'Markdown output'))
+  .action((change, t, o) => {
+    const res = cmd.taskBlock(root(), change, t, {}, true);
+    if (o.md && !jsonMode) process.stdout.write(taskBlockMarkdown(res));
+    else emit(res, jsonMode ? undefined : taskBlockMarkdown(res));
+  });
 
 const constitution = program.command('constitution').description('Constitution lifecycle');
 j(constitution.command('ratify').option('--bump <level>').option('--note <text>').option('--source <source>', 'init or L-NNN', 'init').option('--by <name>'))

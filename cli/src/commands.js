@@ -292,7 +292,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
         }
       }
     }
-    detail = `\`${run.replace(/`/g, "'")}\` exit ${code}${tail.length ? ` — "${tail.join(' | ').replace(/"/g, "'").slice(0, 300)}"` : ''}`;
+    detail = `\`${run.replace(/`/g, "'")}\` exit ${code}${code !== 0 && tail.length ? ` — "${tail.join(' | ').replace(/"/g, "'").slice(0, 300)}"` : ''}`;
   } else detail = evidence.replace(/\n/g, ' ');
   if (testEdited) detail += ' [test-edited]';
   if (k === 'red' && t.test) {

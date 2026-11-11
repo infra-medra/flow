@@ -90,10 +90,10 @@ The current task implemented in code and checkpointed by `medra task done`, with
 **Actions**
 - **For a `[TEST]` task:** write tests that cite each scenario ID they cover (in a comment, tag or test name), run the focused test command, and in `tdd` mode confirm they fail for the reason the scenario predicts. Then run `medra task done <change> <T> --run "<focused command>" --kind red` (`green` in `test-after`)
 - **For an implementation task:** write the minimum code that satisfies the requirement, run its tests to green, refactor while they stay green, then run `medra task done <change> <T> --run "<focused command>"`
-- **Same-session `[P]` batching:** when `medra context` (`## Parallel batch`) or `medra task done` (`parallel_batch`) lists multiple `[P]` tasks from the same phase and kind (`[TEST]` or implementation), write or edit their files in parallel tool calls in the same turn, then checkpoint each task individually with `medra task done <change> <T> ... --json`
+- **Same-session `[P]` batching:** when `medra context` (`## Parallel batch`) or `medra task done` lists multiple `[P]` tasks from the same phase and kind (`[TEST]` or implementation), write or edit their files in parallel tool calls in the same turn, then checkpoint each task individually with `medra task done <change> <T> ...`
 - When there is no test command (mode `none`), perform the task's verify step and record it with `--evidence "<what was checked and observed>" --kind manual`
-- When the task cannot proceed (missing access, unclear spec, an external failure), run `medra task block <change> <T> --note "<cause>" --json` and continue with the next task whose dependencies allow it
-- Take the following task (`next_task` or `parallel_batch`, including its requirements) directly from the `medra task done ... --json` or `medra task block ... --json` output without re-running `medra context`, then repeat
+- When the task cannot proceed (missing access, unclear spec, an external failure), run `medra task block <change> <T> --note "<cause>"` and continue with the next task whose dependencies allow it
+- Take the following task (`Next task` or `Parallel batch`, including its requirements) directly from the `medra task done` or `medra task block` output without re-running `medra context`, then repeat
 
 **Avoid**
 - Don't weaken, skip or delete a test to reach green — `medra task done` hashes the test files at `red` and refuses `green` (`task.test-tampered`) if they were modified, and runs `testing.checks` (`task.check`) when configured
@@ -101,7 +101,7 @@ The current task implemented in code and checkpointed by `medra task done`, with
 - Don't batch several tasks before checkpointing — because a compaction mid-batch loses every unrecorded task
 
 **Exit when:**
-- [ ] `medra task done` returned `ok: true` for the task, or `medra task block` recorded its blocker
+- [ ] `medra task done` exited `0` for the task, or `medra task block` recorded its blocker
 - [ ] Every test written for the task cites its scenario IDs
 
 ---
