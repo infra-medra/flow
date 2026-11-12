@@ -67,11 +67,24 @@ function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 }
 
+/** Safely resolves `relative` against `base`, returning null if `relative` attempts path traversal outside `base`. */
+export function safeJoin(base, relative) {
+  if (typeof relative !== 'string' || !relative || path.isAbsolute(relative)) return null;
+  const baseResolved = path.resolve(base);
+  const targetResolved = path.resolve(baseResolved, relative);
+  if (targetResolved === baseResolved || !targetResolved.startsWith(baseResolved + path.sep)) {
+    return null;
+  }
+  return targetResolved;
+}
+
 /** Removes `dir` and its parents up to (not including) `stop` while they are empty. */
 function pruneEmpty(dir, stop) {
-  while (dir.startsWith(stop + path.sep) && fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
-    fs.rmdirSync(dir);
-    dir = path.dirname(dir);
+  const stopResolved = path.resolve(stop);
+  let cur = path.resolve(dir);
+  while (cur.startsWith(stopResolved + path.sep) && fs.existsSync(cur) && fs.readdirSync(cur).length === 0) {
+    fs.rmdirSync(cur);
+    cur = path.dirname(cur);
   }
 }
 
@@ -83,7 +96,8 @@ function removeLegacy(base) {
   const findings = [];
   let removed = 0;
   for (const [key, hash] of Object.entries(JSON.parse(text).files ?? {})) {
-    const file = path.join(base, key);
+    const file = safeJoin(base, key);
+    if (!file) continue;
     const cur = readIf(file);
     if (cur === null) continue;
     if (sha256(cur) !== hash) {
@@ -153,8 +167,10 @@ export function install(projectRoot, { scope = 'workspace', force = false } = {}
   // Remove files a previous version generated that this version no longer ships.
   for (const key of Object.keys(previous)) {
     if (manifest.files[key]) continue;
-    fs.rmSync(path.join(plugin, key), { force: true });
-    pruneEmpty(path.dirname(path.join(plugin, key)), plugin);
+    const file = safeJoin(plugin, key);
+    if (!file) continue;
+    fs.rmSync(file, { force: true });
+    pruneEmpty(path.dirname(file), plugin);
   }
   const legacy = removeLegacy(base);
   return { installed: files.length, scope, version, plugin: display, legacy_removed: legacy.removed, ...(legacy.findings.length ? { findings: legacy.findings } : {}) };

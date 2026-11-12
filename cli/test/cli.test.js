@@ -588,6 +588,40 @@ test('install --target antigravity removes an unedited 1.1 install and keeps edi
   assert.equal(read(root, '.agents/skills/mine/SKILL.md'), 'user skill');
 });
 
+test('install --target antigravity: rejects path traversal in manifests (safeJoin guard)', () => {
+  const root = project();
+  const canary = path.join(root, 'canary.txt');
+  fs.writeFileSync(canary, 'protected content');
+  const canaryHash = crypto.createHash('sha256').update('protected content').digest('hex');
+
+  // Attempt traversal via legacy MANIFEST.json
+  const legacyManifest = {
+    version: '1.1.0',
+    files: {
+      '../canary.txt': canaryHash,
+      '../../canary.txt': canaryHash,
+      '/tmp/outside.txt': 'dummy',
+    },
+  };
+  write(root, '.agents/medra/MANIFEST.json', JSON.stringify(legacyManifest));
+
+  // Attempt traversal via previous plugin MANIFEST.json
+  const pluginManifest = {
+    version: '1.7.0',
+    files: {
+      '../../canary.txt': canaryHash,
+      '/etc/shadow': 'dummy',
+    },
+  };
+  write(root, '.agents/plugins/medra/MANIFEST.json', JSON.stringify(pluginManifest));
+
+  const r = medra(root, 'install', '--target', 'antigravity');
+  assert.equal(r.code, 0);
+
+  assert.ok(fs.existsSync(canary), 'canary file must not be deleted by path traversal in manifest');
+  assert.equal(read(root, 'canary.txt'), 'protected content');
+});
+
 test('usage errors exit 2 with a JSON envelope', () => {
   const root = project();
   const r = medra(root, 'gate', 'x-y', 'proposal');

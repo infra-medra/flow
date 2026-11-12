@@ -2,6 +2,14 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.7.6] — 2026-11-12
+
+### Security
+- **Path Traversal Guard in Plugin Manifest Cleanup (`safeJoin`):**
+  - Hardened `medra install --target antigravity` (`cli/src/install.js`) by adding `safeJoin(base, relative)` to validate all file paths parsed from existing `MANIFEST.json` and legacy manifests.
+  - Absolute paths, `../` traversal, and any path escaping the target plugin/base root are rejected before cleanup, preventing arbitrary file deletion attacks from malicious or forged manifests.
+  - Hardened directory pruning (`pruneEmpty`) with resolved path boundaries.
+
 ## [1.7.5] — 2026-11-12
 
 ### Added
