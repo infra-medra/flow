@@ -503,10 +503,19 @@ medra learn candidates
 ### 8.12 `medra task …`
 
 ```
+medra task context <change> [task] [--json|--md]
 medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit]
 medra task block <change> <T-NNN> --note "<text>"
 medra task unblock <change> <T-NNN>
 ```
+
+`context` returns a smart-sliced, bounded context pack for the target task (or the next runnable task when `[task]` is omitted):
+- `task`: `{id, line, phase, description, verify, test, parallel, done, after, reqs, evidence}`
+- `anchor`: `{summary, test_strategy}` from `plan.md` (or `proposal.md`'s `why` on the fast track)
+- `dependencies`: array of tasks in `after`, their done status, and their recorded evidence lines
+- `requirements`: array of requirement delta blocks and living spec blocks cited by the task
+- `learnings`: scoped learnings matching the touched capability or file paths
+- `remaining`: count of unticked tasks remaining
 
 `done` checks the following, and on any failure exits `1` and writes nothing:
 

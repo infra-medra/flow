@@ -1,7 +1,7 @@
 // `medra index` and `medra context`: bounded knowledge packs for agents.
 import path from 'node:path';
-import { readIf, loadConfig, rel, usageError, docsPath, docsRel } from './core.js';
-import { parseConstitution, liveArticles, parsePlan, parseArchiveIndex } from './documents.js';
+import { readIf, loadConfig, rel, usageError, docsPath, docsRel, refused, finding } from './core.js';
+import { parseConstitution, liveArticles, parsePlan, parseArchiveIndex, parseProposal } from './documents.js';
 import { firstSentence } from './markdown.js';
 import { loadLivingSpecs, loadDeltas, nextId } from './specs.js';
 import { loadLearnings, selectLearnings } from './learnings.js';
@@ -182,7 +182,9 @@ export function context(root, change, stage) {
     .concat(Object.values(deltas).map((d) => rel(root, d.file)));
   if (stage === 'apply' || stage === 'verify') {
     const planText = readIf(path.join(dir, 'plan.md'));
-    out.test_strategy = planText ? parsePlan(planText).testStrategy : null;
+    const parsedPlan = planText ? parsePlan(planText) : null;
+    out.test_strategy = parsedPlan ? parsedPlan.testStrategy : null;
+    if (stage === 'apply') out.plan_summary = parsedPlan?.summary ?? null;
   }
   if (stage === 'apply') {
     const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state, specs, deltas);
@@ -212,6 +214,7 @@ export function contextMarkdown(pack) {
   if (pack.siblings?.length) out.push('## Sibling requirements', '', ...pack.siblings.map((s) => `- ${s.id}: ${s.title}`), '');
   if (pack.learnings.length) out.push('## Learnings', '', ...pack.learnings.map((l) => `- **${l.id} [${l.type}] ${l.title}** — ${l.statement}`), '');
   if (pack.gate_notes.length) out.push('## Open gate notes', '', ...pack.gate_notes.map((n) => `- ${n.by} (${n.at}): ${n.note ?? n.report}`), '');
+  if (pack.plan_summary) out.push('## Plan summary', '', pack.plan_summary, '');
   if (pack.test_strategy) out.push('## Test strategy', '', pack.test_strategy, '');
   if (pack.stage === 'apply') {
     if (pack.parallel_batch?.length > 1) {
@@ -270,6 +273,200 @@ export function taskBlockMarkdown(res) {
     out.push('', '## Next task', '', `${res.next_task.phase_title ? `[${res.next_task.phase_title}] ` : ''}${res.next_task.line}`);
   } else {
     out.push('', '## Next task', '', 'None.');
+  }
+  return `${out.join('\n').trim()}\n`;
+}
+
+export function taskContext(root, change, taskId) {
+  const dir = changeDir(root, change);
+  const state = loadState(root, change);
+  const parsed = loadTasks(root, change);
+  if (!parsed) throw usageError(`No tasks.md found for change "${change}"`);
+  const tasks = parsed.tasks ?? [];
+
+  let targetTask = null;
+  if (taskId) {
+    targetTask = tasks.find((t) => t.id === taskId);
+    if (!targetTask) {
+      throw refused([
+        finding('task.unknown', `No task ${taskId}`, {
+          ref: taskId,
+          remediation: `Pick an existing task ID (e.g. ${tasks[0]?.id ?? 'T001'}) from tasks.md`,
+        }),
+      ]);
+    }
+  } else {
+    targetTask = nextTask(tasks, state);
+  }
+
+  const remaining = tasks.filter((x) => !x.done).length;
+  if (!targetTask) {
+    return {
+      change,
+      track: state.track,
+      phase: state.phase,
+      task: null,
+      remaining,
+      all_done: remaining === 0,
+    };
+  }
+
+  const specs = loadLivingSpecs(root);
+  const deltas = loadDeltas(dir);
+  const pointers = lastChangedBy(root);
+
+  // 1. Architecture Anchor (Summary & Test Strategy)
+  const planText = readIf(path.join(dir, 'plan.md'));
+  const parsedPlan = planText ? parsePlan(planText) : null;
+  const proposalText = readIf(path.join(dir, 'proposal.md'));
+  const parsedProposal = proposalText ? parseProposal(proposalText) : null;
+
+  const anchor = {
+    summary: parsedPlan?.summary ?? (parsedProposal?.why ? firstSentence(parsedProposal.why) : null),
+    test_strategy: parsedPlan?.testStrategy ?? null,
+  };
+
+  // 2. Dependencies
+  const dependencies = targetTask.after.map((depId) => {
+    const dep = tasks.find((t) => t.id === depId);
+    if (!dep) return { id: depId, missing: true };
+    return {
+      id: dep.id,
+      done: dep.done,
+      line: parsed.lines[dep.index],
+      description: dep.description,
+      evidence: dep.evidence,
+    };
+  });
+
+  // 3. Requirements (delta + living)
+  const deltaMap = new Map();
+  for (const [cap, d] of Object.entries(deltas)) {
+    for (const [op, blocks] of Object.entries(d.ops)) {
+      for (const b of blocks) {
+        if (b.id) deltaMap.set(b.id, { cap, op, b });
+      }
+    }
+  }
+
+  const touchedCaps = new Set();
+  const requirements = [];
+  for (const reqId of targetTask.reqs) {
+    if (deltaMap.has(reqId)) {
+      const { cap, op, b } = deltaMap.get(reqId);
+      touchedCaps.add(cap);
+      const living = specs[cap]?.requirements.find((r) => r.id === b.id);
+      requirements.push({
+        id: b.id,
+        capability: cap,
+        operation: op,
+        delta: b.raw.join('\n'),
+        living: op === 'ADDED' ? null : op === 'MODIFIED' ? compactLiving(living, b) : living ? living.raw.join('\n') : null,
+        last_changed_by: op === 'ADDED' ? null : pointers[b.id] ?? null,
+      });
+    } else {
+      for (const [cap, s] of Object.entries(specs)) {
+        const living = s.requirements.find((x) => x.id === reqId);
+        if (living) {
+          touchedCaps.add(cap);
+          requirements.push({
+            id: living.id,
+            capability: cap,
+            operation: 'UNCHANGED',
+            delta: null,
+            living: living.raw.join('\n'),
+            last_changed_by: pointers[living.id] ?? null,
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  // 4. Scoped Learnings
+  const candidatePaths = [
+    ...[...targetTask.description.matchAll(/`([^`\s]+\/[^`\s]*)`/g)].map((m) => m[1]),
+    ...[...targetTask.verify.matchAll(/`([^`\s]+\/[^`\s]*)`/g)].map((m) => m[1]),
+    ...[...touchedCaps].flatMap((cap) => specs[cap]?.paths ?? []),
+  ];
+  const config = loadConfig(root);
+  const learnings = selectLearnings(
+    loadLearnings(root).entries,
+    { capabilities: [...touchedCaps], paths: candidatePaths, stage: 'apply' },
+    config.learning.context_max,
+  );
+
+  return {
+    change,
+    track: state.track,
+    phase: state.phase,
+    task: {
+      id: targetTask.id,
+      line: parsed.lines[targetTask.index],
+      phase: targetTask.phase,
+      description: targetTask.description,
+      verify: targetTask.verify,
+      test: targetTask.test,
+      parallel: targetTask.parallel,
+      done: targetTask.done,
+      after: targetTask.after,
+      reqs: targetTask.reqs,
+      evidence: targetTask.evidence,
+    },
+    anchor,
+    dependencies,
+    requirements,
+    learnings,
+    remaining,
+  };
+}
+
+export function taskContextMarkdown(pack) {
+  if (!pack.task) {
+    return `# Task Context: ${pack.change}\n\nNo executable tasks remaining. All done (${pack.remaining} remaining).\n`;
+  }
+  const t = pack.task;
+  const out = [
+    `# Task Context: ${pack.change} · ${t.id}`,
+    '',
+    `Phase: ${t.phase ?? 'Work'} · Track: \`${pack.track}\` · Remaining: ${pack.remaining}`,
+    '',
+    '## Task',
+    '',
+    t.line,
+    '',
+    `- **Status:** ${t.done ? '[x] Done' : '[ ] Pending'}`,
+    `- **Verification:** \`${t.verify}\``,
+  ];
+
+  if (pack.anchor?.summary) {
+    out.push('', '## Architecture Anchor', '', pack.anchor.summary);
+  }
+  if (pack.anchor?.test_strategy) {
+    out.push('', '## Test Strategy', '', pack.anchor.test_strategy);
+  }
+  if (pack.dependencies?.length) {
+    out.push('', `## Dependencies (${pack.dependencies.length})`, '');
+    for (const d of pack.dependencies) {
+      out.push(`- [${d.done ? 'x' : ' '}] **${d.id}**: ${d.description || d.line}`);
+      if (d.evidence?.length) {
+        for (const ev of d.evidence) out.push(`    ↳ ${ev}`);
+      }
+    }
+  }
+  if (pack.requirements?.length) {
+    out.push('', `## Requirements (${pack.requirements.length})`, '');
+    for (const r of pack.requirements) {
+      out.push(`### ${r.operation} ${r.id} (${r.capability})${r.last_changed_by ? ` — last changed by \`${r.last_changed_by}\`` : ''}`, '');
+      if (r.living) out.push('Current living block:', '', r.living, '');
+      if (r.delta) out.push(r.operation === 'REMOVED' ? 'Removal:' : 'Delta block:', '', r.delta, '');
+    }
+  }
+  if (pack.learnings?.length) {
+    out.push('', `## Matching Learnings (${pack.learnings.length})`, '');
+    for (const l of pack.learnings) {
+      out.push(`- **${l.id} [${l.type}] ${l.title}** — ${l.statement}`);
+    }
   }
   return `${out.join('\n').trim()}\n`;
 }

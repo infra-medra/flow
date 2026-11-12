@@ -68,10 +68,10 @@ flowchart TD
 The next executable task identified from disk, with its requirements, test strategy and any open blockers in hand.
 
 **Actions**
-- Run `medra status <change> --json` and `medra context <change> --stage apply --md` (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` as needed)
-- Read the next task, its requirements (full blocks) and the Test Strategy, plus `testing.mode` and `testing.command` from `docs/config-flow.yaml`
+- Run `medra status <change> --json` and `medra task context <change> --md` (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` as needed)
+- Read the smart slice: the target task, its architecture anchor from `plan.md`, the Test Strategy, completed dependency evidence, and scoped requirement deltas
 - Show the user the open blockers and ask, with `AskUserQuestion`, whether each one is resolved. Run `medra task unblock` for each resolved one
-- Read the code files the next task names, and the matching active learnings from the context pack
+- Read the code files the task names, and the matching active learnings from the context pack
 
 **Avoid**
 - Don't reconstruct progress from the conversation — because the CLI's task state is authoritative, and a remembered "done" that was never checkpointed is not done
@@ -93,7 +93,7 @@ The current task implemented in code and checkpointed by `medra task done`, with
 - **Same-session `[P]` batching:** when `medra context` (`## Parallel batch`) or `medra task done` lists multiple `[P]` tasks from the same phase and kind (`[TEST]` or implementation), write or edit their files in parallel tool calls in the same turn, then checkpoint each task individually with `medra task done <change> <T> ...`
 - When there is no test command (mode `none`), perform the task's verify step and record it with `--evidence "<what was checked and observed>" --kind manual`
 - When the task cannot proceed (missing access, unclear spec, an external failure), run `medra task block <change> <T> --note "<cause>"` and continue with the next task whose dependencies allow it
-- Take the following task (`Next task` or `Parallel batch`, including its requirements) directly from the `medra task done` or `medra task block` output without re-running `medra context`, then repeat
+- Take the following task (`Next task` or `Parallel batch`, including its requirements) directly from the `medra task done` or `medra task block` output (or run `medra task context <change> [task] --md` for the full smart slice), then repeat
 
 **Avoid**
 - Don't weaken, skip or delete a test to reach green — `medra task done` hashes the test files at `red` and refuses `green` (`task.test-tampered`) if they were modified, and runs `testing.checks` (`task.check`) when configured

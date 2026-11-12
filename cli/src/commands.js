@@ -12,7 +12,7 @@ import { loadLivingSpecs, loadDeltas } from './specs.js';
 import { loadLearnings, saveLearnings, nextLearningId, learningsPath, renderLearnings, STAGES as LEARN_STAGES } from './learnings.js';
 import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, specDrift, coverage, changeScenarios, latestReport, securityRelevance } from './change.js';
 import { changeFindings, projectFindings, STAGES } from './validate.js';
-import { archiveIndexPath, nextTaskPayload } from './context.js';
+import { archiveIndexPath, nextTaskPayload, taskContext } from './context.js';
 import { install } from './install.js';
 
 const constitutionPath = (root) => docsPath(root, 'constitution.md');
@@ -324,6 +324,10 @@ export function taskBlock(root, change, id, { note }, unblock = false) {
   saveState(root, change, state);
   const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state);
   return { task: id, blocked: !unblock, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}) };
+}
+
+export function taskContextCmd(root, change, taskId) {
+  return taskContext(root, change, taskId);
 }
 
 // ---------- coverage ----------

@@ -258,6 +258,78 @@ test('context apply: next task with only its requirements; blockers skip tasks; 
   assert.equal(done1.next_task.requirements.length, 2);
 });
 
+test('task context: smart-sliced task pack with anchor, dependencies, evidence, and requirements', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  write(root, `docs/changes/${change}/plan.md`, [
+    `# Plan: ${change}`, '',
+    '## Summary', '', 'Use secure crypto token generation.', '',
+    '## Constitution Check', '', '| Article | Gate | Result | Note |', '|---|---|---|---|', '| I | gate | pass | tests first |', '',
+    '## Complexity Tracking', '', 'None.', '',
+    '## Test Strategy', '', '- **Command:** `npm test`', '',
+    '## Decisions', '', '### D-01: Token', '', '**Choice:** crypto\n**Alternatives:** Math.random\n**Rationale:** Secure', '',
+  ].join('\n'));
+
+  // 1. Next task context (defaults to T001)
+  const ctx1 = medra(root, 'task', 'context', change).json;
+  assert.equal(ctx1.task.id, 'T001');
+  assert.equal(ctx1.task.done, false);
+  assert.equal(ctx1.anchor.summary, 'Use secure crypto token generation.');
+  assert.equal(ctx1.anchor.test_strategy, '- **Command:** `npm test`');
+  assert.deepEqual(ctx1.dependencies, []);
+  assert.equal(ctx1.requirements.length, 2);
+  assert.equal(ctx1.remaining, 2);
+
+  // 2. Specific task context for T002 (has T001 as dependency)
+  const ctx2 = medra(root, 'task', 'context', change, 'T002').json;
+  assert.equal(ctx2.task.id, 'T002');
+  assert.equal(ctx2.dependencies.length, 1);
+  assert.equal(ctx2.dependencies[0].id, 'T001');
+  assert.equal(ctx2.dependencies[0].done, false);
+  assert.deepEqual(ctx2.dependencies[0].evidence, []);
+
+  // 3. Mark T001 done with red evidence
+  medra(root, 'gate', change, 'proposal', '--approve');
+  medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
+
+  // 4. Next task context now points to T002 and shows T001's evidence
+  const ctx3 = medra(root, 'task', 'context', change).json;
+  assert.equal(ctx3.task.id, 'T002');
+  assert.equal(ctx3.dependencies.length, 1);
+  assert.equal(ctx3.dependencies[0].id, 'T001');
+  assert.equal(ctx3.dependencies[0].done, true);
+  assert.match(ctx3.dependencies[0].evidence[0], /evidence red .*exit 1/);
+  assert.equal(ctx3.remaining, 1);
+
+  // 5. Markdown formatting
+  const mdOut = medraHuman(root, 'task', 'context', change, '--md');
+  assert.match(mdOut.stdout, /# Task Context: rework-auth-flow · T002/);
+  assert.match(mdOut.stdout, /## Architecture Anchor/);
+  assert.match(mdOut.stdout, /Use secure crypto token generation/);
+  assert.match(mdOut.stdout, /## Dependencies \(1\)/);
+  assert.match(mdOut.stdout, /- \[x\] \*\*T001\*\*/);
+  assert.match(mdOut.stdout, /↳ - evidence red/);
+  assert.match(mdOut.stdout, /## Requirements \(2\)/);
+
+  // 6. Unknown task gives descriptive error with remediation
+  const bad = medra(root, 'task', 'context', change, 'T999');
+  assert.equal(bad.code, 1);
+  assert.equal(bad.json.findings[0].rule, 'task.unknown');
+  assert.match(bad.json.findings[0].remediation, /Pick an existing task ID/);
+  const badHuman = medraHuman(root, 'task', 'context', change, 'T999');
+  assert.match(badHuman.stderr, /↳ fix: Pick an existing task ID/);
+
+  // 7. Complete remaining task and check all_done
+  write(root, 'src/a.js', 'export const a = 1;\n');
+  medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  const ctxDone = medra(root, 'task', 'context', change).json;
+  assert.equal(ctxDone.task, null);
+  assert.equal(ctxDone.all_done, true);
+  assert.equal(ctxDone.remaining, 0);
+  const mdDone = medraHuman(root, 'task', 'context', change, '--md');
+  assert.match(mdDone.stdout, /No executable tasks remaining/);
+});
+
 test('capability Paths, spec drift detection, parallel [P] batching, and --md output on index and context', () => {
   const root = project();
   write(root, 'docs/specs/auth/spec.md', `# Auth\n\n**Capability:** \`auth\`\n**ID prefix:** \`AUTH\`\n**Paths:** \`src/auth/**\`, \`test/auth/**\`\n\n## Purpose\n\nHandles login.\n\n## Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Ok']])}\n${req('AUTH-002', 'Logout', [['AUTH-002.S1', 'Cleared']])}\n`);

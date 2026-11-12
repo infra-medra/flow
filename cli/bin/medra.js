@@ -4,7 +4,7 @@ import { Command, CommanderError } from 'commander';
 import { MedraError, EXIT, requireRoot, findRoot } from '../src/core.js';
 import { migrateLayout } from '../src/migrate.js';
 import * as cmd from '../src/commands.js';
-import { index, indexMarkdown, context, contextMarkdown, taskDoneMarkdown, taskBlockMarkdown } from '../src/context.js';
+import { index, indexMarkdown, context, contextMarkdown, taskDoneMarkdown, taskBlockMarkdown, taskContext, taskContextMarkdown } from '../src/context.js';
 import { archive } from '../src/archive.js';
 import { install, cliVersion } from '../src/install.js';
 
@@ -104,6 +104,12 @@ j(program.command('install').description('Install the medra skills for another r
 j(program.command('update').description('Refresh installed integrations')).action(run(() => cmd.update(root())));
 
 const task = program.command('task').description('Task checkpoints');
+j(task.command('context <change> [task]').description('Bounded smart-sliced context for a task').option('--md', 'Markdown output'))
+  .action((change, t, o) => {
+    const res = taskContext(root(), change, t);
+    if (o.md && !jsonMode) process.stdout.write(taskContextMarkdown(res));
+    else emit(res, jsonMode ? undefined : taskContextMarkdown(res));
+  });
 j(task.command('done <change> <task>').option('--run <command>').option('--evidence <text>').option('--kind <kind>').option('--allow-test-edit').option('--md', 'Markdown output'))
   .action((change, t, o) => {
     const res = cmd.taskDone(root(), change, t, o);
