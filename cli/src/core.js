@@ -20,8 +20,8 @@ export const refused = (findings, message = 'Refused') => new MedraError(EXIT.RE
 export const envError = (message) => new MedraError(EXIT.ENV, message);
 export const usageError = (message) => new MedraError(EXIT.USAGE, message);
 
-export function finding(rule, message, { file = null, line = null, ref = null, severity = 'error' } = {}) {
-  return { rule, severity, file, line, message, ref };
+export function finding(rule, message, { file = null, line = null, ref = null, severity = 'error', remediation = null } = {}) {
+  return { rule, severity, file, line, message, ref, ...(remediation ? { remediation } : {}) };
 }
 
 export const errorsOf = (findings) => findings.filter((f) => f.severity === 'error');

@@ -4,13 +4,18 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'medra.js');
+export const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'medra.js');
 
 export function medra(cwd, ...args) {
   const res = spawnSync(process.execPath, [BIN, ...args, '--json'], { cwd, encoding: 'utf8' });
   let json = null;
   try { json = JSON.parse(res.stdout.trim().split('\n').pop()); } catch { /* non-JSON output */ }
   return { code: res.status, json, stdout: res.stdout, stderr: res.stderr };
+}
+
+export function medraHuman(cwd, ...args) {
+  const res = spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
+  return { code: res.status, stdout: res.stdout, stderr: res.stderr };
 }
 
 export function write(root, rel, content) {

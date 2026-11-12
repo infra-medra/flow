@@ -69,14 +69,14 @@ export const saveLearnings = (root, entries) => writeAtomic([[learningsPath(root
 
 export function learningsFindings(parsed, file = 'docs/learnings.md') {
   const out = [];
-  for (const s of SECTIONS) if (!parsed.sections.includes(s)) out.push(finding('learnings.structure', `Missing ## ${s}`, { file }));
-  for (const m of parsed.malformed) out.push(finding('learnings.structure', `"${m.text}" is not an "L-NNN [lesson|preference] <title>" heading`, { file, line: m.line }));
+  for (const s of SECTIONS) if (!parsed.sections.includes(s)) out.push(finding('learnings.structure', `Missing ## ${s}`, { file, remediation: `Add section "## ${s}"` }));
+  for (const m of parsed.malformed) out.push(finding('learnings.structure', `"${m.text}" is not an "L-NNN [lesson|preference] <title>" heading`, { file, line: m.line, remediation: 'Format heading as "### L-NNN [lesson|preference] <title>"' }));
   const seen = new Set();
   for (const e of parsed.entries) {
-    if (seen.has(e.id)) out.push(finding('learnings.structure', `${e.id} is duplicated`, { file, ref: e.id }));
+    if (seen.has(e.id)) out.push(finding('learnings.structure', `${e.id} is duplicated`, { file, ref: e.id, remediation: `Assign a unique ID; "${e.id}" is already used` }));
     seen.add(e.id);
-    if (!e.statement) out.push(finding('learnings.structure', `${e.id} has no **Statement:**`, { file, ref: e.id }));
-    for (const st of e.scope.stages) if (!STAGES.includes(st)) out.push(finding('learnings.structure', `${e.id} has unknown stage "${st}"`, { file, ref: e.id }));
+    if (!e.statement) out.push(finding('learnings.structure', `${e.id} has no **Statement:**`, { file, ref: e.id, remediation: 'Include a "**Statement:** <rule or preference>" line' }));
+    for (const st of e.scope.stages) if (!STAGES.includes(st)) out.push(finding('learnings.structure', `${e.id} has unknown stage "${st}"`, { file, ref: e.id, remediation: `Set stage in scope to one of: ${STAGES.join(', ')}` }));
   }
   return out;
 }

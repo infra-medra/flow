@@ -2,6 +2,15 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.7.4] — 2026-11-12
+
+### Added
+- **Prescriptive validation remediations (`remediation` in findings):**
+  - Extended `finding()` (`cli/src/core.js`) with an optional `remediation` field containing prescriptive hints and examples for correcting validation failures.
+  - Added `"remediation"` property to `Finding` in `cli/schemas/envelope.schema.json` and documented in `cli/SPEC.md` (§2).
+  - Enriched validation rules across specs (`spec.shall`, `spec.scenario`, `spec.structure`, `spec.ids`), deltas (`delta.structure`, `delta.targets`, `delta.new-capability`), proposals (`proposal.structure`, `proposal.markers`, `proposal.capabilities`), plans (`plan.structure`, `plan.constitution`, `plan.threat-model`), tasks (`tasks.structure`, `tasks.after`, `tasks.coverage`, `tasks.test-before-impl`), task checkpoints (`task.test-tampered`, `task.red`, `task.green`, `task.check`), verification (`verify.tasks-done`, `verify.coverage`, `verify.report`), and constitution/learnings stores.
+  - Formatted human CLI stderr output to display `↳ fix: <remediation>` below validation error messages for interactive workflows, while exposing `remediation` directly in `--json` output envelopes for agent tool consumption.
+
 ## [1.7.3] — 2026-11-11
 
 ### Changed

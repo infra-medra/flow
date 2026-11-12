@@ -65,19 +65,19 @@ export function ratifyConstitution(text, { version, date, change, source, first 
 
 export function constitutionFindings(c, file = 'docs/constitution.md') {
   const out = [];
-  if (c.title !== 'Constitution') out.push(finding('constitution.structure', 'Missing "# Constitution" heading', { file }));
-  if (!['draft', 'ratified'].includes(c.status)) out.push(finding('constitution.structure', '**Status:** must be draft or ratified', { file }));
+  if (c.title !== 'Constitution') out.push(finding('constitution.structure', 'Missing "# Constitution" heading', { file, remediation: 'Start file with "# Constitution"' }));
+  if (!['draft', 'ratified'].includes(c.status)) out.push(finding('constitution.structure', '**Status:** must be draft or ratified', { file, remediation: 'Set "**Status:** draft" or "**Status:** ratified"' }));
   if (c.status === 'ratified') {
-    if (!/^\d+\.\d+$/.test(c.version || '')) out.push(finding('constitution.structure', '**Version:** must be MAJOR.MINOR', { file }));
-    if (!c.ratified || !c.lastAmended) out.push(finding('constitution.structure', '**Ratified:** and **Last amended:** are required once ratified', { file }));
+    if (!/^\d+\.\d+$/.test(c.version || '')) out.push(finding('constitution.structure', '**Version:** must be MAJOR.MINOR', { file, remediation: 'Format version as MAJOR.MINOR, e.g. "1.0"' }));
+    if (!c.ratified || !c.lastAmended) out.push(finding('constitution.structure', '**Ratified:** and **Last amended:** are required once ratified', { file, remediation: 'Include "**Ratified:** YYYY-MM-DD" and "**Last amended:** YYYY-MM-DD"' }));
   }
-  if (!c.hasArticles) out.push(finding('constitution.structure', 'Missing ## Articles', { file }));
+  if (!c.hasArticles) out.push(finding('constitution.structure', 'Missing ## Articles', { file, remediation: 'Add "## Articles" section containing Article definitions' }));
   c.articles.forEach((a, i) => {
-    if (!a.valid) { out.push(finding('constitution.structure', `"${a.heading}" is not an "Article <Roman>: <title>" heading`, { file, line: a.line })); return; }
-    if (a.roman !== ROMAN[i]) out.push(finding('constitution.structure', `Article ${a.roman} is out of sequence; expected ${ROMAN[i]}`, { file, line: a.line }));
-    if (!a.retired && a.gateCount !== 1) out.push(finding('constitution.gate', `Article ${a.roman} must have exactly one **Gate:** line`, { file, line: a.line, ref: a.roman }));
+    if (!a.valid) { out.push(finding('constitution.structure', `"${a.heading}" is not an "Article <Roman>: <title>" heading`, { file, line: a.line, remediation: 'Format heading as "### Article <Roman>: <title>"' })); return; }
+    if (a.roman !== ROMAN[i]) out.push(finding('constitution.structure', `Article ${a.roman} is out of sequence; expected ${ROMAN[i]}`, { file, line: a.line, remediation: `Renumber article to Article ${ROMAN[i]}` }));
+    if (!a.retired && a.gateCount !== 1) out.push(finding('constitution.gate', `Article ${a.roman} must have exactly one **Gate:** line`, { file, line: a.line, ref: a.roman, remediation: 'Include exactly one "**Gate:** <question>" line under the article' }));
   });
-  if (!liveArticles(c).length) out.push(finding('constitution.structure', 'At least one live article is required', { file }));
+  if (!liveArticles(c).length) out.push(finding('constitution.structure', 'At least one live article is required', { file, remediation: 'Add at least one active article with a **Gate:** question' }));
   return out;
 }
 

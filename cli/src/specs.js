@@ -134,18 +134,34 @@ export function nextId(spec) {
 export function blockFindings(block, file) {
   const out = [];
   if (!block.id) {
-    out.push(finding('spec.structure', `Heading "${block.heading}" is not a "REQ <PREFIX>-<NNN>: <title>" heading`, { file, line: block.line }));
+    out.push(finding('spec.structure', `Heading "${block.heading}" is not a "REQ <PREFIX>-<NNN>: <title>" heading`, { file, line: block.line, remediation: 'Format heading as "### REQ <PREFIX>-<NNN>: <title>"' }));
     return out;
   }
-  if (!/\bSHALL\b/.test(block.statement)) out.push(finding('spec.shall', `${block.id} statement does not contain SHALL`, { file, line: block.line, ref: block.id }));
-  if (!block.scenarios.length) out.push(finding('spec.scenario', `${block.id} has no scenario`, { file, line: block.line, ref: block.id }));
+  if (!/\bSHALL\b/.test(block.statement)) {
+    out.push(finding('spec.shall', `${block.id} statement does not contain SHALL`, { file, line: block.line, ref: block.id, remediation: 'Include RFC 2119 keyword "SHALL" in requirement statement, e.g. "The system SHALL ..."' }));
+  }
+  if (!block.scenarios.length) {
+    out.push(finding('spec.scenario', `${block.id} has no scenario`, {
+      file, line: block.line, ref: block.id,
+      remediation: `Add at least one scenario: "#### Scenario ${block.id}.S1: <title>\\n- **Given** ...\\n- **When** ...\\n- **Then** ..."`,
+    }));
+  }
   for (const s of block.scenarios) {
-    if (!s.id) { out.push(finding('spec.structure', `Heading "${s.heading}" is not a "Scenario <REQ>.S<n>: <title>" heading`, { file, line: s.line })); continue; }
-    if (s.req !== block.id) out.push(finding('spec.ids', `${s.id} sits under ${block.id}`, { file, line: s.line, ref: s.id }));
+    if (!s.id) {
+      out.push(finding('spec.structure', `Heading "${s.heading}" is not a "Scenario <REQ>.S<n>: <title>" heading`, { file, line: s.line, remediation: `Format scenario heading as "#### Scenario ${block.id}.S<n>: <title>"` }));
+      continue;
+    }
+    if (s.req !== block.id) {
+      out.push(finding('spec.ids', `${s.id} sits under ${block.id}`, { file, line: s.line, ref: s.id, remediation: `Ensure scenario ID starts with parent requirement ID "${block.id}.S<n>"` }));
+    }
     const w = s.steps.indexOf('When');
     const g = s.steps.indexOf('Given');
-    if (w < 0 || !s.steps.includes('Then')) out.push(finding('spec.scenario', `${s.id} needs at least one When and one Then`, { file, line: s.line, ref: s.id }));
-    if (g >= 0 && w >= 0 && g > w) out.push(finding('spec.scenario', `${s.id} has Given after When`, { file, line: s.line, ref: s.id }));
+    if (w < 0 || !s.steps.includes('Then')) {
+      out.push(finding('spec.scenario', `${s.id} needs at least one When and one Then`, { file, line: s.line, ref: s.id, remediation: 'Include both "- **When** <action>" and "- **Then** <outcome>" steps' }));
+    }
+    if (g >= 0 && w >= 0 && g > w) {
+      out.push(finding('spec.scenario', `${s.id} has Given after When`, { file, line: s.line, ref: s.id, remediation: 'Reorder steps: "- **Given**" steps must precede "- **When**" steps' }));
+    }
   }
   return out;
 }
@@ -155,22 +171,22 @@ export function livingSpecFindings(root, specs) {
   const prefixes = {};
   for (const [cap, spec] of Object.entries(specs)) {
     const file = path.relative(root, spec.file);
-    if (!spec.title) out.push(finding('spec.structure', 'Missing "# <title>" heading', { file }));
-    if (spec.capability !== cap) out.push(finding('spec.structure', `**Capability:** must be \`${cap}\``, { file }));
-    if (!CAPABILITY_NAME.test(cap)) out.push(finding('spec.structure', `Capability folder "${cap}" is not a valid name`, { file }));
-    if (!spec.prefix || !/^[A-Z][A-Z0-9]{1,9}$/.test(spec.prefix)) out.push(finding('spec.structure', 'Missing or invalid **ID prefix:**', { file }));
-    else if (prefixes[spec.prefix]) out.push(finding('spec.structure', `ID prefix ${spec.prefix} is also used by ${prefixes[spec.prefix]}`, { file }));
+    if (!spec.title) out.push(finding('spec.structure', 'Missing "# <title>" heading', { file, remediation: 'Add a top-level "# <Capability Title>" heading' }));
+    if (spec.capability !== cap) out.push(finding('spec.structure', `**Capability:** must be \`${cap}\``, { file, remediation: `Set "**Capability:** \`${cap}\`"` }));
+    if (!CAPABILITY_NAME.test(cap)) out.push(finding('spec.structure', `Capability folder "${cap}" is not a valid name`, { file, remediation: 'Rename capability folder to a lowercase kebab-case name' }));
+    if (!spec.prefix || !/^[A-Z][A-Z0-9]{1,9}$/.test(spec.prefix)) out.push(finding('spec.structure', 'Missing or invalid **ID prefix:**', { file, remediation: 'Specify an uppercase alphanumeric ID prefix, e.g. "**ID prefix:** AUTH"' }));
+    else if (prefixes[spec.prefix]) out.push(finding('spec.structure', `ID prefix ${spec.prefix} is also used by ${prefixes[spec.prefix]}`, { file, remediation: `Choose a distinct ID prefix; ${spec.prefix} is already assigned to ${prefixes[spec.prefix]}` }));
     else prefixes[spec.prefix] = cap;
-    if (!spec.purpose) out.push(finding('spec.structure', 'Missing ## Purpose', { file }));
-    if (!spec.hasRequirementsSection) out.push(finding('spec.structure', 'Missing ## Requirements', { file }));
+    if (!spec.purpose) out.push(finding('spec.structure', 'Missing ## Purpose', { file, remediation: 'Add a "## Purpose" section explaining capability scope' }));
+    if (!spec.hasRequirementsSection) out.push(finding('spec.structure', 'Missing ## Requirements', { file, remediation: 'Add a "## Requirements" section containing REQ blocks' }));
     const seen = new Set();
     for (const r of spec.requirements) {
       out.push(...blockFindings(r, file));
       if (!r.id) continue;
-      if (r.prefix !== spec.prefix) out.push(finding('spec.ids', `${r.id} does not use prefix ${spec.prefix}`, { file, line: r.line, ref: r.id }));
+      if (r.prefix !== spec.prefix) out.push(finding('spec.ids', `${r.id} does not use prefix ${spec.prefix}`, { file, line: r.line, ref: r.id, remediation: `Change requirement ID prefix to "${spec.prefix}-<NNN>"` }));
       for (const id of [r.id, ...r.scenarios.map((s) => s.id).filter(Boolean)]) {
-        if (seen.has(id)) out.push(finding('spec.ids', `${id} is duplicated`, { file, ref: id }));
-        if (spec.retired.includes(id)) out.push(finding('spec.ids', `${id} is retired and cannot be reused`, { file, ref: id }));
+        if (seen.has(id)) out.push(finding('spec.ids', `${id} is duplicated`, { file, ref: id, remediation: `Assign a unique ID; "${id}" is already used in this capability` }));
+        if (spec.retired.includes(id)) out.push(finding('spec.ids', `${id} is retired and cannot be reused`, { file, ref: id, remediation: `Do not reuse retired ID "${id}"; choose the next available ID` }));
         seen.add(id);
       }
     }
@@ -184,38 +200,38 @@ export function deltaFindings(root, deltas, living) {
   for (const [cap, d] of Object.entries(deltas)) {
     const file = path.relative(root, d.file);
     const spec = living[cap];
-    if (!d.hasDeltaTitle) out.push(finding('delta.structure', 'Missing "# Delta: <capability title>" heading', { file }));
-    if (d.capability !== cap) out.push(finding('delta.structure', `**Capability:** must be \`${cap}\``, { file }));
+    if (!d.hasDeltaTitle) out.push(finding('delta.structure', 'Missing "# Delta: <capability title>" heading', { file, remediation: 'Start with "# Delta: <capability title>"' }));
+    if (d.capability !== cap) out.push(finding('delta.structure', `**Capability:** must be \`${cap}\``, { file, remediation: `Set "**Capability:** \`${cap}\`"` }));
     const allowed = new Set(['Purpose', ...OPERATIONS]);
-    for (const h of d.sectionOrder) if (!allowed.has(h)) out.push(finding('delta.structure', `Unexpected section "## ${h}"`, { file }));
+    for (const h of d.sectionOrder) if (!allowed.has(h)) out.push(finding('delta.structure', `Unexpected section "## ${h}"`, { file, remediation: 'Delta sections must be Purpose or one of: ADDED Requirements, MODIFIED Requirements, REMOVED Requirements' }));
     const opOrder = d.sectionOrder.filter((h) => OPERATIONS.includes(h));
-    if (opOrder.join() !== OPERATIONS.filter((o) => opOrder.includes(o)).join()) out.push(finding('delta.structure', 'Operation sections must appear in the order ADDED, MODIFIED, REMOVED', { file }));
-    if (!opOrder.length) out.push(finding('delta.structure', 'A delta needs at least one operation section', { file }));
+    if (opOrder.join() !== OPERATIONS.filter((o) => opOrder.includes(o)).join()) out.push(finding('delta.structure', 'Operation sections must appear in the order ADDED, MODIFIED, REMOVED', { file, remediation: 'Reorder sections: ## ADDED Requirements, ## MODIFIED Requirements, ## REMOVED Requirements' }));
+    if (!opOrder.length) out.push(finding('delta.structure', 'A delta needs at least one operation section', { file, remediation: 'Add at least one operation section: ## ADDED Requirements, ## MODIFIED Requirements, or ## REMOVED Requirements' }));
     for (const [op, blocks] of Object.entries(d.ops)) {
-      if (!blocks.length) out.push(finding('delta.structure', `## ${op} Requirements is empty; omit it`, { file }));
+      if (!blocks.length) out.push(finding('delta.structure', `## ${op} Requirements is empty; omit it`, { file, remediation: `Remove empty "## ${op} Requirements" section` }));
       for (const b of blocks) {
         if (op === 'REMOVED') {
-          if (!b.id) out.push(finding('delta.structure', `Heading "${b.heading}" is not a REQ heading`, { file, line: b.line }));
-          else if (!b.reason || !b.migration) out.push(finding('delta.structure', `${b.id} removal needs **Reason:** and **Migration:**`, { file, line: b.line, ref: b.id }));
+          if (!b.id) out.push(finding('delta.structure', `Heading "${b.heading}" is not a REQ heading`, { file, line: b.line, remediation: 'Use heading format "### REQ <PREFIX>-<NNN>: <title>"' }));
+          else if (!b.reason || !b.migration) out.push(finding('delta.structure', `${b.id} removal needs **Reason:** and **Migration:**`, { file, line: b.line, ref: b.id, remediation: 'Include "**Reason:** <why>" and "**Migration:** <how to migrate>" below heading' }));
         } else out.push(...blockFindings(b, file));
       }
     }
     if (!spec) {
-      if (!d.prefix || !/^[A-Z][A-Z0-9]{1,9}$/.test(d.prefix) || !d.purpose) out.push(finding('delta.new-capability', 'A new capability needs **ID prefix:** and ## Purpose', { file }));
-      if (d.ops.MODIFIED || d.ops.REMOVED) out.push(finding('delta.new-capability', 'A new capability allows only ADDED', { file }));
+      if (!d.prefix || !/^[A-Z][A-Z0-9]{1,9}$/.test(d.prefix) || !d.purpose) out.push(finding('delta.new-capability', 'A new capability needs **ID prefix:** and ## Purpose', { file, remediation: 'Declare "**ID prefix:** <PREFIX>" and add "## Purpose" section' }));
+      if (d.ops.MODIFIED || d.ops.REMOVED) out.push(finding('delta.new-capability', 'A new capability allows only ADDED', { file, remediation: 'Remove MODIFIED or REMOVED sections; new capabilities only accept ADDED' }));
       const clash = Object.entries(living).find(([, s]) => s.prefix === d.prefix);
-      if (clash) out.push(finding('delta.new-capability', `ID prefix ${d.prefix} is used by ${clash[0]}`, { file }));
+      if (clash) out.push(finding('delta.new-capability', `ID prefix ${d.prefix} is used by ${clash[0]}`, { file, remediation: `Choose an ID prefix other than ${d.prefix}, which belongs to capability ${clash[0]}` }));
       continue;
     }
     const ids = new Set(spec.requirements.map((r) => r.id));
     for (const b of d.ops.ADDED ?? []) {
       if (!b.id) continue;
-      if (ids.has(b.id)) out.push(finding('delta.targets', `ADDED ${b.id} already exists in the living spec`, { file, line: b.line, ref: b.id }));
-      if (spec.retired.includes(b.id)) out.push(finding('delta.targets', `ADDED ${b.id} is a retired ID`, { file, line: b.line, ref: b.id }));
-      if (b.prefix !== spec.prefix) out.push(finding('delta.targets', `${b.id} does not use prefix ${spec.prefix}`, { file, line: b.line, ref: b.id }));
+      if (ids.has(b.id)) out.push(finding('delta.targets', `ADDED ${b.id} already exists in the living spec`, { file, line: b.line, ref: b.id, remediation: `Move "${b.id}" to "## MODIFIED Requirements" or choose an unused ID` }));
+      if (spec.retired.includes(b.id)) out.push(finding('delta.targets', `ADDED ${b.id} is a retired ID`, { file, line: b.line, ref: b.id, remediation: `Do not reuse retired ID "${b.id}"; use the next available ID` }));
+      if (b.prefix !== spec.prefix) out.push(finding('delta.targets', `${b.id} does not use prefix ${spec.prefix}`, { file, line: b.line, ref: b.id, remediation: `Use prefix "${spec.prefix}" for capability "${cap}"` }));
     }
     for (const op of ['MODIFIED', 'REMOVED']) {
-      for (const b of d.ops[op] ?? []) if (b.id && !ids.has(b.id)) out.push(finding('delta.targets', `${op} ${b.id} does not exist in the living spec`, { file, line: b.line, ref: b.id }));
+      for (const b of d.ops[op] ?? []) if (b.id && !ids.has(b.id)) out.push(finding('delta.targets', `${op} ${b.id} does not exist in the living spec`, { file, line: b.line, ref: b.id, remediation: `Verify requirement ID "${b.id}" against living spec for "${cap}"` }));
     }
   }
   return out;

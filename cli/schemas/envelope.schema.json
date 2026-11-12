@@ -26,7 +26,8 @@
               "file": { "type": ["string", "null"] },
               "line": { "type": ["integer", "null"] },
               "message": { "type": "string" },
-              "ref": { "type": ["string", "null"] }
+              "ref": { "type": ["string", "null"] },
+              "remediation": { "type": ["string", "null"] }
             }
           }
         },
