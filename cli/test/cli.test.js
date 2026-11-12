@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { medra, write, read, project, req, livingSpec, proposal, delta, tasks, verifyReport, securityReport } from './helpers.js';
+import { medra, medraHuman, write, read, project, req, livingSpec, proposal, delta, tasks, verifyReport, securityReport } from './helpers.js';
 
 const rules = (r) => (r.json?.findings ?? []).filter((f) => f.severity === 'error').map((f) => f.rule);
 
@@ -561,4 +561,23 @@ test('migration refuses when docs/ already holds a colliding entry', () => {
   assert.equal(r.code, 1);
   assert.equal(r.json.findings[0].rule, 'layout.collision');
   assert.ok(fs.existsSync(path.join(root, 'medra/config.yaml')), 'nothing moved');
+});
+
+test('validation findings include prescriptive remediation in json and human output', () => {
+  const root = project();
+  livingSpec(root, 'auth', 'AUTH', [
+    req('AUTH-001', 'Login', [['AUTH-001.S1', 'Ok']], 'It logs in.'),
+  ]);
+  const rJson = medra(root, 'validate', '--project', 'specs');
+  assert.equal(rJson.code, 1);
+  const finding = rJson.json.findings.find((f) => f.rule === 'spec.shall');
+  assert.ok(finding, 'spec.shall finding should exist');
+  assert.ok(finding.remediation, 'spec.shall should have a prescriptive remediation');
+  assert.match(finding.remediation, /SHALL/);
+
+  // Human terminal output format test (↳ fix: <remediation>)
+  const rHuman = medraHuman(root, 'validate', '--project', 'specs');
+  assert.equal(rHuman.code, 1);
+  assert.match(rHuman.stderr, /↳ fix: /);
+  assert.match(rHuman.stderr, /SHALL/);
 });

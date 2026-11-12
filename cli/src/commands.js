@@ -58,10 +58,10 @@ export function init(cwd, opts) {
 
 export function newChange(root, change, { track = 'fast' }) {
   const findings = [];
-  if (!CHANGE_NAME.test(change)) findings.push(finding('new.name', `"${change}" is not a kebab-case change name of 2-8 words`));
+  if (!CHANGE_NAME.test(change)) findings.push(finding('new.name', `"${change}" is not a kebab-case change name of 2-8 words`, { remediation: 'Use 2-8 kebab-case words, e.g. "add-user-auth"' }));
   if (!['fast', 'full'].includes(track)) throw usageError('--track must be fast or full');
-  if (fs.existsSync(changeDir(root, change))) findings.push(finding('new.exists', `Change "${change}" already exists`));
-  if (constitutionOf(root).status !== 'ratified') findings.push(finding('new.constitution', 'The constitution is not ratified; run /medra:init'));
+  if (fs.existsSync(changeDir(root, change))) findings.push(finding('new.exists', `Change "${change}" already exists`, { remediation: 'Choose an unused change name or resume the existing change' }));
+  if (constitutionOf(root).status !== 'ratified') findings.push(finding('new.constitution', 'The constitution is not ratified; run /medra:init', { remediation: 'Run "medra constitution ratify --note Initial" to ratify the constitution' }));
   if (findings.length) throw refused(findings);
   const warnings = parseArchiveIndex(readIf(archiveIndexPath(root))).filter((r) => r.change === change)
     .map((r) => finding('new.archived-name', `An archived change #${r.sequence} has the same name`, { severity: 'warning' }));
@@ -161,13 +161,13 @@ export function gate(root, change, name, { approve, requestChanges, note, by }) 
     return { gate: name, status: 'changes-requested', phase: state.phase };
   }
   const pre = [];
-  if (state.track === 'fast' && (name === 'plan' || name === 'tasks')) pre.push(finding('gate.track', `The fast track has no ${name} gate`));
-  if (name === 'plan' && !isApproved(root, change, state, 'proposal')) pre.push(finding('gate.prerequisite', 'Gate proposal must be approved first'));
-  if (name === 'tasks' && !isApproved(root, change, state, 'plan')) pre.push(finding('gate.prerequisite', 'Gate plan must be approved first'));
-  if (name === 'proposal' && state.track === 'fast' && !fs.existsSync(path.join(changeDir(root, change), 'tasks.md'))) pre.push(finding('gate.prerequisite', 'The fast-track proposal gate covers tasks.md, which is missing'));
+  if (state.track === 'fast' && (name === 'plan' || name === 'tasks')) pre.push(finding('gate.track', `The fast track has no ${name} gate`, { remediation: `Switch to track full via "medra track ${change} full --reason <text>" to use gate ${name}` }));
+  if (name === 'plan' && !isApproved(root, change, state, 'proposal')) pre.push(finding('gate.prerequisite', 'Gate proposal must be approved first', { remediation: 'Approve gate proposal before approving plan gate' }));
+  if (name === 'tasks' && !isApproved(root, change, state, 'plan')) pre.push(finding('gate.prerequisite', 'Gate plan must be approved first', { remediation: 'Approve gate plan before approving tasks gate' }));
+  if (name === 'proposal' && state.track === 'fast' && !fs.existsSync(path.join(changeDir(root, change), 'tasks.md'))) pre.push(finding('gate.prerequisite', 'The fast-track proposal gate covers tasks.md, which is missing', { remediation: 'Create tasks.md before approving the fast-track proposal gate' }));
   if (name === 'verify') {
     const prior = state.track === 'full' ? 'tasks' : 'proposal';
-    if (!isApproved(root, change, state, prior)) pre.push(finding('gate.prerequisite', `Gate ${prior} must be approved first`));
+    if (!isApproved(root, change, state, prior)) pre.push(finding('gate.prerequisite', `Gate ${prior} must be approved first`, { remediation: `Approve gate ${prior} before approving gate verify` }));
   }
   if (pre.length) throw refused(pre);
   const findings = changeFindings(root, change, name);
@@ -233,16 +233,16 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
   if (text === null) throw envError('tasks.md is missing');
   const { tasks } = parseTasks(text);
   const t = tasks.find((x) => x.id === id);
-  if (!t) throw refused([finding('task.unknown', `No task ${id}`, { ref: id })]);
-  if (t.done) throw refused([finding('task.done', `${id} is already done`, { ref: id })]);
+  if (!t) throw refused([finding('task.unknown', `No task ${id}`, { ref: id, remediation: 'Verify task ID against tasks.md' })]);
+  if (t.done) throw refused([finding('task.done', `${id} is already done`, { ref: id, remediation: 'Task is already marked done in tasks.md' })]);
   const pending = t.after.filter((a) => !tasks.find((x) => x.id === a)?.done);
-  if (pending.length) throw refused([finding('task.after', `${id} is after ${pending.join(', ')}, not done yet`, { ref: id })]);
+  if (pending.length) throw refused([finding('task.after', `${id} is after ${pending.join(', ')}, not done yet`, { ref: id, remediation: `Complete prerequisite tasks first: ${pending.join(', ')}` })]);
   const config = loadConfig(root);
   const mode = config.testing.mode;
   const allowed = ALLOWED_KINDS[mode][t.test ? 'test' : 'other'];
-  if (!allowed.length) throw refused([finding('task.kind', `[TEST] tasks are not used in testing mode ${mode}`, { ref: id })]);
+  if (!allowed.length) throw refused([finding('task.kind', `[TEST] tasks are not used in testing mode ${mode}`, { ref: id, remediation: `In testing mode "${mode}", remove [TEST] flag or adjust config-flow.yaml` })]);
   const k = kind ?? allowed[0];
-  if (!allowed.includes(k)) throw refused([finding('task.kind', `${id} needs ${allowed.join(' or ')} evidence in mode ${mode}`, { ref: id })]);
+  if (!allowed.includes(k)) throw refused([finding('task.kind', `${id} needs ${allowed.join(' or ')} evidence in mode ${mode}`, { ref: id, remediation: `Pass --kind ${allowed[0]}` })]);
   let testEdited = false;
   if (k === 'green' && !t.test && state.test_hashes) {
     const seen = new Set();
@@ -262,7 +262,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
         if (cur === null || sha256(cur) !== hash) {
           testEdited = true;
           if (!allowTestEdit) {
-            tampered.push(finding('task.test-tampered', `${id} modified or deleted test file "${f}" locked at red by ${tid} (pass --allow-test-edit if intentional)`, { file: f, ref: id }));
+            tampered.push(finding('task.test-tampered', `${id} modified or deleted test file "${f}" locked at red by ${tid} (pass --allow-test-edit if intentional)`, { file: f, ref: id, remediation: `Revert edits to "${f}" or pass --allow-test-edit if modification was intentional` }));
           }
         }
       }
@@ -276,8 +276,8 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
     const code = res.status ?? 1;
     if (code === 127) throw envError(`Command not found: ${run}`);
     const tail = `${res.stdout ?? ''}\n${res.stderr ?? ''}`.split('\n').map((l) => l.trim()).filter(Boolean).slice(-3);
-    if (k === 'red' && code === 0) throw refused([finding('task.red', `${id} needs a failing run (red), but the command exited 0`, { ref: id })], tail.join('\n'));
-    if (k === 'green' && code !== 0) throw refused([finding('task.green', `${id} needs a passing run (green), but the command exited ${code}`, { ref: id })], tail.join('\n'));
+    if (k === 'red' && code === 0) throw refused([finding('task.red', `${id} needs a failing run (red), but the command exited 0`, { ref: id, remediation: 'Ensure test fails on unimplemented behavior before marking kind red' })], tail.join('\n'));
+    if (k === 'green' && code !== 0) throw refused([finding('task.green', `${id} needs a passing run (green), but the command exited ${code}`, { ref: id, remediation: 'Fix code to make tests pass (exit 0) before checkpointing green' })], tail.join('\n'));
     if (k === 'green' && !t.test) {
       const checks = config.testing.checks ?? [];
       for (const chk of Array.isArray(checks) ? checks : [checks]) {
@@ -285,11 +285,11 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
         const cres = spawnSync(chk, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000 });
         if (cres.error && cres.error.code === 'ETIMEDOUT') throw envError(`Check timed out after 10 minutes: ${chk}`);
         const ccode = cres.status ?? 1;
-        if (ccode === 127) throw envError(`Check command not found: ${chk}`);
-        if (ccode !== 0) {
+        if (ccode !== 127 && ccode !== 0) {
           const ctail = `${cres.stdout ?? ''}\n${cres.stderr ?? ''}`.split('\n').map((l) => l.trim()).filter(Boolean).slice(-3);
-          throw refused([finding('task.check', `${id} passed tests, but check "${chk}" exited ${ccode}`, { ref: id })], ctail.join('\n'));
+          throw refused([finding('task.check', `${id} passed tests, but check "${chk}" exited ${ccode}`, { ref: id, remediation: `Fix static check issues for "${chk}" to pass (exit 0)` })], ctail.join('\n'));
         }
+        if (ccode === 127) throw envError(`Check command not found: ${chk}`);
       }
     }
     detail = `\`${run.replace(/`/g, "'")}\` exit ${code}${code !== 0 && tail.length ? ` — "${tail.join(' | ').replace(/"/g, "'").slice(0, 300)}"` : ''}`;

@@ -154,7 +154,10 @@ try {
     process.stdout.write(`${JSON.stringify({ ok: false, code: e.code, findings: e.findings, ...(e.extra.conflicts ? { conflicts: e.extra.conflicts } : {}), ...(e.message && e.code === EXIT.REFUSED ? { message: e.message } : {}) })}\n`);
   } else {
     process.stderr.write(`medra: ${e.message}\n`);
-    for (const f of e.findings) process.stderr.write(`  [${f.severity}] ${f.rule}: ${f.message}${f.file ? ` (${f.file}${f.line ? `:${f.line}` : ''})` : ''}\n`);
+    for (const f of e.findings) {
+      process.stderr.write(`  [${f.severity}] ${f.rule}: ${f.message}${f.file ? ` (${f.file}${f.line ? `:${f.line}` : ''})` : ''}\n`);
+      if (f.remediation) process.stderr.write(`    ↳ fix: ${f.remediation}\n`);
+    }
     for (const c of e.extra.conflicts ?? []) process.stderr.write(`  [conflict] ${c.problem} ${c.capability ?? ''} ${c.id ?? ''} ${c.operation ?? ''}\n`);
   }
   if (!(err instanceof MedraError)) process.stderr.write(`${err.stack}\n`);

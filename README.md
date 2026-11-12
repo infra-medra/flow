@@ -191,6 +191,7 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
+- **1.7.4 (2026-11-12):** Added prescriptive validation remediations (`remediation` in findings) across all validation stages, schema support in JSON envelope, and `↳ fix:` CLI stderr formatting.
 - **1.7.3 (2026-11-11):** Updated README changelog summary to include releases 1.7.0 through 1.7.2 in bundled package documentation.
 - **1.7.2 (2026-11-11):** Deduplicated requirements in `parallel_batch` and `next_task`, added markdown checkpointing for `medra task done` and `medra task block`, and compacted green task evidence lines in `tasks.md`.
 - **1.7.1 (2026-11-11):** Flattened user-facing command skills with inlined persona principles and pipeline specifications, eliminating multi-hop startup file reads.

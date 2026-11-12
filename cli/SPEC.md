@@ -27,10 +27,10 @@ This is the contract for the `medra` command-line tool. It is written for the en
 Every failure JSON has the shape `{"ok": false, "code": <n>, "findings": [Finding]}`, where a Finding is:
 
 ```json
-{ "rule": "tasks.test-before-impl", "severity": "error", "file": "docs/changes/add-reset/tasks.md", "line": 14, "message": "T005 implements AUTH-004 but is not after its [TEST] task T004", "ref": "T005" }
+{ "rule": "tasks.test-before-impl", "severity": "error", "file": "docs/changes/add-reset/tasks.md", "line": 14, "message": "T005 implements AUTH-004 but is not after its [TEST] task T004", "ref": "T005", "remediation": "Add \"after T004\" to task T005 before implementing AUTH-004" }
 ```
 
-`severity` is `error` or `warning`; only an `error` causes exit `1`. `rule` IDs are stable and documented in §6.
+`severity` is `error` or `warning`; only an `error` causes exit `1`. `remediation` is an optional prescriptive hint explaining the exact action or template to satisfy the rule. `rule` IDs are stable and documented in §6.
 
 ## 3. Project layout
 
