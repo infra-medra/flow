@@ -98,6 +98,10 @@ function planFindings(root, change) {
   const justified = (p.complexity?.rows ?? []).map((r) => (r[0] || '').replace(/^Article\s+/, ''));
   for (const a of fails) if (!justified.includes(a)) out.push(finding('plan.constitution', `Article ${a} fails without a Complexity Tracking row`, { file, ref: a, remediation: `Add a row to Complexity Tracking justifying why Article ${a} fails` }));
   if (p.complexity && !p.complexity.none && !p.complexity.rows.length) out.push(finding('plan.constitution', 'Complexity Tracking must be "None." or a table', { file, remediation: 'Set Complexity Tracking to "None." or provide a Markdown table' }));
+  // plan.markers
+  text.split('\n').forEach((line, i) => {
+    if (line.includes('[NEEDS CLARIFICATION')) out.push(finding('plan.markers', 'Open clarification marker', { file, line: i + 1, remediation: 'Resolve the [NEEDS CLARIFICATION: ...] marker before gate approval' }));
+  });
   // plan.test-strategy
   const mode = loadConfig(root).testing.mode;
   if (!p.testStrategy) out.push(finding('plan.test-strategy', '## Test Strategy is empty', { file, remediation: 'Provide a test strategy mapping delta scenarios to test levels and files' }));

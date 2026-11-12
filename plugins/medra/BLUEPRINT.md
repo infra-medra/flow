@@ -79,29 +79,29 @@ Every step ends by suggesting a commit message and naming the next command. The 
 
 ## Commands
 
-| Command | Mode | Routed pipeline | Preconditions (checked with `medra status --json`) | Output |
+| Command | Mode | Phases | Preconditions (checked with `medra status --json`) | Output |
 |---|---|---|---|---|
-| `init` | Inline | `medra:pipeline-author-init` | `medra --version` at the supported major | `docs/` scaffold, `constitution.md`, optional bootstrap specs; next: `/medra:propose` |
-| `propose` | Inline | `medra:pipeline-author-propose` | `docs/constitution.md` ratified | Change folder path, track, gate result; next: `/medra:plan` (full) or `/medra:apply` (fast) |
-| `plan` | Inline | `medra:pipeline-author-plan` | Change exists, track `full`, gate `proposal` approved | `plan.md` path, constitution-gate summary; next: `/medra:tasks` |
-| `tasks` | Inline | `medra:pipeline-author-tasks` | Track `full`, gate `plan` approved | `tasks.md` path, task count; next: `/medra:apply` |
-| `apply` | Inline | `medra:pipeline-implementer-apply` | Gate `tasks` approved (full) or gate `proposal` approved (fast) | Tasks done / remaining; next: `/medra:verify` or `/medra:apply` to resume |
-| `verify` | Inline | `medra:pipeline-implementer-verify` | `medra status` reports every task done | Verification report path, verdict; next: `/medra:archive` |
-| `archive` | Inline | `medra:pipeline-author-archive` | Gate `verify` approved | Archived path; specs touched, lessons added/bumped, entries compacted, amendment result (counts); next: `/medra:propose` |
-| `review` | Inline | `medra:pipeline-reviewer-review` | Change exists and has `proposal.md` | Review report path, verdict; next: the command for the change's current stage |
+| `init` | Inline | In the command skill | `medra --version` at the supported major | `docs/` scaffold, `constitution.md`, optional bootstrap specs; next: `/medra:propose` |
+| `propose` | Inline | In the command skill | `docs/constitution.md` ratified | Change folder path, track, gate result; next: `/medra:plan` (full) or `/medra:apply` (fast) |
+| `plan` | Inline | In the command skill | Change exists, track `full`, gate `proposal` approved | `plan.md` path, constitution-gate summary; next: `/medra:tasks` |
+| `tasks` | Inline | In the command skill | Track `full`, gate `plan` approved | `tasks.md` path, task count; next: `/medra:apply` |
+| `apply` | Inline | In the command skill | Gate `tasks` approved (full) or gate `proposal` approved (fast) | Tasks done / remaining; next: `/medra:verify` or `/medra:apply` to resume |
+| `verify` | Inline | In the command skill | `medra status` reports every task done | Verification report path, verdict; next: `/medra:archive` |
+| `archive` | Inline | In the command skill | Gate `verify` approved | Archived path; specs touched, lessons added/bumped, entries compacted, amendment result (counts); next: `/medra:propose` |
+| `review` | Inline | In the command skill | Change exists and has `proposal.md` | Review report path, verdict; next: the command for the change's current stage |
 
-Each command adopts the agent that owns its routed pipeline by reading `${CLAUDE_PLUGIN_ROOT}/agents/{agent}.md`; on Antigravity the installer rewrites that path. Every command sets `disable-model-invocation: true`, and every command's first precondition is the CLI version check.
+Each command skill is the single source for its run: it carries the persona of the role that owns it (author, implementer or reviewer) and every phase, and loads nothing else to start. Until 1.7.6 the same content also lived in `agents/author.md`, `agents/implementer.md` and eight `pipelines/*.md` files; those mirrors drifted from the skills and were removed. Only what runs as a subagent keeps an agent file and a pipeline file: `reviewer` · check and both `security` pipelines. Every command sets `disable-model-invocation: true`, opens with one turn that reads `references/conventions.md` and runs its precondition and Phase 1 CLI calls as a single shell call, and reads `references/gate.md` only when it reaches a gate.
 
 ## Agents
 
 | Agent | Job | Model · effort | Run mode | Pipelines | Invokes |
 |---|---|---|---|---|---|
-| `author` | Writes the what, and the how in outline: constitution, proposals, deltas, plans, tasks. Archives changes into living specs and curates the learnings. Never writes code | opus · high | Main session (adopted by commands) | init, propose, plan, tasks, archive | `Explore` (Claude only); `security`, via `handoff-author-security` |
-| `implementer` | Executes approved tasks in code, with evidence per task. Runs the verify gate | sonnet · high | Main session (adopted by commands) | apply, verify | `reviewer`, via `handoff-implementer-reviewer`; `security`, via `handoff-implementer-security` |
+| `author` | Writes the what, and the how in outline: constitution, proposals, deltas, plans, tasks. Archives changes into living specs and curates the learnings. Never writes code | opus · high | Main session; a role inlined in its command skills, with no agent file | init, propose, plan, tasks, archive | `Explore` (Claude only); `security`, via `handoff-author-security` |
+| `implementer` | Executes approved tasks in code, with evidence per task. Runs the verify gate | sonnet · high | Main session; a role inlined in its command skills, with no agent file | apply, verify | `reviewer`, via `handoff-implementer-reviewer`; `security`, via `handoff-implementer-security` |
 | `reviewer` | Adversarial reader: judges documents and implementation against the specs, the constitution and the templates. Edits nothing except its own report | opus · high | Both: main session for `review`, delegated for `check` | review (interactive), check (single-shot) | No one (leaf) |
 | `security` | Sentinel. Threat-models security-relevant designs and audits their implementation: attack surface, STRIDE, OWASP/ASVS/API Top 10, dependencies (CVE, KEV, EPSS), secrets, configuration. Verifies against authoritative sources; never fabricates a CVE or a scan. Writes only its own documents | opus · high | Delegated only | threat-model (single-shot), audit (single-shot) | No one (leaf) |
 
-Model and effort take effect only when Claude Code runs the agent as a subagent (`reviewer` · check, both `security` pipelines). An agent adopted inline by a command runs on the session's model, so its frontmatter only records intent.
+An agent's frontmatter model and effort take effect only when Claude Code runs it as a subagent (`reviewer` · check, both `security` pipelines). A command runs inline in the main session, so each command skill repeats its owning agent's `model` and `effort` in its own frontmatter; without them the command would run on whatever model the session happens to use. Antigravity drops both keys and uses the session's model.
 
 ## Documents
 
@@ -129,7 +129,7 @@ All documents live under `docs/` at the project root and are versioned with the 
 
 ## Context and memory budget
 
-These are standing rules, held in `medra:conventions` and enforced by the CLI:
+These are standing rules, held in `references/conventions.md` and enforced by the CLI:
 
 - **Read through the CLI.**
   - Agents load project knowledge from `medra index` (before a change exists) and `medra context <change> --stage <stage>` (after it exists).
@@ -179,7 +179,7 @@ On the fast track, a fix is **regression-first**: the first task is a `[TEST]` t
 | `handoff-author-security` | author · plan, after Drafting | security · threat-model | The proposal says `**Security:** relevant` and the track is `full` | `change`, `change_path`, `plan_path`, `threat_model_path`, `focus` (what the author wants examined; optional), `revision` (`true` when re-dispatched after design changes; IDs are kept) | `status`, `threat_model_path`, `counts` (threats by severity), `mitigations` (count proposed), `unverified_sources` (count) |
 | `handoff-implementer-security` | implementer · verify, in each Check round, in parallel with the reviewer | security · audit | Same as the reviewer dispatch, plus `**Security:** relevant` | `change`, `change_path`, `diff_base`, `report_path` (`…-security-agent-r<round>.md`), `round`, `previous_report` (later rounds), `fixed_findings` (later rounds) | `status`, `verdict` (`pass` / `pass-with-findings` / `fail`), `report_path`, `counts` (critical / high / medium / low / info), `unverified_sources` |
 
-The CLI contract that every pipeline depends on is specified in [`cli/SPEC.md`](../../cli/SPEC.md). `medra:conventions` holds the agent-facing summary of it: commands, exit codes, and the state file.
+The CLI contract that every pipeline depends on is specified in [`cli/SPEC.md`](../../cli/SPEC.md). `references/conventions.md` holds the agent-facing summary of it: commands, exit codes, and the state file.
 
 ## Artifacts
 
@@ -188,7 +188,9 @@ In build order. Paths are relative to `/home/tcavalli/src/harness/`.
 | # | Type | Runtime name | Path | Job | Depends on |
 |---|---|---|---|---|---|
 | 1 | CLI spec (engineering handoff) | — | `cli/SPEC.md` | Contract for the `medra` Node CLI: commands, flags, exit codes, state and config schemas, validation rules, merge rules, context-pack selection, the learnings store, the installer rewrite table | — |
-| 2 | Protocol | `conventions` | `plugins/medra/references/conventions.md` | Shared rules for every agent: `docs/` layout, language, CLI usage and exit codes, context and memory budget, gate protocol with or without `AskUserQuestion`, delegation and skill-loading fallbacks, resume-from-disk, git suggest-only | 1 |
+| 2 | Protocol | `conventions` | `plugins/medra/references/conventions.md` | Shared rules for every agent: `docs/` layout, language, CLI usage and exit codes, context and memory budget, resume-from-disk, git suggest-only | 1 |
+| 2a | Protocol | `gate` | `plugins/medra/references/gate.md` | The gate protocol and its render, read by a command only when it reaches a gate | 2 |
+| 2b | Protocol | `portability` | `plugins/medra/references/portability.md` | Tool equivalents per runtime and the inline fallback for delegation | 2 |
 | 3 | Template | `template-constitution` | `plugins/medra/templates/constitution/` | Versioned, numbered articles with testable gate questions and an amendment log | 2 |
 | 4 | Template | `template-spec` | `plugins/medra/templates/spec/` | Living spec per capability: Purpose, ID prefix, `REQ` blocks with SHALL + scenarios | 2 |
 | 5 | Template | `template-delta` | `plugins/medra/templates/delta/` | Delta spec: ADDED / MODIFIED / REMOVED requirement sections, in the exact form `medra archive` parses | 4 |
@@ -198,17 +200,17 @@ In build order. Paths are relative to `/home/tcavalli/src/harness/`.
 | 9 | Template | `template-review` | `plugins/medra/templates/review/` | Findings report shared by review and check: stage, verdict, severity-classified findings, requirement coverage | 5, 8 |
 | 10 | Template | `template-learnings` | `plugins/medra/templates/learnings/` | `L-NNN` entries: type (lesson / preference), scope, statement, evidence, occurrences, status; harvest, merge and retirement rules | 2 |
 | 11 | Handoff | `handoff-implementer-reviewer` | `plugins/medra/handoffs/implementer-reviewer.md` | The verify dispatch contract (Contracts row) | 9 |
-| 12 | Pipeline | `author-init` | `plugins/medra/pipelines/author-init.md` | CLI init, language and integrations, constitution interview + gate, optional brownfield bootstrap + gate | 2, 3, 4 |
-| 13 | Pipeline | `author-propose` | `plugins/medra/pipelines/author-propose.md` | Intake, track classification, clarification, proposal + deltas, fast-track tasks, self-review, gate | 2, 5, 6, 8 |
-| 14 | Pipeline | `author-plan` | `plugins/medra/pipelines/author-plan.md` | Grounding in the context pack and code, plan with constitution gates, self-review, gate | 2, 7 |
-| 15 | Pipeline | `author-tasks` | `plugins/medra/pipelines/author-tasks.md` | Task decomposition with traceability, self-review, gate | 2, 8 |
-| 16 | Pipeline | `author-archive` | `plugins/medra/pipelines/author-archive.md` | Merge with conflict resolution, harvest learnings, compact when over budget, promote to the constitution with a gate | 2, 3, 5, 10 |
-| 17 | Pipeline | `implementer-apply` | `plugins/medra/pipelines/implementer-apply.md` | Resume from the context pack, execute tasks with CLI checkpoints, blocker handling, track escalation | 2, 8 |
-| 18 | Pipeline | `implementer-verify` | `plugins/medra/pipelines/implementer-verify.md` | Dispatch check (or inline fallback), fix loop, gate | 2, 9, 11 |
-| 19 | Pipeline | `reviewer-review` | `plugins/medra/pipelines/reviewer-review.md` | Interactive, stage-aware document review, report, human verdict | 2, 9 |
+| 12 | Pipeline (inside its command skill) | `author-init` | `plugins/medra/skills/init/SKILL.md` | CLI init, language and integrations, constitution interview + gate, optional brownfield bootstrap + gate | 2, 3, 4 |
+| 13 | Pipeline (inside its command skill) | `author-propose` | `plugins/medra/skills/propose/SKILL.md` | Intake, track classification, clarification, proposal + deltas, fast-track tasks, self-review, gate | 2, 5, 6, 8 |
+| 14 | Pipeline (inside its command skill) | `author-plan` | `plugins/medra/skills/plan/SKILL.md` | Grounding in the context pack and code, plan with constitution gates, self-review, gate | 2, 7 |
+| 15 | Pipeline (inside its command skill) | `author-tasks` | `plugins/medra/skills/tasks/SKILL.md` | Task decomposition with traceability, self-review, gate | 2, 8 |
+| 16 | Pipeline (inside its command skill) | `author-archive` | `plugins/medra/skills/archive/SKILL.md` | Merge with conflict resolution, harvest learnings, compact when over budget, promote to the constitution with a gate | 2, 3, 5, 10 |
+| 17 | Pipeline (inside its command skill) | `implementer-apply` | `plugins/medra/skills/apply/SKILL.md` | Resume from the context pack, execute tasks with CLI checkpoints, blocker handling, track escalation | 2, 8 |
+| 18 | Pipeline (inside its command skill) | `implementer-verify` | `plugins/medra/skills/verify/SKILL.md` | Dispatch check (or inline fallback), fix loop, gate | 2, 9, 11 |
+| 19 | Pipeline (inside its command skill) | `reviewer-review` | `plugins/medra/skills/review/SKILL.md` | Interactive, stage-aware document review, report, human verdict | 2, 9 |
 | 20 | Pipeline | `reviewer-check` | `plugins/medra/pipelines/reviewer-check.md` | Single-shot check of implementation against spec, plus cross-document consistency | 2, 9, 11 |
-| 21 | Agent | `medra:author` | `plugins/medra/agents/author.md` | See Agents | 12–16 |
-| 22 | Agent | `medra:implementer` | `plugins/medra/agents/implementer.md` | See Agents | 17, 18 |
+| 21 | Role (no agent file) | `author` | Persona section of the `init`, `propose`, `plan`, `tasks` and `archive` skills | See Agents | 12–16 |
+| 22 | Role (no agent file) | `implementer` | Persona section of the `apply` and `verify` skills | See Agents | 17, 18 |
 | 23 | Agent | `medra:reviewer` | `plugins/medra/agents/reviewer.md` | See Agents | 19, 20 |
 | 24–31 | Command ×8 | `medra:{init,propose,plan,tasks,apply,verify,review,archive}` | `plugins/medra/skills/{verb}/SKILL.md` | See Commands | 21–23 |
 | 32 | Plugin manifest | `medra` | `plugins/medra/.claude-plugin/plugin.json` | Name, version, description, author; no dependencies | 24–31 |
@@ -231,15 +233,15 @@ In build order. `U` updates an existing artifact; `N` creates one.
 | S8 | N | Handoff | `handoff-implementer-security` | `plugins/medra/handoffs/implementer-security.md` | Audit contract (Contracts row) | S5 |
 | S9 | N | Pipeline | `security-threat-model` | `plugins/medra/pipelines/security-threat-model.md` | Single-shot: dispatch validation, context and design reading, attack surface, STRIDE with source checks, threat model, response | S4, S7 |
 | S10 | N | Pipeline | `security-audit` | `plugins/medra/pipelines/security-audit.md` | Single-shot: dispatch validation, attack surface from the diff, code/config/dependency analysis with source checks, risk classification, report, response | S5, S8 |
-| S11 | U | Pipeline | `author-propose` | `plugins/medra/pipelines/author-propose.md` | Classify security relevance and present it at the proposal gate | S3 |
-| S12 | U | Pipeline | `author-plan` | `plugins/medra/pipelines/author-plan.md` | Dispatch the threat model after Drafting; integrate mitigations; present it at the gate | S6, S7 |
-| S13 | U | Pipeline, Template | `author-tasks`, `template-tasks` | `plugins/medra/pipelines/author-tasks.md`, `plugins/medra/templates/tasks/` | Every accepted mitigation reaches a task that cites its `M-NN` | S6 |
-| S14 | U | Pipeline | `implementer-verify` | `plugins/medra/pipelines/implementer-verify.md` | Parallel dispatch per round, one fix loop over both reports, both presented at the gate, accepted risks as gate notes | S8 |
-| S15 | U | Pipeline | `author-archive` | `plugins/medra/pipelines/author-archive.md` | Harvest critical and high security findings, from every round | S5 |
+| S11 | U | Pipeline (inside its command skill) | `author-propose` | `plugins/medra/skills/propose/SKILL.md` | Classify security relevance and present it at the proposal gate | S3 |
+| S12 | U | Pipeline (inside its command skill) | `author-plan` | `plugins/medra/skills/plan/SKILL.md` | Dispatch the threat model after Drafting; integrate mitigations; present it at the gate | S6, S7 |
+| S13 | U | Pipeline, Template | `author-tasks`, `template-tasks` | `plugins/medra/skills/tasks/SKILL.md`, `plugins/medra/templates/tasks/` | Every accepted mitigation reaches a task that cites its `M-NN` | S6 |
+| S14 | U | Pipeline (inside its command skill) | `implementer-verify` | `plugins/medra/skills/verify/SKILL.md` | Parallel dispatch per round, one fix loop over both reports, both presented at the gate, accepted risks as gate notes | S8 |
+| S15 | U | Pipeline (inside its command skill) | `author-archive` | `plugins/medra/skills/archive/SKILL.md` | Harvest critical and high security findings, from every round | S5 |
 | S16 | U | Pipeline | `reviewer-check` | `plugins/medra/pipelines/reviewer-check.md` | On security-relevant changes, leave security analysis to the security report instead of duplicating it | S8 |
 | S17 | N | Agent | `medra:security` | `plugins/medra/agents/security.md` | See Agents | S9, S10 |
-| S18 | U | Agent | `medra:author` | `plugins/medra/agents/author.md` | `Agent(Explore, security)`; handoff listed | S7, S17 |
-| S19 | U | Agent | `medra:implementer` | `plugins/medra/agents/implementer.md` | `Agent(reviewer, security)`; handoff listed | S8, S17 |
+| S18 | U | Role | `author` | `plugins/medra/skills/plan/SKILL.md` | Dispatches `security` under the handoff, from the Threat Model phase | S7, S17 |
+| S19 | U | Role | `implementer` | `plugins/medra/skills/verify/SKILL.md` | Dispatches `reviewer` and `security` under their handoffs, from the Check phase | S8, S17 |
 | S20 | U | Plugin manifest, README, commands | `medra`, `medra:plan`, `medra:verify` | `plugins/medra/.claude-plugin/plugin.json`, `README.md`, `plugins/medra/skills/{plan,verify}/SKILL.md` | Version 1.4.0; the security agent described; command descriptions name the security step | S17–S19 |
 
 ## Decisions

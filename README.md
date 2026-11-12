@@ -191,6 +191,7 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
+- **1.8.0 (2026-11-12):** Made command skills the single source for each command (removing mirrored `author`/`implementer` agent files and 8 `pipelines/*.md` files), split `conventions.md` into `gate.md` and `portability.md`, removed `model:` pins so commands and subagents inherit the user's session model (keeping `effort: high`), made `medra fix` use `pending` / `[NEEDS CLARIFICATION: …]` markers instead of guessing judgment, added the `plan.markers` validation rule, reduced `specDrift` git spawns, and split the test suite for parallel execution.
 - **1.7.6 (2026-11-12):** Hardened plugin installation and cleanup against path traversal attacks (`safeJoin` guard in `cli/src/install.js`) when processing existing manifests.
 - **1.7.5 (2026-11-12):** Added Smart Slicing (`medra task context <change> [task]`) for high-efficiency bounded task packs, deterministic auto-remediation (`medra fix [change]`), and test output noise trimming / sanitization (`sanitizeTestOutput`).
 - **1.7.4 (2026-11-12):** Added prescriptive validation remediations (`remediation` in findings) across all validation stages, schema support in JSON envelope, and `↳ fix:` CLI stderr formatting.

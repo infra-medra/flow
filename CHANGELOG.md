@@ -2,6 +2,24 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.8.0] — 2026-11-12
+
+### Changed
+- **Command skills are the single source for each command.** The persona and phases that `agents/author.md`, `agents/implementer.md` and eight `pipelines/*.md` files (`author-*`, `implementer-*`, `reviewer-review`) mirrored had drifted from the skills, so those files are removed. `reviewer` and `security` keep their agent files and the three pipelines they run as subagents. `author` and `implementer` are no longer registered as subagent types.
+- **Model and effort per command.** Each command skill declares `model` and `effort` (`opus` for `init`, `propose`, `plan`, `tasks`, `archive` and `review`; `sonnet` for `apply` and `verify`; all `high`). A command runs inline, so the values in the agent files never applied to it and it ran on the session's model.
+- **One opening turn per command.** Each skill opens by reading `references/conventions.md` and running its precondition and Phase 1 CLI calls as a single shell call, in place of three or four sequential round-trips. The delegated pipelines read their handoff, conventions and template guide in one turn.
+- **`references/conventions.md` split by audience.** The gate protocol moved to `references/gate.md`, read only when a command reaches a gate, and the runtime table to `references/portability.md`. The core file every agent and subagent reads went from 6.3 KB to 3.9 KB.
+- **`/medra:apply` runs the green test once.** `medra task done --run` is the green run itself; the skill no longer runs the same command first. The `red` pre-run stays, because the failure reason has to be judged before the checkpoint locks the test files.
+- **`/medra:apply` session budget.** After 6 or more tasks in one run, the skill ends at the next `tasks.md` phase boundary and recommends resuming in a fresh session.
+- **`medra fix` repairs structure and never supplies judgment.** A missing Constitution Check row is added with result `pending` (refused by `plan.constitution`) instead of `pass`; missing proposal and plan sections hold a `[NEEDS CLARIFICATION: …]` marker instead of placeholder prose; `**Security:**` is never added or defaulted. The `propose` and `plan` skills now call `medra fix` for structural findings.
+- **Routing as text.** The mermaid flowchart in each command skill and delegated pipeline is replaced by a short Routing list that states the same loops, limits and stop conditions.
+- **Leaner subagent files.** `agents/reviewer.md` and `agents/security.md` drop the Summary table of contents and the References section, and shorten Presentation to the header rule.
+- **`specDrift` spawns less git:** nothing when no capability can drift, and one diff per distinct spec commit.
+- **Test suite split into four files** that `node --test` runs in parallel.
+
+### Added
+- **`plan.markers` validation rule:** an open `[NEEDS CLARIFICATION` marker in `plan.md` blocks the plan gate.
+
 ## [1.7.6] — 2026-11-12
 
 ### Security

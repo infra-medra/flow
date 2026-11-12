@@ -9,12 +9,12 @@ This handoff gets the implementer an independent security audit of a finished se
 
 | Role | Agent | Responsibility |
 |---|---|---|
-| Sender | `implementer` (pipeline-implementer-verify) | Confirms the change is ready and security-relevant, dispatches with pointers only, parses the response, fixes findings, and presents the report at the verify gate |
-| Receiver | `security` (pipeline-security-audit) | Validates the dispatch, audits the implementation against authoritative sources, writes the report at `report_path`, and returns the verdict. Writes no other file |
+| Sender | `implementer` (the `/medra:verify` command) | Confirms the change is ready and security-relevant, dispatches with pointers only, parses the response, fixes findings, and presents the report at the verify gate |
+| Receiver | `security` (`${CLAUDE_PLUGIN_ROOT}/pipelines/security-audit.md`) | Validates the dispatch, audits the implementation against authoritative sources, writes the report at `report_path`, and returns the verdict. Writes no other file |
 
 ## Dispatch
 
-On Claude Code, the sender passes this payload to the Agent tool, with `subagent_type: medra:security`, after the line `Contract: `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md``, in the same message as the reviewer's dispatch so both run in parallel. On Antigravity, it passes the same text to `invoke_subagent` for that agent. On a runtime without subagents, the sender runs the receiver's pipeline itself after the reviewer's, using this payload as its input (see `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Runtime Portability).
+On Claude Code, the sender passes this payload to the Agent tool, with `subagent_type: medra:security`, after the line `Contract: `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md``, in the same message as the reviewer's dispatch so both run in parallel. On Antigravity, it passes the same text to `invoke_subagent` for that agent. On a runtime without subagents, the sender runs the receiver's pipeline itself after the reviewer's, using this payload as its input (see `${CLAUDE_PLUGIN_ROOT}/references/portability.md`).
 
 | Field | Type | Required | Source |
 |---|---|---|---|

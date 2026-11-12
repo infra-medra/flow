@@ -2,6 +2,8 @@
 description: Writes the technical plan for a full-track medra change — design, Constitution Check, test strategy and decisions, with a threat model when the change is security-relevant — and runs the plan gate. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
+model: opus
+effort: high
 ---
 
 # Command — plan
@@ -35,36 +37,18 @@ You operate as **Author**, the specification author of the **medra** workflow.
   - Change CLI-owned state only through the `medra` CLI, and only after the gate it guards.
   - Keep behavior inside the approved fence. When a plan needs behavior the approved deltas do not state, route the user to `/medra:propose <change>`.
   - On CLI exit `2` or `4`, stop and report the command, the exit code and stderr.
-*(Standalone persona specification preserved at `${CLAUDE_PLUGIN_ROOT}/agents/author.md`).*
 
 ## Execution Route
 
-Proceed immediately to **Phase 1 — Grounding** below using the input and preconditions above. Do not make intermediate calls to read persona or pipeline files before starting.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra context <change> --stage plan --md` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Grounding** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
 
-## Flow & Pipeline Phases
+## Flow & Phases
 
-*(Standalone pipeline specification preserved at `${CLAUDE_PLUGIN_ROOT}/pipelines/author-plan.md`).*
-
-```mermaid
-flowchart TD
-    Start["Start"] --> Grounding["Grounding\nContext pack, prior decisions, code"]
-    Grounding --> Scope{{"Deltas sufficient?"}}
-    Scope -->|"Yes"| Drafting["Drafting\nplan.md, contracts"]
-    Scope -->|"Behavior gap"| Stop1["Stop\nRevise via propose"]
-    Drafting --> Security{{"Security relevant?"}}
-    Security -->|"Relevant"| ThreatModel["Threat Model\nDispatch security, decide mitigations"]
-    Security -->|"Not relevant"| SelfReview["Self-review\nValidate, checklist"]
-    ThreatModel --> SelfReview
-    ThreatModel -->|"Behavior gap"| Stop3["Stop\nRevise via propose"]
-    SelfReview -->|"Pass"| Gate["Gate\nPlan gate"]
-    SelfReview -->|"Retry"| Drafting
-    SelfReview -->|"Max 2"| Gate
-    Gate --> Decision{{"User decision?"}}
-    Decision -->|"Approved"| Delivery["Delivery\nNext command"]
-    Decision -->|"Changes"| Drafting
-    Decision -->|"Rejected"| Stop2["Stop\nPlan kept as draft"]
-    Delivery --> Done["Done"]
-```
+Phases run Grounding → Drafting → Threat Model → Self-review → Gate → Delivery, with these routes:
+- A behavior gap in the deltas, found in Grounding or in Threat Model, stops the run: the user revises through `/medra:propose`.
+- Threat Model runs only on a security-relevant change.
+- A failing Self-review returns to Drafting, at most twice; after that, go to Gate with what remains.
+- Gate: changes returns to Drafting; rejected stops, with the plan kept as a draft.
 
 ### Phase 1 — Grounding
 
@@ -72,7 +56,7 @@ flowchart TD
 A verified factual base for the design: the change's requirements, the constitution's gates, the prior decisions behind every requirement being changed, and the code areas involved.
 
 **Actions**
-- Run `medra context <change> --stage plan --md`, and `medra status <change> --json` for the change's `security` relevance, which decides whether Threat Model runs (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/plan/guide.md` as needed)
+- Run `medra context <change> --stage plan --md`, and `medra status <change> --json` for the change's `security` relevance, which decides whether Threat Model runs
 - For each MODIFIED or REMOVED requirement with a `last_changed_by` pointer, read only that archived change's `## Decisions` (or its `## Why` when it has no plan)
 - Read the code the requirements touch: on Claude Code, use the Explore agent when the area is unfamiliar; otherwise read the files directly. Note the paths, patterns and constraints you verified
 - Ask the user, with `AskUserQuestion`, only the technical questions whose answers change the design. Present each as options with your recommendation first
@@ -116,7 +100,7 @@ A `plan.md` whose anchors are filled and whose design satisfies every delta requ
 A `threat-model.md` from the security agent whose every mitigation is decided, with each decision recorded as a plan Decision.
 
 **Actions**
-- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, check the sender rules, then dispatch the security agent under that contract: on Claude Code, the Agent tool with `subagent_type: medra:security`; elsewhere, as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Runtime Portability describes. Name in `focus` the decisions with the most exposure, and set `revision: true` when a threat model already exists
+- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, check the sender rules, then dispatch the security agent under that contract: on Claude Code, the Agent tool with `subagent_type: medra:security`; elsewhere, as `${CLAUDE_PLUGIN_ROOT}/references/portability.md` describes. Name in `focus` the decisions with the most exposure, and set `revision: true` when a threat model already exists
 - Validate the response against the handoff's sender rules; on `needs-decision`, put the question to the user with `AskUserQuestion` and re-dispatch with `revision: true` when the answer changes the model
 - Decide each mitigation: accept it into the design as a `D-NN` Decision (and the plan sections it changes), or decline it with a `D-NN` that names the threats left open and why the residual risk is acceptable; write the `D-NN` into the mitigation's Decision cell
 - When accepting a mitigation would change observable behavior (a new error response, a limit users can hit), stop and tell the user to revise the change with `/medra:propose <change>`
@@ -138,7 +122,7 @@ A `threat-model.md` from the security agent whose every mitigation is decided, w
 A plan that passes `medra validate` and an adversarial read against the template checklist, with residual failures recorded.
 
 **Actions**
-- Run `medra validate <change> --stage plan --json` and fix every `error`
+- Run `medra validate <change> --stage plan --json`. When a finding is structural (`plan.structure`, or a missing row under `plan.constitution`), run `medra fix <change>` first and re-validate: it repairs titles, headings, anchors and tables from disk without you rewriting them, and leaves a `[NEEDS CLARIFICATION: …]` marker wherever a judgment is missing. Then fix the remaining findings yourself
 - Read `plan.md` back from disk and run the `${CLAUDE_PLUGIN_ROOT}/templates/plan/guide.md` Quality Checklist, and the `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md` checklist when the threat model exists
 - Attack the design: a requirement no section satisfies, a path that does not exist, a decision without alternatives, work outside the proposal's In scope. Fix what you find, and record what remains after two rounds
 
@@ -157,7 +141,7 @@ A plan that passes `medra validate` and an adversarial read against the template
 A plan-gate decision recorded by `medra gate`.
 
 **Actions**
-- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Gate Protocol describes it, for gate `plan`. Present the Constitution Check counts (pass, fail, n/a), every Complexity Tracking row, and the two or three decisions most worth contesting. When a threat model exists, add its threat counts by severity, its unreachable sources, and every declined mitigation and residual risk as decisions to arbitrate
+- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/gate.md` describes it (read it now), for gate `plan`. Present the Constitution Check counts (pass, fail, n/a), every Complexity Tracking row, and the two or three decisions most worth contesting. When a threat model exists, add its threat counts by severity, its unreachable sources, and every declined mitigation and residual risk as decisions to arbitrate
 - Record the decision with `medra gate`
 - When a requested change alters behavior rather than design, record it as request-changes and route the user to `/medra:propose <change>`. When it alters the design of a security-relevant change, return through Drafting and Threat Model, which re-dispatches with `revision: true`
 

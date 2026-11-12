@@ -2,6 +2,8 @@
 description: Implements the approved tasks of a medra change one at a time, with red/green test evidence checkpointed by the CLI; also resumes an interrupted apply. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
+model: sonnet
+effort: high
 ---
 
 # Command — apply
@@ -35,32 +37,16 @@ You operate as **Implementer**, the builder of the **medra** workflow.
   - Record each task with `medra task done` before starting the next.
   - Keep tests honest: never weaken, skip or delete a test to reach green; fix the code instead.
   - On CLI exit `2` or `4`, stop and report the command, the exit code and stderr.
-*(Standalone persona specification preserved at `${CLAUDE_PLUGIN_ROOT}/agents/implementer.md`).*
 
 ## Execution Route
 
-Proceed immediately to **Phase 1 — Resume** below using the input and preconditions above. Do not make intermediate calls to read persona or pipeline files before starting.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra task context <change> --md` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Resume** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
 
-## Flow & Pipeline Phases
+## Flow & Phases
 
-*(Standalone pipeline specification preserved at `${CLAUDE_PLUGIN_ROOT}/pipelines/implementer-apply.md`).*
-
-```mermaid
-flowchart TD
-    Start["Start"] --> Resume["Resume\nStatus, context pack, blockers"]
-    Resume --> Next{{"Next task?"}}
-    Next -->|"Task available"| Execute["Execute\nTest, implement, checkpoint"]
-    Next -->|"All done"| Delivery["Delivery\nCounts, next command"]
-    Next -->|"Only blocked tasks"| Delivery
-    Execute --> Outcome{{"Outcome?"}}
-    Outcome -->|"Done"| Next
-    Outcome -->|"Blocked"| Next
-    Outcome -->|"Outside approved scope"| Escalation["Escalation\nTrack or revision decision"]
-    Escalation --> Choice{{"User decision?"}}
-    Choice -->|"Stay in scope"| Execute
-    Choice -->|"Escalate"| Stop["Stop\nRoute to plan or propose"]
-    Delivery --> Done["Done"]
-```
+Phases run Resume → Execute → Delivery, with these routes:
+- After Resume, and after every checkpointed or blocked task, take the next task into Execute. Go to Delivery when every task is done, when only blocked tasks remain, or when the session budget is reached.
+- A task that needs work outside the approved scope goes to Escalation. If the user chooses to stay in scope, return to Execute; if the user escalates, stop and route them to plan or propose.
 
 ### Phase 1 — Resume
 
@@ -68,7 +54,7 @@ flowchart TD
 The next executable task identified from disk, with its requirements, test strategy and any open blockers in hand.
 
 **Actions**
-- Run `medra status <change> --json` and `medra task context <change> --md` (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` as needed)
+- Run `medra status <change> --json` and `medra task context <change> --md`
 - Read the smart slice: the target task, its architecture anchor from `plan.md`, the Test Strategy, completed dependency evidence, and scoped requirement deltas
 - Show the user the open blockers and ask, with `AskUserQuestion`, whether each one is resolved. Run `medra task unblock` for each resolved one
 - Read the code files the task names, and the matching active learnings from the context pack
@@ -88,16 +74,18 @@ The next executable task identified from disk, with its requirements, test strat
 The current task implemented in code and checkpointed by `medra task done`, with the evidence its kind requires.
 
 **Actions**
-- **For a `[TEST]` task:** write tests that cite each scenario ID they cover (in a comment, tag or test name), run the focused test command, and in `tdd` mode confirm they fail for the reason the scenario predicts. Then run `medra task done <change> <T> --run "<focused command>" --kind red` (`green` in `test-after`)
-- **For an implementation task:** write the minimum code that satisfies the requirement, run its tests to green, refactor while they stay green, then run `medra task done <change> <T> --run "<focused command>"`
+- **For a `[TEST]` task:** write tests that cite each scenario ID they cover (in a comment, tag or test name). In `tdd` mode, run the focused test command once and confirm the tests fail for the reason the scenario predicts, then run `medra task done <change> <T> --run "<focused command>" --kind red`. In `test-after` mode, skip your own run and go straight to `medra task done <change> <T> --run "<focused command>" --kind green`
+- **For an implementation task:** write the minimum code that satisfies the requirement, then run `medra task done <change> <T> --run "<focused command>"` as the green run itself: it executes the command, checkpoints on exit `0`, and on a failure records nothing and returns the trimmed failure output (`task.green`). Fix and repeat it; run the test command yourself only when that output is not enough to diagnose the failure. When you refactor after a green checkpoint, re-run the focused tests before the next task
 - **Same-session `[P]` batching:** when `medra context` (`## Parallel batch`) or `medra task done` lists multiple `[P]` tasks from the same phase and kind (`[TEST]` or implementation), write or edit their files in parallel tool calls in the same turn, then checkpoint each task individually with `medra task done <change> <T> ...`
 - When there is no test command (mode `none`), perform the task's verify step and record it with `--evidence "<what was checked and observed>" --kind manual`
 - When the task cannot proceed (missing access, unclear spec, an external failure), run `medra task block <change> <T> --note "<cause>"` and continue with the next task whose dependencies allow it
 - Take the following task (`Next task` or `Parallel batch`, including its requirements) directly from the `medra task done` or `medra task block` output (or run `medra task context <change> [task] --md` for the full smart slice), then repeat
+- **Session budget:** when the following task opens a new phase of `tasks.md` (its phase title differs from the task just checkpointed) and this run has already checkpointed 6 or more tasks, go to Delivery instead of starting it. Every task is on disk, so a fresh session resumes exactly here, while this one would resend its whole history on every further turn
 
 **Avoid**
 - Don't weaken, skip or delete a test to reach green — `medra task done` hashes the test files at `red` and refuses `green` (`task.test-tampered`) if they were modified, and runs `testing.checks` (`task.check`) when configured
 - Don't edit `tasks.md` checkboxes or evidence lines by hand — because `medra task done` enforces ordering and evidence; a hand tick is a task with no proof
+- Don't run the tests to green yourself and then repeat the same command through `medra task done --run` — because the checkpoint already runs it; the second run doubles the test time of every task and proves nothing new
 - Don't batch several tasks before checkpointing — because a compaction mid-batch loses every unrecorded task
 
 **Exit when:**
@@ -133,7 +121,7 @@ A bounded progress summary with the next command.
 **Actions**
 - Report the tasks done this run, the tasks remaining and the open blockers, from `medra status <change> --json`
 - Suggest a commit as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Commit Suggestions describes it
-- Name the next command: `/medra:verify` when every task is done, otherwise `/medra:apply` to resume
+- Name the next command: `/medra:verify` when every task is done, otherwise `/medra:apply <change>` to resume. When the run ended on the session budget, say so and recommend `/clear` (a new session on a runtime without it) before resuming
 
 **Avoid**
 - Don't list every edited file — because the diff shows them; the summary gives counts

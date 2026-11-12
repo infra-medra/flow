@@ -9,12 +9,12 @@ This handoff gets the author an independent threat model of a security-relevant 
 
 | Role | Agent | Responsibility |
 |---|---|---|
-| Sender | `author` (pipeline-author-plan) | Confirms the change is security-relevant and the plan drafted, dispatches with pointers only, parses the response, then decides each mitigation in the plan |
-| Receiver | `security` (pipeline-security-threat-model) | Validates the dispatch, models the design against its stack's authoritative sources, writes `threat-model_path`, and returns the counts. Writes no other file |
+| Sender | `author` (the `/medra:plan` command) | Confirms the change is security-relevant and the plan drafted, dispatches with pointers only, parses the response, then decides each mitigation in the plan |
+| Receiver | `security` (`${CLAUDE_PLUGIN_ROOT}/pipelines/security-threat-model.md`) | Validates the dispatch, models the design against its stack's authoritative sources, writes `threat-model_path`, and returns the counts. Writes no other file |
 
 ## Dispatch
 
-On Claude Code, the sender passes this payload to the Agent tool, with `subagent_type: medra:security`, after the line `Contract: `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md``. On Antigravity, it passes the same text to `invoke_subagent` for that agent. On a runtime without subagents, the sender runs the receiver's pipeline itself, using this payload as its input (see `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Runtime Portability).
+On Claude Code, the sender passes this payload to the Agent tool, with `subagent_type: medra:security`, after the line `Contract: `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md``. On Antigravity, it passes the same text to `invoke_subagent` for that agent. On a runtime without subagents, the sender runs the receiver's pipeline itself, using this payload as its input (see `${CLAUDE_PLUGIN_ROOT}/references/portability.md`).
 
 | Field | Type | Required | Source |
 |---|---|---|---|

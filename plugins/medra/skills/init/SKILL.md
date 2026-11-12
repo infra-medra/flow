@@ -2,6 +2,8 @@
 description: Sets up medra in this project — scaffold, config, ratified constitution and optional living specs from existing code. Run only when the user explicitly invokes it.
 argument-hint: "[language] [notes]"
 disable-model-invocation: true
+model: opus
+effort: high
 ---
 
 # Command — init
@@ -33,34 +35,17 @@ You operate as **Author**, the specification author of the **medra** workflow.
   - Write documents, never application code or tests.
   - Change CLI-owned state only through the `medra` CLI, and only after the gate it guards.
   - On CLI exit `2` or `4`, stop and report the command, the exit code and stderr.
-*(Standalone persona specification preserved at `${CLAUDE_PLUGIN_ROOT}/agents/author.md`).*
 
 ## Execution Route
 
-Proceed immediately to **Phase 1 — Setup** below using the input and preconditions above. Do not make intermediate calls to read persona or pipeline files before starting.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version` as a single shell call. Check the Preconditions against that output, then continue into **Phase 1 — Setup** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
 
-## Flow & Pipeline Phases
+## Flow & Phases
 
-*(Standalone pipeline specification preserved at `${CLAUDE_PLUGIN_ROOT}/pipelines/author-init.md`).*
-
-```mermaid
-flowchart TD
-    Start["Start"] --> Setup["Setup\nCLI check, config, medra init"]
-    Setup --> Ratified{{"Constitution already ratified?"}}
-    Ratified -->|"Yes"| Existing
-    Ratified -->|"No"| Constitution["Constitution\nInterview, draft, validate"]
-    Constitution --> Gate1{{"Constitution approved?"}}
-    Gate1 -->|"Approved"| Existing{{"Existing code and user wants bootstrap?"}}
-    Gate1 -->|"Changes"| Constitution
-    Gate1 -->|"Rejected"| Stop["Stop\nScaffold kept, constitution draft"]
-    Existing -->|"Yes"| Bootstrap["Bootstrap\nCapability map, living specs"]
-    Existing -->|"No"| Delivery["Delivery\nSummary, next command"]
-    Bootstrap --> Gate2{{"Bootstrap specs approved?"}}
-    Gate2 -->|"Approved"| Delivery
-    Gate2 -->|"Changes"| Bootstrap
-    Gate2 -->|"Skip"| Delivery
-    Delivery --> Done["Done"]
-```
+Phases run Setup → Constitution → Bootstrap → Delivery, with these routes:
+- Skip Constitution when the constitution is already ratified.
+- Constitution gate: changes returns to Constitution; rejected stops, with the scaffold kept and the constitution left as a draft.
+- Bootstrap runs only when there is existing code and the user wants it. At its gate, changes returns to Bootstrap, and approved or skip goes to Delivery.
 
 ### Phase 1 — Setup
 
@@ -72,7 +57,6 @@ A `docs/` scaffold whose `config-flow.yaml` records the user's language, integra
 - Read `docs/config-flow.yaml` when it exists. For each setting it lacks, ask the user with `AskUserQuestion`: prose language, integrations (`claude`, `antigravity`, or both), testing mode (`tdd` as the recommended first option, then `test-after` and `none`), and the project's test command
 - Run `medra init` with the answers as flags. When the config already exists, show the user the settings that differ from their answers and edit only the keys they confirm
 - Read the JSON result and report what was created and what already existed
-- Reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` when specific CLI or layout conventions are needed
 
 **Avoid**
 - Don't overwrite an existing `docs/` file to apply a new answer — because an existing constitution or learnings store is project history; change only the config keys the user confirmed
@@ -94,7 +78,7 @@ A `docs/constitution.md` of 3–9 checkable articles that the user approved and 
 - Read `${CLAUDE_PLUGIN_ROOT}/templates/constitution/guide.md`, then read the project's README, CLAUDE.md or AGENTS.md and its build and test configuration, to propose candidate principles grounded in the codebase
 - Interview the user in `AskUserQuestion` batches of at most 4 questions: what must never break, architectural boundaries, testing floor (consistent with the chosen testing mode), simplicity limits, security and compliance floors
 - Copy the template and write the articles, each with a MUST or MUST NOT principle, a yes/no Gate and a Rationale, then run `medra validate --project constitution`
-- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Gate Protocol describes it, presenting the articles. On approval, run `medra constitution ratify --note "Initial constitution" --source init`. Constitution approvals are recorded by `ratify`, not by `medra gate`
+- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/gate.md` describes it (read it now), presenting the articles. On approval, run `medra constitution ratify --note "Initial constitution" --source init`. Constitution approvals are recorded by `ratify`, not by `medra gate`
 
 **Avoid**
 - Don't write generic principles copied from other projects — because an article that cannot fail a plan makes every Constitution Check a formality
@@ -116,7 +100,7 @@ Living specs under `docs/specs/` that describe the existing code's current behav
 - Ask the user whether to bootstrap now, and which areas to cover. Map the codebase's user-facing capabilities: on Claude Code, use the Explore agent for broad navigation; elsewhere, read the entry points and routes directly
 - Present the capability map (names, ID prefixes, one-line purposes) and confirm it with the user before writing any spec
 - Read `${CLAUDE_PLUGIN_ROOT}/templates/spec/guide.md` and write one living spec per confirmed capability, describing behavior the code shows today and marking doubts `[NEEDS CLARIFICATION: …]`
-- Resolve every marker with the user, run `medra validate --project specs`, then gate the specs with the Gate Protocol's render and options. Bootstrap specs belong to no change, so the decision is recorded in the conversation and in the suggested commit, not with `medra gate`
+- Resolve every marker with the user, run `medra validate --project specs`, then gate the specs with the render and options of `${CLAUDE_PLUGIN_ROOT}/references/gate.md`. Bootstrap specs belong to no change, so the decision is recorded in the conversation and in the suggested commit, not with `medra gate`
 
 **Avoid**
 - Don't describe intended or ideal behavior — because bootstrap specs are the baseline future deltas are written against; a spec that claims behavior the code lacks makes the first MODIFIED delta wrong

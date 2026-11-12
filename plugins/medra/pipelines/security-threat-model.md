@@ -19,17 +19,7 @@ Phase headers for this pipeline:
 
 ## Flow
 
-```mermaid
-flowchart LR
-    Start["Start"] --> Intake["Intake\nValidate dispatch, context"]
-    Intake --> Valid{{"Dispatch valid?"}}
-    Valid -->|"Yes"| Surface["Surface\nStack, assets, boundaries, entry points"]
-    Valid -->|"No"| Response["Response\nYAML payload"]
-    Surface --> Modeling["Modeling\nSTRIDE, mitigations, sources"]
-    Modeling --> Report["Report\nthreat-model.md"]
-    Report --> Response
-    Response --> Done["Done"]
-```
+Phases run Intake → Surface → Modeling → Report → Response. An invalid dispatch goes from Intake straight to Response.
 
 ## Phases
 
@@ -39,7 +29,7 @@ flowchart LR
 A validated dispatch, plus the bounded context the model is built from.
 
 **Actions**
-- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, then validate the dispatch against the handoff's receiver rules
+- In one turn, read `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md` in parallel tool calls, together with the `medra context` call below; then validate the dispatch against the handoff's receiver rules
 - Run `medra context <change> --stage plan --md` for the requirements, the constitution and the matching learnings
 - Read the proposal (Why, Scope, the Security rationale), the deltas, and the draft plan at `plan_path`; on a revision, also read the existing threat model at `threat_model_path`
 

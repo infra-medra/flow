@@ -137,16 +137,21 @@ export function specDrift(root) {
   const coveredByActive = new Set(
     activeChanges(root).flatMap((c) => Object.keys(loadDeltas(changeDir(root, c)))),
   );
+  // `index` and `status` call this on every run, so it spawns git only for capabilities that can drift,
+  // and diffs each distinct spec commit once (specs archived together share one).
+  const watched = Object.entries(specs).filter(([cap, spec]) => spec.paths?.length && !coveredByActive.has(cap));
+  if (!watched.length) return [];
   const statusOut = git(root, ['status', '--porcelain', '-uall']) ?? '';
   const dirtyFiles = statusOut.split('\n').filter(Boolean).map((l) => l.slice(3).trim().split(' -> ').pop());
+  const diffSince = new Map();
   const drifted = [];
-  for (const [cap, spec] of Object.entries(specs)) {
-    if (!spec.paths?.length || coveredByActive.has(cap)) continue;
+  for (const [cap, spec] of watched) {
     const specRel = rel(root, spec.file);
     const specSha = git(root, ['log', '-1', '--format=%H', '--', specRel]);
-    const committedSince = specSha
-      ? (git(root, ['diff', '--name-only', `${specSha}..HEAD`]) ?? '').split('\n').filter(Boolean)
-      : [];
+    if (specSha && !diffSince.has(specSha)) {
+      diffSince.set(specSha, (git(root, ['diff', '--name-only', `${specSha}..HEAD`]) ?? '').split('\n').filter(Boolean));
+    }
+    const committedSince = specSha ? diffSince.get(specSha) : [];
     const candidates = [...new Set([...committedSince, ...dirtyFiles])]
       .filter((f) => f && !f.startsWith(`${DOCS_DIR}/`) && !f.startsWith('.agents/'));
     const isMatch = picomatch(spec.paths);
