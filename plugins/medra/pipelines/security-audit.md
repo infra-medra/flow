@@ -23,17 +23,7 @@ Phase headers for this pipeline:
 
 ## Flow
 
-```mermaid
-flowchart LR
-    Start["Start"] --> Intake["Intake\nValidate dispatch, context"]
-    Intake --> Valid{{"Dispatch valid?"}}
-    Valid -->|"Yes"| Surface["Surface\nDiff, entry points, stack"]
-    Valid -->|"No"| Response["Response\nYAML payload"]
-    Surface --> Analysis["Analysis\nCode, config, deps, conformance"]
-    Analysis --> Report["Report\nSecurity report"]
-    Report --> Response
-    Response --> Done["Done"]
-```
+Phases run Intake → Surface → Analysis → Report → Response. An invalid dispatch goes from Intake straight to Response.
 
 ## Phases
 
@@ -43,7 +33,7 @@ flowchart LR
 A validated dispatch, plus the bounded context the audit is built from.
 
 **Actions**
-- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/security-report/guide.md`, then validate the dispatch against the handoff's receiver rules
+- In one turn, read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/security-report/guide.md` in parallel tool calls, together with the `medra context` call below; then validate the dispatch against the handoff's receiver rules
 - Run `medra context <change> --stage verify --md` for the requirements, the constitution, the matching learnings and the paths of the change's documents
 - Read the proposal's Security rationale and, when `threat-model.md` exists, its entry points and accepted mitigations. On later rounds, read `previous_report`
 

@@ -15,7 +15,6 @@ const constitutionOf = (root) => parseConstitution(readIf(docsPath(root, 'consti
  * Deterministically auto-fixes mechanical issues in proposal.md:
  * - ensures title '# Proposal: <change>'
  * - syncs Track with state.track and ensures Rationale
- * - defaults Security to not-relevant with rationale if missing
  * - syncs Capabilities table with actual deltas on disk
  * - ensures required section headings in designated order
  */
@@ -41,11 +40,12 @@ export function fixProposal(root, change, state) {
   // 2. Track & Rationale
   let trackSec = section(lines, 'Track', 2);
   const trackLine = `**Track:** ${state.track}`;
-  const rationaleLine = '**Rationale:** Criteria checked.';
-  const secLines = '\n**Security:** not-relevant\n**Security rationale:** Internal changes only.';
+  // Judgment is never defaulted: a missing rationale becomes an open marker that `proposal.markers` reports,
+  // and a missing `**Security:**` line is left alone, because classifying it decides whether the security agent runs.
+  const rationaleLine = '**Rationale:** [NEEDS CLARIFICATION: record which track criteria fired]';
 
   if (!trackSec) {
-    lines.push('', '## Track', '', trackLine, rationaleLine + secLines);
+    lines.push('', '## Track', '', trackLine, rationaleLine);
     fixed.push("added '## Track' section with track '" + state.track + "'");
   } else {
     let body = trackSec.body.join('\n');
@@ -60,10 +60,6 @@ export function fixProposal(root, change, state) {
       const tIdx = trackSec.body.findIndex((l) => l.startsWith('**Track:**'));
       trackSec.body.splice(tIdx >= 0 ? tIdx + 1 : 0, 0, rationaleLine);
       fixed.push("added '**Rationale:**' under '## Track'");
-    }
-    if (!/\*\*Security:\*\*/.test(trackSec.body.join('\n'))) {
-      trackSec.body.push('**Security:** not-relevant', '**Security rationale:** Internal changes only.');
-      fixed.push("defaulted '**Security:** not-relevant' with rationale");
     }
   }
 
@@ -118,18 +114,18 @@ export function fixProposal(root, change, state) {
 
   // 4. Required Headings from PROPOSAL_HEADINGS
   const requiredDefaults = {
-    Why: 'Users need this functionality.',
-    'What Changes': '- Description of changes.',
-    Scope: '### In scope\n\n- Primary changes.\n\n### Out of scope\n\n- Secondary changes.',
-    Impact: '- **Code:** src\n- **Interfaces:** None.\n- **Data:** None.\n- **Dependencies:** None.',
-    'Open Questions': 'None.',
+    Why: '[NEEDS CLARIFICATION: why this change is needed]',
+    'What Changes': '- [NEEDS CLARIFICATION: what changes]',
+    Scope: '### In scope\n\n- [NEEDS CLARIFICATION: what is in scope]\n\n### Out of scope\n\n- [NEEDS CLARIFICATION: what is out of scope]',
+    Impact: '- **Code:** [NEEDS CLARIFICATION: code touched]\n- **Interfaces:** [NEEDS CLARIFICATION: interfaces touched]\n- **Data:** [NEEDS CLARIFICATION: data touched]\n- **Dependencies:** [NEEDS CLARIFICATION: dependencies touched]',
+    'Open Questions': '- [NEEDS CLARIFICATION: this section was missing; list the open questions, or write None.]',
   };
 
   for (const [lvl, name] of PROPOSAL_HEADINGS) {
     if (!name || lvl !== 2) continue;
     const hs = headings(lines);
     if (!hs.some((h) => h.level === 2 && h.text === name)) {
-      const def = requiredDefaults[name] ?? 'None.';
+      const def = requiredDefaults[name] ?? '[NEEDS CLARIFICATION: this section was missing]';
       lines.push('', `## ${name}`, '', def);
       fixed.push(`added missing '## ${name}' section`);
     }
@@ -167,7 +163,8 @@ export function fixPlan(root, change) {
     fixed.push("corrected title to '# Plan: " + change + "'");
   }
 
-  // 2. Constitution Check Table
+  // 2. Constitution Check Table. Added rows carry the result `pending`, which `plan.constitution` refuses:
+  // the row exists, the verdict on the article is still the author's to give.
   const constitution = constitutionOf(root);
   const live = liveArticles(constitution);
   let checkSec = section(lines, 'Constitution Check', 2);
@@ -176,7 +173,7 @@ export function fixPlan(root, change) {
     const table = [
       '| Article | Gate | Result | Note |',
       '|---|---|---|---|',
-      ...live.map((a) => `| ${a.roman} | ${a.gate ?? 'tasks'} | pass | Conforms to Article ${a.roman} |`),
+      ...live.map((a) => `| ${a.roman} | ${a.gate ?? 'tasks'} | pending | [NEEDS CLARIFICATION: check the plan against Article ${a.roman}] |`),
     ];
     lines.push('', '## Constitution Check', '', ...table);
     fixed.push("added '## Constitution Check' with rows for all live articles");
@@ -186,7 +183,7 @@ export function fixPlan(root, change) {
     const missing = live.filter((a) => !checkedArticles.has(a.roman));
     if (missing.length) {
       for (const m of missing) {
-        checkSec.body.push(`| ${m.roman} | ${m.gate ?? 'tasks'} | pass | Conforms to Article ${m.roman} |`);
+        checkSec.body.push(`| ${m.roman} | ${m.gate ?? 'tasks'} | pending | [NEEDS CLARIFICATION: check the plan against Article ${m.roman}] |`);
         fixed.push(`added row for Article ${m.roman} to 'Constitution Check'`);
       }
       const hs = headings(lines);
@@ -201,9 +198,9 @@ export function fixPlan(root, change) {
 
   // 3. Ensure other PLAN_ANCHORS are present
   const anchorDefaults = {
-    Summary: 'Architectural summary of the implementation.',
+    Summary: '[NEEDS CLARIFICATION: summarize the design]',
     'Complexity Tracking': 'None.',
-    'Test Strategy': '- **Command:** `npm test`',
+    'Test Strategy': '[NEEDS CLARIFICATION: map each scenario to a test level and file]',
     Decisions: 'None.',
   };
 

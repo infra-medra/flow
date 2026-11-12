@@ -364,6 +364,7 @@ On the fast track there are no `plan` or `tasks` gates, and `status` reports the
 | `delta.targets` | proposal | ADDED IDs are absent from the living spec and not retired; MODIFIED and REMOVED IDs exist in the living spec |
 | `delta.new-capability` | proposal | A new capability has an ID prefix and a Purpose, and contains only ADDED |
 | `plan.structure` | plan | §4.6 anchors, in order |
+| `plan.markers` | plan | Zero occurrences of `[NEEDS CLARIFICATION` in plan.md |
 | `plan.constitution` | plan | The Constitution Check has exactly one row per live article; every `fail` has a Complexity Tracking row |
 | `plan.threat-model` | plan | Proposal `**Security:** relevant`: threat-model.md exists and follows §4.8b, every Threat names a Mitigation or `—`, every Mitigation names an existing Threat, and no Decision is `pending`; every `accepted`/`declined` `D-<NN>` exists in plan.md |
 | `plan.test-strategy` | plan | Present; when the mode is `none`, the `No automated tests.` line is present with a reason |
@@ -419,9 +420,9 @@ Runs the rules in §6. Exit `0` with `{"findings": [warnings]}`, or exit `1`.
 
 ### 8.4a `medra fix [change] [--file <path>]`
 
-Deterministically auto-remediates mechanical validation errors in change documents without requiring LLM generation turns:
-- **`plan.md`:** Ensures required anchors (`Summary`, `Constitution Check`, `Complexity Tracking`, `Test Strategy`, `Decisions`) exist in canonical sequence; injects missing rows for live articles into the `Constitution Check` table.
-- **`proposal.md`:** Reconciles the `## Capabilities` table against actual spec deltas on disk; aligns `**Track:**` with `.medra.yaml`; defaults `**Security:** not-relevant` when absent.
+Deterministically auto-remediates mechanical validation errors in change documents without requiring LLM generation turns. It repairs structure and never supplies judgment: whatever it cannot derive from disk it writes as a `[NEEDS CLARIFICATION: …]` marker, which `proposal.markers` and `plan.markers` report, so a fixed document cannot pass a gate on content nobody decided.
+- **`plan.md`:** Corrects the title; ensures required anchors (`Summary`, `Constitution Check`, `Complexity Tracking`, `Test Strategy`, `Decisions`) exist in canonical sequence, a missing `Summary` or `Test Strategy` holding a marker; adds a row for each live article missing from the `Constitution Check` table with result `pending` and a marker note, which `plan.constitution` refuses until the author sets `pass`, `fail` or `n/a`.
+- **`proposal.md`:** Corrects the title; reconciles the `## Capabilities` table against actual spec deltas on disk; aligns `**Track:**` with `.medra.yaml`; adds missing required sections and a missing `**Rationale:**` as markers. It never adds or changes `**Security:**`, because that line decides whether the security agent runs.
 - Returns `{"change", "fixed": ["<doc>: <action>", …]}`. Exit `0` always.
 
 ### 8.5 `medra index [--learnings <capability,…>] [--md]`

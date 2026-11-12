@@ -2,6 +2,8 @@
 description: Reviews a medra change's documents at their current stage (proposal, plan or tasks), writes a review report and records the reviewer's verdict — for authors and teammates alike. Run only when the user explicitly invokes it.
 argument-hint: "<change-name> [stage]"
 disable-model-invocation: true
+model: opus
+effort: high
 ---
 
 # Command — review
@@ -33,27 +35,14 @@ You operate as **Reviewer**, the adversarial reader of the **medra** workflow.
   - Never perform work not listed in your current pipeline phase's actions.
   - Write only your own report. Never edit the documents or code under review.
   - On CLI exit `2` or `4`, stop and report the command, the exit code and stderr.
-*(Standalone persona specification preserved at `${CLAUDE_PLUGIN_ROOT}/agents/reviewer.md`).*
 
 ## Execution Route
 
-Proceed immediately to **Phase 1 — Scope** below using the input and preconditions above. Do not make intermediate calls to read persona or pipeline files before starting.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Scope** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
 
-## Flow & Pipeline Phases
+## Flow & Phases
 
-*(Standalone pipeline specification preserved at `${CLAUDE_PLUGIN_ROOT}/pipelines/reviewer-review.md`).*
-
-```mermaid
-flowchart TD
-    Start["Start"] --> Scope["Scope\nStage, reviewer, context"]
-    Scope --> Review["Review\nAdversarial reading"]
-    Review --> Report["Report\nWrite review report"]
-    Report --> Verdict["Verdict\nHuman decides"]
-    Verdict --> Decision{{"Reviewer's verdict?"}}
-    Decision -->|"Approve, request changes or comment"| Delivery["Delivery\nRecorded, next command"]
-    Decision -->|"Revise findings"| Report
-    Delivery --> Done["Done"]
-```
+Phases run Scope → Review → Report → Verdict → Delivery. At Verdict, a reviewer who asks to revise the findings sends the run back to Report; approve, request changes or comment goes to Delivery.
 
 ### Phase 1 — Scope
 
@@ -61,7 +50,7 @@ flowchart TD
 The stage under review, the reviewer's identity and the bounded context, all fixed before reading.
 
 **Actions**
-- Run `medra status <change> --json` (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md` as needed)
+- Run `medra status <change> --json`
 - Choose the stage: the most advanced of `proposal`, `plan` and `tasks` whose document exists. When the user names a stage, use that one. Confirm the stage and the reviewer's name with the user (default: `git config user.name`)
 - Run `medra context <change> --stage review --md`. For each MODIFIED or REMOVED requirement with a `last_changed_by` pointer, read only that archived change's `## Decisions` (or its `## Why`)
 
@@ -100,7 +89,7 @@ A set of evidence-backed findings for the stage, each with a severity and a conc
 A review report written at its placement path, with a recommended verdict that follows from the findings.
 
 **Actions**
-- Copy the template from `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md` to `reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md` inside the change folder, and fill the Summary, Findings and Coverage
+- Read `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md` and copy its template to `reviews/<YYYY-MM-DD>-<stage>-<reviewer>.md` inside the change folder, and fill the Summary, Findings and Coverage
 - Set the recommended Verdict: `request-changes` when there is any critical finding, `approve` when there is no critical or major finding, otherwise your judgment, stated in the Summary
 - Read the file back and run the `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md` Quality Checklist
 
@@ -119,7 +108,7 @@ A review report written at its placement path, with a recommended verdict that f
 The human reviewer's verdict written into the report and recorded by `medra review`.
 
 **Actions**
-- Present the report's path, the counts, the top findings and your recommended verdict with the Gate Protocol's render
+- Present the report's path, the counts, the top findings and your recommended verdict with the render of `${CLAUDE_PLUGIN_ROOT}/references/gate.md` (read it now)
 - Ask the reviewer to choose `approve`, `request-changes` or `comment` with `AskUserQuestion`, or with numbered options where it is unavailable. Offer "revise findings" as a fourth option
 - Write the chosen verdict into the report's `**Verdict:**` line, then run `medra review <change> --report <path> --by "<reviewer>"`
 

@@ -23,16 +23,7 @@ Phase headers for this pipeline:
 
 ## Flow
 
-```mermaid
-flowchart LR
-    Start["Start"] --> Intake["Intake\nValidate dispatch, context"]
-    Intake --> Valid{{"Dispatch valid?"}}
-    Valid -->|"Yes"| Inspection["Inspection\nCode, tests, evidence"]
-    Valid -->|"No"| Response["Response\nYAML payload"]
-    Inspection --> Report["Report\nVerification report"]
-    Report --> Response
-    Response --> Done["Done"]
-```
+Phases run Intake → Inspection → Report → Response. An invalid dispatch goes from Intake straight to Response.
 
 ## Phases
 
@@ -42,7 +33,7 @@ flowchart LR
 A validated dispatch, plus the bounded context for the check.
 
 **Actions**
-- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md`, then validate the dispatch against the handoff's receiver rules
+- In one turn, read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md` in parallel tool calls, together with the `medra context` call below; then validate the dispatch against the handoff's receiver rules
 - Run `medra context <change> --stage verify --md` for the requirements, constitution, test strategy and coverage
 - Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, without reading the full diff yet. On later rounds, read the findings for the IDs in `fixed_findings` from `previous_report`
 

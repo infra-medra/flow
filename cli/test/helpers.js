@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -119,3 +120,25 @@ export function tasks(root, change, lines) {
 export const securityReport = (verdict = 'pass', counts = 'critical 0 · high 0 · medium 0 · low 0 · info 0') => `# Security Report: x — round 1\n\n**Stage:** security\n**Verdict:** ${verdict}\n**Counts:** ${counts}\n**Reviewer:** security agent\n**Date:** 2026-11-04\n\n## Summary\n\nOk.\n`;
 
 export const verifyReport = (verdict = 'pass') => `# Review: x — verify\n\n**Stage:** verify\n**Verdict:** ${verdict}\n**Counts:** critical 0 · major 0 · minor 0\n**Reviewer:** reviewer agent\n**Date:** 2026-10-30\n\n## Summary\n\nOk.\n\n## Findings\n\nNone.\n\n## Coverage\n\n| Requirement | Evidence | Status |\n|---|---|---|\n`;
+
+export const rules = (r) => (r.json?.findings ?? []).filter((f) => f.severity === 'error').map((f) => f.rule);
+
+/** A fast-track change modifying AUTH-001 (keeps S1, drops S2, adds S3), adding AUTH-003, removing AUTH-002. */
+export function brownfieldChange(root, change = 'rework-auth-flow') {
+  livingSpec(root, 'auth', 'AUTH', [
+    req('AUTH-001', 'Login', [['AUTH-001.S1', 'Ok'], ['AUTH-001.S2', 'Locked']]),
+    req('AUTH-002', 'Remember me', [['AUTH-002.S1', 'Cookie']]),
+  ], 'AUTH-004');
+  assert.equal(medra(root, 'new', change).code, 0);
+  proposal(root, change, { caps: [['auth', 'modified', 'AUTH-001, AUTH-002, AUTH-003']] });
+  write(root, `docs/changes/${change}/specs/auth/spec.md`, delta('auth', [
+    '## ADDED Requirements', '', req('AUTH-005', 'Reset', [['AUTH-005.S1', 'Link']]),
+    '## MODIFIED Requirements', '', req('AUTH-001', 'Login v2', [['AUTH-001.S1', 'Ok'], ['AUTH-001.S3', 'MFA']]),
+    '## REMOVED Requirements', '', '### REQ AUTH-002: Remember me', '', '**Reason:** Unsafe.', '**Migration:** None', '',
+  ].join('\n')));
+  tasks(root, change, [
+    '- [ ] T001 [TEST] [AUTH-001, AUTH-005] Write tests for AUTH-001.S1, AUTH-001.S3, AUTH-005.S1 in `test/a.test.js` — verify: red',
+    '- [ ] T002 [AUTH-001, AUTH-005] after T001 Implement in `src/a.js` — verify: green',
+  ]);
+  return change;
+}

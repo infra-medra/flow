@@ -2,6 +2,8 @@
 description: Closes a verified medra change — merges its deltas into living specs, archives it, harvests and compacts lessons, and proposes constitution amendments for recurring ones. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
+model: opus
+effort: high
 ---
 
 # Command — archive
@@ -33,36 +35,17 @@ You operate as **Author**, closing a verified change and distilling its lessons.
   - Write learnings only through `medra learn`, and only from evidence on disk.
   - Change CLI-owned state only through the `medra` CLI.
   - On CLI exit `2` or `4`, stop and report the command, the exit code and stderr.
-*(Standalone persona specification preserved at `${CLAUDE_PLUGIN_ROOT}/agents/author.md`).*
 
 ## Execution Route
 
-Proceed immediately to **Phase 1 — Merge** below using the input and preconditions above. Do not make intermediate calls to read persona or pipeline files before starting.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json` as a single shell call. Run Phase 1's `medra archive <change> --dry-run --json` only after the preconditions hold. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Merge** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
 
-## Flow & Pipeline Phases
+## Flow & Phases
 
-*(Standalone pipeline specification preserved at `${CLAUDE_PLUGIN_ROOT}/pipelines/author-archive.md`).*
-
-```mermaid
-flowchart TD
-    Start["Start"] --> Merge["Merge\nDry run, conflicts, archive"]
-    Merge --> Conflict{{"Conflicts?"}}
-    Conflict -->|"None"| Harvest["Harvest\nLessons and preferences"]
-    Conflict -->|"Fixed, re-gate"| GateV{{"Verify re-approved?"}}
-    GateV -->|"Approved"| Merge
-    GateV -->|"Rejected"| Stop1["Stop\nChange not archived"]
-    Harvest --> Budget{{"Over budget or stale?"}}
-    Budget -->|"Yes"| Compact["Compact\nMerge, retire, bump"]
-    Budget -->|"No"| Candidates{{"Promotion candidates?"}}
-    Compact --> Candidates
-    Candidates -->|"Yes"| Promote["Promote\nDraft amendment"]
-    Candidates -->|"No"| Delivery["Delivery\nCounts, next command"]
-    Promote --> GateA{{"Amendment approved?"}}
-    GateA -->|"Approved"| Delivery
-    GateA -->|"Changes"| Promote
-    GateA -->|"Declined"| Delivery
-    Delivery --> Done["Done"]
-```
+Phases run Merge → Harvest → Compact → Promote → Delivery, with these routes:
+- Merge with conflicts: fix them and re-gate verify. Approved returns to Merge; rejected stops with the change not archived.
+- Compact runs only when the learnings store is over budget or holds stale entries.
+- Promote runs only when there are promotion candidates. At its amendment gate, approved or declined goes to Delivery, and changes returns to Promote.
 
 ### Phase 1 — Merge
 
@@ -70,8 +53,8 @@ flowchart TD
 The change's deltas merged into `docs/specs/`, with the change folder moved into the archive by `medra archive`.
 
 **Actions**
-- Run `medra archive <change> --dry-run --json` (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` as needed)
-- On exit `3`, resolve each conflict according to Knowledge → Conflict Resolution. Any edit to a stage document makes the verify gate stale, so present the fix with the Gate Protocol for gate `verify` and record the decision with `medra gate`
+- Run `medra archive <change> --dry-run --json`
+- On exit `3`, resolve each conflict according to Knowledge → Conflict Resolution. Any edit to a stage document makes the verify gate stale, so present the fix with the protocol of `${CLAUDE_PLUGIN_ROOT}/references/gate.md` for gate `verify` and record the decision with `medra gate`
 - Once the dry run exits `0`, run `medra archive <change> --json` and note the archived path, the sequence number and the spec counts
 
 **Avoid**
@@ -132,7 +115,7 @@ A user decision on each promotion candidate: approved and ratified as a constitu
 **Actions**
 - Run `medra learn candidates --json`. For each candidate, judge whether it can be written as a gateable article (MUST principle, yes/no Gate). Leave the ones that cannot as active learnings
 - Read `${CLAUDE_PLUGIN_ROOT}/templates/constitution/guide.md` and draft each gateable candidate as a new article, or as an edit to an existing one
-- Gate each amendment with the Gate Protocol's render and options. On approval, run `medra constitution ratify --bump minor --note "<summary>" --source <L-NNN>`, then `medra learn promote <L-NNN> --article <Roman>`
+- Gate each amendment with the render and options of `${CLAUDE_PLUGIN_ROOT}/references/gate.md` (read it now). On approval, run `medra constitution ratify --bump minor --note "<summary>" --source <L-NNN>`, then `medra learn promote <L-NNN> --article <Roman>`
 
 **Avoid**
 - Don't amend the constitution without an explicit approval — because every future plan is gated against it; an unapproved article silently changes the rules for the whole team

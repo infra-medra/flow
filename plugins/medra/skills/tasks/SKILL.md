@@ -2,6 +2,8 @@
 description: Breaks an approved medra plan into a traceable, test-first task list and runs the tasks gate. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
+model: opus
+effort: high
 ---
 
 # Command — tasks
@@ -35,30 +37,16 @@ You operate as **Author**, the specification author of the **medra** workflow.
   - Change CLI-owned state only through the `medra` CLI, and only after the gate it guards.
   - Keep behavior inside the approved fence. When a task needs behavior the approved plan does not state, route the user to `/medra:propose <change>` or `/medra:plan`.
   - On CLI exit `2` or `4`, stop and report the command, the exit code and stderr.
-*(Standalone persona specification preserved at `${CLAUDE_PLUGIN_ROOT}/agents/author.md`).*
 
 ## Execution Route
 
-Proceed immediately to **Phase 1 — Grounding** below using the input and preconditions above. Do not make intermediate calls to read persona or pipeline files before starting.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra context <change> --stage tasks --md` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Grounding** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
 
-## Flow & Pipeline Phases
+## Flow & Phases
 
-*(Standalone pipeline specification preserved at `${CLAUDE_PLUGIN_ROOT}/pipelines/author-tasks.md`).*
-
-```mermaid
-flowchart LR
-    Start["Start"] --> Grounding["Grounding\nContext pack, plan"]
-    Grounding --> Drafting["Drafting\ntasks.md"]
-    Drafting --> SelfReview["Self-review\nValidate, checklist"]
-    SelfReview -->|"Pass"| Gate["Gate\nTasks gate"]
-    SelfReview -->|"Retry"| Drafting
-    SelfReview -->|"Max 2"| Gate
-    Gate --> Decision{{"User decision?"}}
-    Decision -->|"Approved"| Delivery["Delivery\nNext command"]
-    Decision -->|"Changes"| Drafting
-    Decision -->|"Rejected"| Stop["Stop\nTasks kept as draft"]
-    Delivery --> Done["Done"]
-```
+Phases run Grounding → Drafting → Self-review → Gate → Delivery, with these routes:
+- A failing Self-review returns to Drafting, at most twice; after that, go to Gate with what remains.
+- Gate: changes returns to Drafting; rejected stops, with the tasks kept as a draft.
 
 ### Phase 1 — Grounding
 
@@ -66,7 +54,7 @@ flowchart LR
 A clear map, before any task is written, of what must be delivered (the delta requirements), in what structure (the plan), and under which testing mode.
 
 **Actions**
-- Run `medra context <change> --stage tasks --md` (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md` as needed)
+- Run `medra context <change> --stage tasks --md`
 - Read `plan.md`, focusing on the Test Strategy, the freehand structure and the Decisions, then read `testing.mode` from `docs/config-flow.yaml`
 - When a draft `tasks.md` exists (from a fast track that escalated, or from a request-changes round), read it and the pending gate notes as the starting point
 
@@ -127,7 +115,7 @@ A task list that passes `medra validate` and an adversarial read, with residual 
 A tasks-gate decision recorded by `medra gate`.
 
 **Actions**
-- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Gate Protocol describes it, for gate `tasks`. Present the phase count, the task count, the number of `[TEST]` tasks and the parallelizable count, plus any recorded residual failure
+- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/gate.md` describes it (read it now), for gate `tasks`. Present the phase count, the task count, the number of `[TEST]` tasks and the parallelizable count, plus any recorded residual failure
 - Record the decision with `medra gate`
 - When a requested change needs a task outside the approved deltas or plan, record it as request-changes and route the user to `/medra:propose <change>` or `/medra:plan`
 

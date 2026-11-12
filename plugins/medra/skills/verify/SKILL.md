@@ -2,6 +2,8 @@
 description: Verifies a finished medra change against its specs through an independent reviewer check and, on a security-relevant change, a parallel security audit, fixes findings, and runs the verify gate. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
+model: sonnet
+effort: high
 ---
 
 # Command — verify
@@ -33,36 +35,18 @@ You operate as **Implementer**, coordinating verification of the finished change
   - Implement fixes only to address reported findings; do not change behavior beyond what findings request.
   - Keep tests honest: never weaken, skip or delete a test to reach green.
   - On CLI exit `2` or `4`, stop and report the command, the exit code and stderr.
-*(Standalone persona specification preserved at `${CLAUDE_PLUGIN_ROOT}/agents/implementer.md`).*
 
 ## Execution Route
 
-Proceed immediately to **Phase 1 — Readiness** below using the input and preconditions above. Do not make intermediate calls to read persona or pipeline files before starting.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra validate <change> --stage tasks --json ; medra coverage <change> --json` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Readiness** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
 
-## Flow & Pipeline Phases
+## Flow & Phases
 
-*(Standalone pipeline specification preserved at `${CLAUDE_PLUGIN_ROOT}/pipelines/implementer-verify.md`).*
-
-```mermaid
-flowchart TD
-    Start["Start"] --> Readiness["Readiness\nTasks, validate, coverage"]
-    Readiness --> Ready{{"Ready?"}}
-    Ready -->|"Yes"| Check["Check\nDispatch reviewer ∥ security"]
-    Ready -->|"Uncovered or tasks open"| Stop1["Stop\nResume apply"]
-    Check --> Verdict{{"Verdict?"}}
-    Verdict -->|"Every verdict pass"| Gate["Gate\nVerify gate"]
-    Verdict -->|"Findings or fail"| Fix["Fix\nResolve findings"]
-    Verdict -->|"Needs decision"| Ask{{"User decides"}}
-    Ask -->|"Answered"| Check
-    Ask -->|"Behavior change"| Stop3["Stop\nRevise via propose"]
-    Fix --> Check
-    Fix -->|"Max 2 rounds"| Gate
-    Gate --> Decision{{"User decision?"}}
-    Decision -->|"Approved"| Delivery["Delivery\nNext command"]
-    Decision -->|"Changes: new round"| Fix
-    Decision -->|"Rejected"| Stop2["Stop\nChange stays implementing"]
-    Delivery --> Done["Done"]
-```
+Phases run Readiness → Check → Fix → Gate → Delivery, with these routes:
+- Readiness with uncovered scenarios or open tasks stops the run: the user resumes `/medra:apply`.
+- Check with every verdict `pass` skips Fix and goes to Gate. Findings or a `fail` go to Fix and then back to Check, for at most two Fix rounds; after that, go to Gate with what remains.
+- Check with `needs-decision` asks the user. An answer returns to Check; an answer that changes behavior stops the run, and the user revises through `/medra:propose`.
+- Gate: changes opens one new Fix round; rejected stops, with the change left in `implementing`.
 
 ### Phase 1 — Readiness
 
@@ -70,7 +54,7 @@ flowchart TD
 Confirmation that the change satisfies the handoff's dispatch preconditions and that every changed scenario has a covering test.
 
 **Actions**
-- Run `medra status <change> --json` and confirm that every task is done (reference `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md` as needed; when it reports `security: relevant`, also reference `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md`)
+- Run `medra status <change> --json` and confirm that every task is done
 - Run `medra validate <change> --stage tasks --json` and `medra coverage <change> --json`
 - When the mode is `tdd` or `test-after` and coverage lists uncovered scenarios, stop and tell the user to resume `/medra:apply` with a test task for each one
 
@@ -89,9 +73,9 @@ Confirmation that the change satisfies the handoff's dispatch preconditions and 
 This round's verification report and, on a security-relevant change, its security report, each at its dispatched `report_path` with a validated response payload.
 
 **Actions**
-- Compose the reviewer's payload exactly as its handoff's Dispatch section defines it, using `round: 1` on the first pass. On later rounds, set `round` to one more than the highest `-verify-agent-r<N>` report in `reviews/`, and add `previous_report` (that report) and `fixed_findings`
-- When the change is security-relevant, compose the security payload as `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md` defines it, with the same `round`, its own `-security-agent-r<round>.md` path, and on later rounds `previous_report` (its latest security report) and the `S-NN` IDs in `fixed_findings`. Skip it in a later round when its latest report's verdict is `pass`; that report stays current
-- Dispatch both in one message so they run in parallel: on Claude Code, two Agent calls (`subagent_type: medra:reviewer` and `medra:security`); on Antigravity, `invoke_subagent` for each. On a runtime without subagents, run the reviewer's check and then the audit inline, following `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Runtime Portability
+- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md` on the first round, then compose the reviewer's payload exactly as its Dispatch section defines it, using `round: 1` on the first pass. On later rounds, set `round` to one more than the highest `-verify-agent-r<N>` report in `reviews/`, and add `previous_report` (that report) and `fixed_findings`
+- When the change is security-relevant, read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md` and compose the security payload as it defines it, with the same `round`, its own `-security-agent-r<round>.md` path, and on later rounds `previous_report` (its latest security report) and the `S-NN` IDs in `fixed_findings`. Skip it in a later round when its latest report's verdict is `pass`; that report stays current
+- Dispatch both in one message so they run in parallel: on Claude Code, two Agent calls (`subagent_type: medra:reviewer` and `medra:security`); on Antigravity, `invoke_subagent` for each. On a runtime without subagents, run the reviewer's check and then the audit inline, following `${CLAUDE_PLUGIN_ROOT}/references/portability.md`
 - Validate each response against its handoff's Validation rules. When one fails, follow that handoff's Error Handling
 - When a response is `needs-decision`, put its question to the user with `AskUserQuestion`, then re-dispatch that receiver with the answer recorded in the change's documents (through `/medra:propose <change>` when the answer changes behavior)
 
@@ -136,12 +120,14 @@ A verify-gate decision recorded by `medra gate`.
 
 **Actions**
 - Run `medra validate <change> --stage verify --json`. When `verify.report` or `verify.security-report` fails because code changed after the last check, return to Check
-- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` → Gate Protocol describes it, for gate `verify`. Present the current verification report with its verdict and counts, the number of check rounds, the coverage ratio, and any finding left unresolved together with its reason
+- Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/gate.md` describes it (read it now), for gate `verify`. Present the current verification report with its verdict and counts, the number of check rounds, the coverage ratio, and any finding left unresolved together with its reason
 - On a security-relevant change, present the current security report as well: its verdict, open counts by severity, origin mix and unreachable sources, and put each open critical or high security finding up as its own decision to accept as residual risk or to fix
 - Record the decision with `medra gate`. On approval with open security findings, pass `--note` listing each accepted one as `accepted-risk: S-NN — <the user's reason>`
 
 **Avoid**
 - Don't accept a critical or high security finding on your own — because accepting security risk belongs to the user; put each one up as an explicit decision
+- Don't present a `fail` verdict as approvable without stating each unresolved critical finding — because approving verify lets archive merge the deltas into living specs as if they were true
+- Don't fold open security findings into a single "approve" — because an accepted risk needs a named finding and a reason on the record; the CLI does not block on them, so this gate is the only control
 - Don't record approval when a report has verdict fail or a count discrepancy — because the gate record asserts a verified change; a forced pass corrupts the living specs that archive will merge
 
 **Exit when:**
