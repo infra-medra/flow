@@ -2,6 +2,25 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.7.5] — 2026-11-12
+
+### Added
+- **Smart Slicing via `medra task context <change> [task]`:**
+  - Implemented `medra task context <change> [task] [--json|--md]` command for high-efficiency, bounded task context retrieval during implementation.
+  - Automatically extracts a 3-layer smart slice:
+    1. **Architecture Anchor:** Summary and Test Strategy from `plan.md` (or `proposal.md`'s `why` on the fast track).
+    2. **Dependencies & Prior Contracts:** Lists tasks in `after`, their completion status, and recorded evidence (e.g., passing tests or red baseline).
+    3. **Scoped Requirements & Learnings:** Inlines the exact requirement delta blocks and living spec blocks cited by the task, along with path- and capability-matched learnings.
+  - Defaults to the next executable task (`nextTask`) when `[task]` is omitted, or slices context for any explicit task ID (e.g. `T002`).
+  - Added clean human Markdown output (`--md` or non-JSON mode) and JSON envelope support.
+  - Updated `/medra:apply` skill to leverage `medra task context` for token-efficient implementation turns.
+- **Deterministic Auto-Remediation (`medra fix [change]`):**
+  - Added `medra fix [change] [--file <path>]` command (`cli/src/fix.js`) to auto-remediate mechanical validation errors in change documents without spending LLM generation tokens:
+    - `plan.md`: Re-aligns anchors (`Summary`, `Constitution Check`, `Complexity Tracking`, `Test Strategy`, `Decisions`) in canonical sequence; injects missing live article rows into `Constitution Check`.
+    - `proposal.md`: Syncs `## Capabilities` table against actual spec deltas on disk; aligns `**Track:**` with `.medra.yaml`; defaults `**Security:** not-relevant` when absent.
+- **Test Output Noise Trimming & Sanitization (`sanitizeTestOutput`):**
+  - Added `sanitizeTestOutput` in `cli/src/commands.js` to strip ANSI escape codes, filter out package manager / runtime boilerplate (`npm error`, `node:internal`), highlight actionable assertion failure blocks, and tightly bound output length (max 8 lines, 250 chars/line) on task failures (`task.red`, `task.green`, `task.check`).
+
 ## [1.7.4] — 2026-11-12
 
 ### Added

@@ -258,6 +258,78 @@ test('context apply: next task with only its requirements; blockers skip tasks; 
   assert.equal(done1.next_task.requirements.length, 2);
 });
 
+test('task context: smart-sliced task pack with anchor, dependencies, evidence, and requirements', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  write(root, `docs/changes/${change}/plan.md`, [
+    `# Plan: ${change}`, '',
+    '## Summary', '', 'Use secure crypto token generation.', '',
+    '## Constitution Check', '', '| Article | Gate | Result | Note |', '|---|---|---|---|', '| I | gate | pass | tests first |', '',
+    '## Complexity Tracking', '', 'None.', '',
+    '## Test Strategy', '', '- **Command:** `npm test`', '',
+    '## Decisions', '', '### D-01: Token', '', '**Choice:** crypto\n**Alternatives:** Math.random\n**Rationale:** Secure', '',
+  ].join('\n'));
+
+  // 1. Next task context (defaults to T001)
+  const ctx1 = medra(root, 'task', 'context', change).json;
+  assert.equal(ctx1.task.id, 'T001');
+  assert.equal(ctx1.task.done, false);
+  assert.equal(ctx1.anchor.summary, 'Use secure crypto token generation.');
+  assert.equal(ctx1.anchor.test_strategy, '- **Command:** `npm test`');
+  assert.deepEqual(ctx1.dependencies, []);
+  assert.equal(ctx1.requirements.length, 2);
+  assert.equal(ctx1.remaining, 2);
+
+  // 2. Specific task context for T002 (has T001 as dependency)
+  const ctx2 = medra(root, 'task', 'context', change, 'T002').json;
+  assert.equal(ctx2.task.id, 'T002');
+  assert.equal(ctx2.dependencies.length, 1);
+  assert.equal(ctx2.dependencies[0].id, 'T001');
+  assert.equal(ctx2.dependencies[0].done, false);
+  assert.deepEqual(ctx2.dependencies[0].evidence, []);
+
+  // 3. Mark T001 done with red evidence
+  medra(root, 'gate', change, 'proposal', '--approve');
+  medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
+
+  // 4. Next task context now points to T002 and shows T001's evidence
+  const ctx3 = medra(root, 'task', 'context', change).json;
+  assert.equal(ctx3.task.id, 'T002');
+  assert.equal(ctx3.dependencies.length, 1);
+  assert.equal(ctx3.dependencies[0].id, 'T001');
+  assert.equal(ctx3.dependencies[0].done, true);
+  assert.match(ctx3.dependencies[0].evidence[0], /evidence red .*exit 1/);
+  assert.equal(ctx3.remaining, 1);
+
+  // 5. Markdown formatting
+  const mdOut = medraHuman(root, 'task', 'context', change, '--md');
+  assert.match(mdOut.stdout, /# Task Context: rework-auth-flow · T002/);
+  assert.match(mdOut.stdout, /## Architecture Anchor/);
+  assert.match(mdOut.stdout, /Use secure crypto token generation/);
+  assert.match(mdOut.stdout, /## Dependencies \(1\)/);
+  assert.match(mdOut.stdout, /- \[x\] \*\*T001\*\*/);
+  assert.match(mdOut.stdout, /↳ - evidence red/);
+  assert.match(mdOut.stdout, /## Requirements \(2\)/);
+
+  // 6. Unknown task gives descriptive error with remediation
+  const bad = medra(root, 'task', 'context', change, 'T999');
+  assert.equal(bad.code, 1);
+  assert.equal(bad.json.findings[0].rule, 'task.unknown');
+  assert.match(bad.json.findings[0].remediation, /Pick an existing task ID/);
+  const badHuman = medraHuman(root, 'task', 'context', change, 'T999');
+  assert.match(badHuman.stderr, /↳ fix: Pick an existing task ID/);
+
+  // 7. Complete remaining task and check all_done
+  write(root, 'src/a.js', 'export const a = 1;\n');
+  medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  const ctxDone = medra(root, 'task', 'context', change).json;
+  assert.equal(ctxDone.task, null);
+  assert.equal(ctxDone.all_done, true);
+  assert.equal(ctxDone.remaining, 0);
+  const mdDone = medraHuman(root, 'task', 'context', change, '--md');
+  assert.match(mdDone.stdout, /No executable tasks remaining/);
+});
+
 test('capability Paths, spec drift detection, parallel [P] batching, and --md output on index and context', () => {
   const root = project();
   write(root, 'docs/specs/auth/spec.md', `# Auth\n\n**Capability:** \`auth\`\n**ID prefix:** \`AUTH\`\n**Paths:** \`src/auth/**\`, \`test/auth/**\`\n\n## Purpose\n\nHandles login.\n\n## Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Ok']])}\n${req('AUTH-002', 'Logout', [['AUTH-002.S1', 'Cleared']])}\n`);
@@ -580,4 +652,97 @@ test('validation findings include prescriptive remediation in json and human out
   assert.equal(rHuman.code, 1);
   assert.match(rHuman.stderr, /↳ fix: /);
   assert.match(rHuman.stderr, /SHALL/);
+});
+
+test('sanitizeTestOutput: strips ANSI, filters npm noise, highlights failure and bounds token output', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+
+  // Command that prints ANSI color codes, npm error noise, and an assertion error
+  const noiseScript = [
+    'console.log("npm notice created a lockfile");',
+    'console.log("npm error code 1");',
+    'console.log("npm error A complete log of this run can be found in: /tmp/log");',
+    'console.log("\\u001b[31mFAIL\\u001b[0m test/auth.test.js");',
+    'console.log("AssertionError: expected false to be true");',
+    'console.log("  at /src/test.js:10:5");',
+    'console.log("npm error command failed");',
+    'process.exit(1);',
+  ].join('\n');
+  write(root, 'fail.js', noiseScript);
+
+  medra(root, 'gate', change, 'proposal', '--approve');
+  medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
+  const res = medra(root, 'task', 'done', change, 'T002', '--run', 'node fail.js');
+  assert.equal(res.code, 1);
+  assert.equal(res.json.findings[0].rule, 'task.green');
+
+  // The failure message should contain the clean failure and NO ANSI or npm boilerplate noise
+  const msg = res.json.message;
+  assert.match(msg, /FAIL test\/auth\.test\.js/);
+  assert.match(msg, /AssertionError: expected false to be true/);
+  assert.doesNotMatch(msg, /\u001b\[31m/);
+  assert.doesNotMatch(msg, /npm error A complete log/);
+  assert.doesNotMatch(msg, /npm notice/);
+});
+
+test('medra fix: deterministically auto-remediates proposal.md and plan.md validation issues', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  medra(root, 'track', change, 'full', '--reason', 'needs design');
+
+  // Create an incomplete plan.md: missing Summary, Complexity Tracking, and Constitution Check row
+  write(root, `docs/changes/${change}/plan.md`, [
+    `# Plan: wrong-title`, '',
+    '## Constitution Check', '',
+    '| Article | Gate | Result | Note |',
+    '|---|---|---|---|',
+    '## Test Strategy', '',
+    '- **Command:** `npm test`', '',
+    '## Decisions', '',
+    'None.', '',
+  ].join('\n'));
+
+  // Corrupt proposal.md capabilities table and track
+  write(root, `docs/changes/${change}/proposal.md`, [
+    `# Proposal: ${change}`, '',
+    '## Why', '', 'Users need this.', '',
+    '## What Changes', '', '- Changes.', '',
+    '## Scope', '', '### In scope\n- Work\n### Out of scope\n- Later', '',
+    '## Track', '', '**Track:** fast', '**Rationale:** Checked.', '',
+    '## Capabilities', '',
+    '| Capability | Operation | Requirements |',
+    '|---|---|---|',
+    '| `auth` | new | AUTH-999 |', '', // wrong operation and IDs
+    '## Impact', '', '- **Code:** src\n- **Interfaces:** None.\n- **Data:** None.\n- **Dependencies:** None.', '',
+    '## Open Questions', '', 'None.', '',
+  ].join('\n'));
+
+  // Pre-fix validation should fail
+  assert.notEqual(medra(root, 'validate', change, '--stage', 'plan').code, 0);
+
+  // Run medra fix
+  const fixRes = medra(root, 'fix', change).json;
+  assert.equal(fixRes.ok, true);
+  assert.ok(fixRes.fixed.length >= 3, 'should fix title, anchors, and capabilities');
+
+  // Human output test
+  const fixHuman = medraHuman(root, 'fix', change);
+  assert.equal(fixHuman.code, 0);
+  assert.match(fixHuman.stdout, /medra: fixed|no mechanical issues/);
+
+  // Post-fix plan.md should have canonical anchors in order and Constitution Check row
+  const planText = read(root, `docs/changes/${change}/plan.md`);
+  assert.match(planText, /^# Plan: rework-auth-flow/m);
+  assert.match(planText, /## Summary/);
+  assert.match(planText, /## Complexity Tracking/);
+  assert.match(planText, /\| I \| .* \| pass \| Conforms to Article I \|/);
+
+  // Post-fix proposal.md should have synced capabilities table and track 'full'
+  const propText = read(root, `docs/changes/${change}/proposal.md`);
+  assert.match(propText, /\*\*Track:\*\* full/);
+  assert.match(propText, /\| `auth` \| modified \| AUTH-005, AUTH-001, AUTH-002 \|/);
+
+  // Validate plan now passes completely
+  assert.equal(medra(root, 'validate', change, '--stage', 'plan').code, 0);
 });

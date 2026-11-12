@@ -116,6 +116,7 @@ export const PLAN_ANCHORS = ['Summary', 'Constitution Check', 'Complexity Tracki
 export function parsePlan(text) {
   const lines = toLines(text);
   const hs = headings(lines);
+  const summary = section(lines, 'Summary', 2);
   const check = section(lines, 'Constitution Check', 2);
   const complexity = section(lines, 'Complexity Tracking', 2);
   const test = section(lines, 'Test Strategy', 2);
@@ -124,6 +125,7 @@ export function parsePlan(text) {
     lines,
     title: (hs.find((h) => h.level === 1) || {}).text,
     h2: hs.filter((h) => h.level === 2).map((h) => h.text),
+    summary: summary ? trimBlank(summary.body).join('\n') : null,
     check: check ? tableRows(check.body).map(([article, gate, result, note]) => ({ article, gate, result, note })) : null,
     complexity: complexity ? { none: trimBlank(complexity.body).join('').trim() === 'None.', rows: tableRows(complexity.body) } : null,
     testStrategy: test ? trimBlank(test.body).join('\n') : null,

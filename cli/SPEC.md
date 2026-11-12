@@ -417,6 +417,13 @@ medra new <change> [--track fast|full]
 
 Runs the rules in §6. Exit `0` with `{"findings": [warnings]}`, or exit `1`.
 
+### 8.4a `medra fix [change] [--file <path>]`
+
+Deterministically auto-remediates mechanical validation errors in change documents without requiring LLM generation turns:
+- **`plan.md`:** Ensures required anchors (`Summary`, `Constitution Check`, `Complexity Tracking`, `Test Strategy`, `Decisions`) exist in canonical sequence; injects missing rows for live articles into the `Constitution Check` table.
+- **`proposal.md`:** Reconciles the `## Capabilities` table against actual spec deltas on disk; aligns `**Track:**` with `.medra.yaml`; defaults `**Security:** not-relevant` when absent.
+- Returns `{"change", "fixed": ["<doc>: <action>", …]}`. Exit `0` always.
+
 ### 8.5 `medra index [--learnings <capability,…>] [--md]`
 
 - Returns a bounded project overview for agents that do not yet have a change: `{"constitution": [{article, title}], "capabilities": [{name, prefix, paths?, purpose, next_id, requirements: [{id, title}]}], "active_changes": [{name, phase, capabilities}], "learnings": {"active": n}}`. `next_id` is the first requirement ID above every living and retired ID in that capability.
@@ -503,10 +510,19 @@ medra learn candidates
 ### 8.12 `medra task …`
 
 ```
+medra task context <change> [task] [--json|--md]
 medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit]
 medra task block <change> <T-NNN> --note "<text>"
 medra task unblock <change> <T-NNN>
 ```
+
+`context` returns a smart-sliced, bounded context pack for the target task (or the next runnable task when `[task]` is omitted):
+- `task`: `{id, line, phase, description, verify, test, parallel, done, after, reqs, evidence}`
+- `anchor`: `{summary, test_strategy}` from `plan.md` (or `proposal.md`'s `why` on the fast track)
+- `dependencies`: array of tasks in `after`, their done status, and their recorded evidence lines
+- `requirements`: array of requirement delta blocks and living spec blocks cited by the task
+- `learnings`: scoped learnings matching the touched capability or file paths
+- `remaining`: count of unticked tasks remaining
 
 `done` checks the following, and on any failure exits `1` and writes nothing:
 
@@ -522,7 +538,7 @@ medra task unblock <change> <T-NNN>
 
    When `--kind` is omitted, the CLI uses the first allowed kind.
 4. **Test-tampering guard (`tdd` mode):** when a `[TEST]` task completes with `red`, the CLI records the SHA-256 of its test files in `.medra.yaml` (`test_hashes`). When a subsequent implementation task completes with `green`, the CLI verifies that none of those locked test files were modified or deleted (`task.test-tampered`), unless `--allow-test-edit` is explicitly passed (which stamps `[test-edited]` on the evidence line for the reviewer).
-5. **With `--run`:** the CLI runs the command (in the project root, with a 10-minute timeout) and records its exit code and the last 3 non-empty output lines. `red` requires a non-zero exit, and `green` requires exit `0`. On a `green` non-`[TEST]` task, the CLI also runs each command in `testing.checks` (if configured), failing with `task.check` on a non-zero exit. A mismatch exits `1` with the captured output. Exit `4` when the command is not found.
+5. **With `--run`:** the CLI runs the command (in the project root, with a 10-minute timeout) and records its exit code and sanitized output tail (stripping ANSI escapes and framework noise while highlighting assertion lines to prevent context bloat). `red` requires a non-zero exit, and `green` requires exit `0`. On a `green` non-`[TEST]` task, the CLI also runs each command in `testing.checks` (if configured), failing with `task.check` on a non-zero exit. A mismatch exits `1` with the sanitized failure output. Exit `4` when the command is not found.
 6. **With `--evidence`:** the CLI records the text as given. Skills use `--run` whenever a test command exists.
 
 On success the CLI ticks the task, appends the evidence line, sets the phase to `implementing` on the first done task, and returns `{"task", "kind", "remaining", "next", "next_task"}` (where `next_task` has the same shape as in `context --stage apply`, so agents do not need to re-invoke `context` after each task).
