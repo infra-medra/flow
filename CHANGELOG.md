@@ -2,6 +2,11 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.7.3] — 2026-11-11
+
+### Changed
+- **Package documentation:** Updated the `## Changelog` summary in `README.md` to document versions 1.7.0, 1.7.1, and 1.7.2 in the published package.
+
 ## [1.7.2] — 2026-11-11
 
 ### Changed
