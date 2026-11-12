@@ -191,6 +191,7 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
+- **1.7.6 (2026-11-12):** Hardened plugin installation and cleanup against path traversal attacks (`safeJoin` guard in `cli/src/install.js`) when processing existing manifests.
 - **1.7.5 (2026-11-12):** Added Smart Slicing (`medra task context <change> [task]`) for high-efficiency bounded task packs, deterministic auto-remediation (`medra fix [change]`), and test output noise trimming / sanitization (`sanitizeTestOutput`).
 - **1.7.4 (2026-11-12):** Added prescriptive validation remediations (`remediation` in findings) across all validation stages, schema support in JSON envelope, and `↳ fix:` CLI stderr formatting.
 - **1.7.3 (2026-11-11):** Updated README changelog summary to include releases 1.7.0 through 1.7.2 in bundled package documentation.
