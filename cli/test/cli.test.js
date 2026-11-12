@@ -653,3 +653,96 @@ test('validation findings include prescriptive remediation in json and human out
   assert.match(rHuman.stderr, /↳ fix: /);
   assert.match(rHuman.stderr, /SHALL/);
 });
+
+test('sanitizeTestOutput: strips ANSI, filters npm noise, highlights failure and bounds token output', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+
+  // Command that prints ANSI color codes, npm error noise, and an assertion error
+  const noiseScript = [
+    'console.log("npm notice created a lockfile");',
+    'console.log("npm error code 1");',
+    'console.log("npm error A complete log of this run can be found in: /tmp/log");',
+    'console.log("\\u001b[31mFAIL\\u001b[0m test/auth.test.js");',
+    'console.log("AssertionError: expected false to be true");',
+    'console.log("  at /src/test.js:10:5");',
+    'console.log("npm error command failed");',
+    'process.exit(1);',
+  ].join('\n');
+  write(root, 'fail.js', noiseScript);
+
+  medra(root, 'gate', change, 'proposal', '--approve');
+  medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
+  const res = medra(root, 'task', 'done', change, 'T002', '--run', 'node fail.js');
+  assert.equal(res.code, 1);
+  assert.equal(res.json.findings[0].rule, 'task.green');
+
+  // The failure message should contain the clean failure and NO ANSI or npm boilerplate noise
+  const msg = res.json.message;
+  assert.match(msg, /FAIL test\/auth\.test\.js/);
+  assert.match(msg, /AssertionError: expected false to be true/);
+  assert.doesNotMatch(msg, /\u001b\[31m/);
+  assert.doesNotMatch(msg, /npm error A complete log/);
+  assert.doesNotMatch(msg, /npm notice/);
+});
+
+test('medra fix: deterministically auto-remediates proposal.md and plan.md validation issues', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  medra(root, 'track', change, 'full', '--reason', 'needs design');
+
+  // Create an incomplete plan.md: missing Summary, Complexity Tracking, and Constitution Check row
+  write(root, `docs/changes/${change}/plan.md`, [
+    `# Plan: wrong-title`, '',
+    '## Constitution Check', '',
+    '| Article | Gate | Result | Note |',
+    '|---|---|---|---|',
+    '## Test Strategy', '',
+    '- **Command:** `npm test`', '',
+    '## Decisions', '',
+    'None.', '',
+  ].join('\n'));
+
+  // Corrupt proposal.md capabilities table and track
+  write(root, `docs/changes/${change}/proposal.md`, [
+    `# Proposal: ${change}`, '',
+    '## Why', '', 'Users need this.', '',
+    '## What Changes', '', '- Changes.', '',
+    '## Scope', '', '### In scope\n- Work\n### Out of scope\n- Later', '',
+    '## Track', '', '**Track:** fast', '**Rationale:** Checked.', '',
+    '## Capabilities', '',
+    '| Capability | Operation | Requirements |',
+    '|---|---|---|',
+    '| `auth` | new | AUTH-999 |', '', // wrong operation and IDs
+    '## Impact', '', '- **Code:** src\n- **Interfaces:** None.\n- **Data:** None.\n- **Dependencies:** None.', '',
+    '## Open Questions', '', 'None.', '',
+  ].join('\n'));
+
+  // Pre-fix validation should fail
+  assert.notEqual(medra(root, 'validate', change, '--stage', 'plan').code, 0);
+
+  // Run medra fix
+  const fixRes = medra(root, 'fix', change).json;
+  assert.equal(fixRes.ok, true);
+  assert.ok(fixRes.fixed.length >= 3, 'should fix title, anchors, and capabilities');
+
+  // Human output test
+  const fixHuman = medraHuman(root, 'fix', change);
+  assert.equal(fixHuman.code, 0);
+  assert.match(fixHuman.stdout, /medra: fixed|no mechanical issues/);
+
+  // Post-fix plan.md should have canonical anchors in order and Constitution Check row
+  const planText = read(root, `docs/changes/${change}/plan.md`);
+  assert.match(planText, /^# Plan: rework-auth-flow/m);
+  assert.match(planText, /## Summary/);
+  assert.match(planText, /## Complexity Tracking/);
+  assert.match(planText, /\| I \| .* \| pass \| Conforms to Article I \|/);
+
+  // Post-fix proposal.md should have synced capabilities table and track 'full'
+  const propText = read(root, `docs/changes/${change}/proposal.md`);
+  assert.match(propText, /\*\*Track:\*\* full/);
+  assert.match(propText, /\| `auth` \| modified \| AUTH-005, AUTH-001, AUTH-002 \|/);
+
+  // Validate plan now passes completely
+  assert.equal(medra(root, 'validate', change, '--stage', 'plan').code, 0);
+});

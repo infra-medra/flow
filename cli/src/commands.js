@@ -14,6 +14,7 @@ import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved,
 import { changeFindings, projectFindings, STAGES } from './validate.js';
 import { archiveIndexPath, nextTaskPayload, taskContext } from './context.js';
 import { install } from './install.js';
+import { fixChange } from './fix.js';
 
 const constitutionPath = (root) => docsPath(root, 'constitution.md');
 const constitutionOf = (root) => parseConstitution(readIf(constitutionPath(root)) ?? '');
@@ -225,6 +226,34 @@ function testFilesForTask(root, change, task) {
   return [...new Set([...fromDesc, ...fromCov])].sort();
 }
 
+export function sanitizeTestOutput(stdout = '', stderr = '', maxLines = 8) {
+  const raw = `${stdout ?? ''}\n${stderr ?? ''}`;
+  const stripped = raw.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
+  const lines = stripped.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return '';
+
+  const isNoise = (l) =>
+    /^npm (notice|warn|info)/i.test(l) ||
+    /^npm error (code|path|command failed|A complete log of this run)/i.test(l) ||
+    /^npm error$/i.test(l) ||
+    /^\s*at\s+node:internal\//.test(l) ||
+    /^\[.*\]\s*$/.test(l);
+
+  const filtered = lines.filter((l) => !isNoise(l));
+  const pool = filtered.length ? filtered : lines;
+
+  const failurePatterns = [
+    /(?:AssertionError|Assertion failed|failed with|Expected:|Received:|FAIL|✕|✖|Error:|TypeError:|ReferenceError:)/i,
+  ];
+  const firstFailIdx = pool.findIndex((l) => failurePatterns.some((p) => p.test(l)));
+
+  const slice = firstFailIdx >= 0
+    ? pool.slice(firstFailIdx, firstFailIdx + maxLines)
+    : pool.slice(-maxLines);
+
+  return slice.map((l) => (l.length > 250 ? `${l.slice(0, 247)}...` : l)).join('\n');
+}
+
 export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit }) {
   if (!!run === !!evidence) throw usageError('Pass exactly one of --run or --evidence');
   const state = loadState(root, change);
@@ -275,9 +304,9 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
     if (res.error && res.error.code === 'ETIMEDOUT') throw envError(`Command timed out after 10 minutes: ${run}`);
     const code = res.status ?? 1;
     if (code === 127) throw envError(`Command not found: ${run}`);
-    const tail = `${res.stdout ?? ''}\n${res.stderr ?? ''}`.split('\n').map((l) => l.trim()).filter(Boolean).slice(-3);
-    if (k === 'red' && code === 0) throw refused([finding('task.red', `${id} needs a failing run (red), but the command exited 0`, { ref: id, remediation: 'Ensure test fails on unimplemented behavior before marking kind red' })], tail.join('\n'));
-    if (k === 'green' && code !== 0) throw refused([finding('task.green', `${id} needs a passing run (green), but the command exited ${code}`, { ref: id, remediation: 'Fix code to make tests pass (exit 0) before checkpointing green' })], tail.join('\n'));
+    const sanitized = sanitizeTestOutput(res.stdout, res.stderr);
+    if (k === 'red' && code === 0) throw refused([finding('task.red', `${id} needs a failing run (red), but the command exited 0`, { ref: id, remediation: 'Ensure test fails on unimplemented behavior before marking kind red' })], sanitized || 'Command exited 0');
+    if (k === 'green' && code !== 0) throw refused([finding('task.green', `${id} needs a passing run (green), but the command exited ${code}`, { ref: id, remediation: 'Fix code to make tests pass (exit 0) before checkpointing green' })], sanitized || `Command exited ${code}`);
     if (k === 'green' && !t.test) {
       const checks = config.testing.checks ?? [];
       for (const chk of Array.isArray(checks) ? checks : [checks]) {
@@ -286,13 +315,14 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
         if (cres.error && cres.error.code === 'ETIMEDOUT') throw envError(`Check timed out after 10 minutes: ${chk}`);
         const ccode = cres.status ?? 1;
         if (ccode !== 127 && ccode !== 0) {
-          const ctail = `${cres.stdout ?? ''}\n${cres.stderr ?? ''}`.split('\n').map((l) => l.trim()).filter(Boolean).slice(-3);
-          throw refused([finding('task.check', `${id} passed tests, but check "${chk}" exited ${ccode}`, { ref: id, remediation: `Fix static check issues for "${chk}" to pass (exit 0)` })], ctail.join('\n'));
+          const csanitized = sanitizeTestOutput(cres.stdout, cres.stderr);
+          throw refused([finding('task.check', `${id} passed tests, but check "${chk}" exited ${ccode}`, { ref: id, remediation: `Fix static check issues for "${chk}" to pass (exit 0)` })], csanitized || `Check exited ${ccode}`);
         }
         if (ccode === 127) throw envError(`Check command not found: ${chk}`);
       }
     }
-    detail = `\`${run.replace(/`/g, "'")}\` exit ${code}${code !== 0 && tail.length ? ` — "${tail.join(' | ').replace(/"/g, "'").slice(0, 300)}"` : ''}`;
+    const tailLines = (sanitized || '').split('\n').filter(Boolean);
+    detail = `\`${run.replace(/`/g, "'")}\` exit ${code}${code !== 0 && tailLines.length ? ` — "${tailLines.slice(-3).join(' | ').replace(/"/g, "'").slice(0, 300)}"` : ''}`;
   } else detail = evidence.replace(/\n/g, ' ');
   if (testEdited) detail += ' [test-edited]';
   if (k === 'red' && t.test) {
@@ -328,6 +358,10 @@ export function taskBlock(root, change, id, { note }, unblock = false) {
 
 export function taskContextCmd(root, change, taskId) {
   return taskContext(root, change, taskId);
+}
+
+export function fixCmd(root, change, opts = {}) {
+  return fixChange(root, change, opts.file);
 }
 
 // ---------- coverage ----------

@@ -64,6 +64,20 @@ j(program.command('validate [change]').description('Run validation rules').optio
     return cmd.validate(root(), change, o);
   }));
 
+function fixMarkdown(res) {
+  if (!res.fixed?.length) return `medra: change '${res.change}' has no mechanical issues to fix\n`;
+  const lines = [`medra: fixed ${res.fixed.length} issue${res.fixed.length > 1 ? 's' : ''} in change '${res.change}':`];
+  for (const f of res.fixed) lines.push(`  ✓ ${f}`);
+  return `${lines.join('\n')}\n`;
+}
+
+j(program.command('fix [change]').description('Deterministically auto-remediate mechanical document validation issues').option('--file <path>', 'Limit fixes to a single document'))
+  .action((change, o) => {
+    const res = cmd.fixCmd(root(), change, o);
+    if (!jsonMode) process.stdout.write(fixMarkdown(res));
+    else emit(res);
+  });
+
 j(program.command('index').description('Bounded project overview').option('--learnings <capabilities>').option('--md', 'Markdown output'))
   .action((o) => {
     const pack = index(root(), { learnings: o.learnings ? o.learnings.split(',').map((s) => s.trim()) : undefined });
