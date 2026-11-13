@@ -188,3 +188,79 @@ test('learnings: add, bump, merge, retire, promote, status budget and staleness'
   assert.match(read(root, 'docs/learnings.md'), /\*\*Retired:\*\* merged into L-001/);
   assert.equal(medra(root, 'validate', '--project', 'learnings').code, 0);
 });
+
+test('handoff: payloads, pre-dispatch refusals, rounds, fixed findings and files changed since the previous round', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root });
+  git('add', '-A'); git('commit', '-q', '-m', 'base');
+  const state = `docs/changes/${change}/.medra.yaml`;
+  write(root, state, read(root, state).replace(/^diff_base: .*$/m, `diff_base: ${spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()}`));
+
+  assert.equal(medra(root, 'handoff', change, 'nope').code, 2);
+  const early = medra(root, 'handoff', change, 'check');
+  assert.equal(early.code, 1);
+  assert.ok(rules(early).includes('handoff.tasks'), 'open tasks block the check');
+  assert.ok(rules(medra(root, 'handoff', change, 'audit')).includes('handoff.security'), 'not security-relevant');
+  assert.ok(rules(medra(root, 'handoff', change, 'threat-model')).includes('handoff.track'), 'fast track gets no threat model');
+
+  write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\nprocess.exit(1);\n');
+  write(root, 'src/a.js', 'export const a = 1;\n');
+  write(root, 'src/b.js', 'export const b = 1;\n');
+  assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'node test/a.test.js', '--kind', 'red').code, 0);
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'node -e 0').code, 0);
+
+  // Round 1: no previous report, so no fixed_findings and no changed_since_previous
+  const r1 = medra(root, 'handoff', change, 'check');
+  assert.equal(r1.code, 0, r1.stdout);
+  assert.equal(r1.json.agent, 'reviewer');
+  assert.equal(r1.json.handoff, 'handoffs/implementer-reviewer.md');
+  assert.deepEqual(Object.keys(r1.json.payload), ['change', 'change_path', 'diff_base', 'report_path', 'round']);
+  assert.equal(r1.json.payload.round, 1);
+  assert.match(r1.json.payload.report_path, /reviews\/\d{4}-\d{2}-\d{2}-verify-agent-r1\.md$/);
+  assert.ok(rules(medra(root, 'handoff', change, 'check', '--fixed', 'F-01')).includes('handoff.fixed'), '--fixed needs an earlier report');
+
+  // Round 2: one file edited, one added, one left alone
+  write(root, r1.json.payload.report_path, verifyReport('fail').replace('None.', '### F-01: Gap\n\n### F-02: Other'));
+  write(root, 'src/a.js', 'export const a = 2;\n');
+  write(root, 'src/c.js', 'export const c = 1;\n');
+  assert.ok(rules(medra(root, 'handoff', change, 'check', '--fixed', 'F-09')).includes('handoff.fixed'), 'unknown finding ID');
+  assert.ok(rules(medra(root, 'handoff', change, 'check', '--fixed', 'S-01')).includes('handoff.fixed'), 'wrong prefix');
+  const r2 = medra(root, 'handoff', change, 'check', '--fixed', 'F-01');
+  assert.equal(r2.code, 0, r2.stdout);
+  assert.equal(r2.json.payload.round, 2);
+  assert.equal(r2.json.payload.previous_report, r1.json.payload.report_path);
+  assert.deepEqual(r2.json.payload.fixed_findings, ['F-01']);
+  assert.deepEqual(r2.json.payload.changed_since_previous, ['src/a.js', 'src/c.js']);
+  assert.equal(medra(root, 'status', change).json.gates.proposal.status, 'pending', 'snapshots never touch gates');
+
+  // The text form is the YAML block of the contract, with lists inline
+  const text = medraHuman(root, 'handoff', change, 'check', '--fixed', 'F-01,F-02');
+  assert.equal(text.code, 0);
+  assert.match(text.stdout, /^change: rework-auth-flow\n/);
+  assert.match(text.stdout, /^round: 2$/m);
+  assert.match(text.stdout, /^fixed_findings: \[F-01, F-02\]$/m);
+  assert.match(text.stdout, /^changed_since_previous: \[src\/a\.js, src\/c\.js\]$/m, 'a repeated call for the same round compares against the previous round');
+
+  // The audit shares the round, and follows its own latest report
+  const p = `docs/changes/${change}/proposal.md`;
+  write(root, p, read(root, p).replace('**Rationale:** Criteria checked.', '**Rationale:** Criteria checked.\n**Security:** relevant\n**Security rationale:** New endpoint.'));
+  const a2 = medra(root, 'handoff', change, 'audit');
+  assert.equal(a2.code, 0, a2.stdout);
+  assert.equal(a2.json.agent, 'security');
+  assert.equal(a2.json.payload.round, 2);
+  assert.match(a2.json.payload.report_path, /-security-agent-r2\.md$/);
+  assert.equal(a2.json.payload.previous_report, undefined);
+
+  // Threat model: full track only; revision follows the file on disk
+  medra(root, 'track', change, 'full', '--reason', 'needs design');
+  write(root, p, read(root, p).replace('**Track:** fast', '**Track:** full'));
+  assert.ok(rules(medra(root, 'handoff', change, 'threat-model')).includes('handoff.plan'));
+  write(root, `docs/changes/${change}/plan.md`, '# Plan\n');
+  const t1 = medra(root, 'handoff', change, 'threat-model', '--focus', 'Token storage (D-02)');
+  assert.equal(t1.code, 0, t1.stdout);
+  assert.deepEqual(t1.json.payload, { change, change_path: `docs/changes/${change}`, plan_path: `docs/changes/${change}/plan.md`, threat_model_path: `docs/changes/${change}/threat-model.md`, focus: 'Token storage (D-02)' });
+  write(root, `docs/changes/${change}/threat-model.md`, '# Threat Model\n');
+  assert.equal(medra(root, 'handoff', change, 'threat-model').json.payload.revision, true);
+  assert.equal(medra(root, 'handoff', change, 'threat-model', '--fixed', 'F-01').code, 2);
+});

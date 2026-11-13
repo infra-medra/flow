@@ -52,6 +52,15 @@ test('proposal stage: markers, capabilities table and delta targets', () => {
   assert.ok(rules(r).includes('proposal.markers'));
   write(root, file, good.replace('AUTH-005', 'AUTH-004').replace('AUTH-005.S1', 'AUTH-004.S1'));
   assert.ok(rules(medra(root, 'validate', change, '--stage', 'proposal')).includes('delta.targets'), 'retired ID cannot be ADDED');
+  write(root, file, good);
+  // proposal.impact and proposal.open-questions
+  const p = `docs/changes/${change}/proposal.md`;
+  const prop = read(root, p);
+  write(root, p, prop.replace('- **Data:** None.\n', '').replace('- **Code:** src', '- **Code:** {modules or paths affected}'));
+  const impact = medra(root, 'validate', change, '--stage', 'proposal').json.findings.filter((f) => f.rule === 'proposal.impact');
+  assert.equal(impact.length, 2, 'a missing line and an unfilled placeholder');
+  write(root, p, prop.replace('## Open Questions\n\nNone.', '## Open Questions\n\nShould locked accounts count?'));
+  assert.deepEqual(rules(medra(root, 'validate', change, '--stage', 'proposal')), ['proposal.open-questions']);
 });
 
 test('tasks stage: coverage, after ordering, test-before-impl in tdd', () => {
@@ -73,11 +82,20 @@ test('plan stage: anchors, one row per article, fail needs complexity row', () =
   const change = brownfieldChange(root);
   medra(root, 'track', change, 'full', '--reason', 'needs design');
   write(root, `docs/changes/${change}/proposal.md`, read(root, `docs/changes/${change}/proposal.md`).replace('**Track:** fast', '**Track:** full'));
-  const plan = (row, complexity = 'None.') => `# Plan: ${change}\n\n## Summary\n\nDo it.\n\n## Constitution Check\n\n| Article | Gate | Result | Note |\n|---|---|---|---|\n${row}\n\n## Complexity Tracking\n\n${complexity}\n\n## Test Strategy\n\n- **Command:** \`npm test\`\n\n## Architecture\n\nX.\n\n## Decisions\n\n### D-01: Store\n\n**Choice:** A\n**Alternatives:** B\n**Rationale:** C\n`;
+  const plan = (row, complexity = 'None.') => `# Plan: ${change}\n\n## Summary\n\nDo it.\n\n## Constitution Check\n\n| Article | Gate | Result | Note |\n|---|---|---|---|\n${row}\n\n## Complexity Tracking\n\n${complexity}\n\n## Test Strategy\n\n- **Command:** \`npm test\`\n\n| Scenario | Level | Test location |\n|---|---|---|\n| \`AUTH-001.S1\` | unit | \`test/a.test.js\` |\n| \`AUTH-001.S3\` | unit | \`test/a.test.js\` |\n| \`AUTH-005.S1\` | unit | \`test/a.test.js\` |\n\n## Architecture\n\nX.\n\n## Decisions\n\n### D-01: Store\n\n**Choice:** A\n**Alternatives:** B\n**Rationale:** C\n`;
   write(root, `docs/changes/${change}/plan.md`, plan('| I | gate | pass | tests first |'));
   assert.equal(medra(root, 'validate', change, '--stage', 'plan').code, 0);
   write(root, `docs/changes/${change}/plan.md`, plan('| I | gate | fail | none |'));
   assert.ok(rules(medra(root, 'validate', change, '--stage', 'plan')).includes('plan.constitution'));
+  write(root, `docs/changes/${change}/plan.md`, plan('| I | gate | pass | |'));
+  assert.ok(rules(medra(root, 'validate', change, '--stage', 'plan')).includes('plan.constitution'), 'a pass needs evidence in its Note');
+  // plan.test-strategy: every added or modified scenario is mapped; a range counts for each ID in it
+  const p = `docs/changes/${change}/plan.md`;
+  write(root, p, plan('| I | gate | pass | tests first |').replace('| \`AUTH-005.S1\` | unit | \`test/a.test.js\` |\n', ''));
+  const missing = medra(root, 'validate', change, '--stage', 'plan').json.findings.filter((f) => f.rule === 'plan.test-strategy');
+  assert.deepEqual(missing.map((f) => f.ref), ['AUTH-005.S1']);
+  write(root, p, plan('| I | gate | pass | tests first |').replace('| \`AUTH-001.S1\` | unit | \`test/a.test.js\` |\n| \`AUTH-001.S3\` | unit | \`test/a.test.js\` |', '| \`AUTH-001.S1–S3\` | unit | \`test/a.test.js\` |'));
+  assert.equal(medra(root, 'validate', change, '--stage', 'plan').code, 0, 'a scenario range maps every ID inside it');
 });
 
 test('security: proposal line, threat model rules, accepted mitigations reach tasks, plan gate covers the model', () => {
@@ -92,7 +110,7 @@ test('security: proposal line, threat model rules, accepted mitigations reach ta
   assert.equal(medra(root, 'validate', change, '--stage', 'proposal').code, 0);
   assert.equal(medra(root, 'status', change).json.security, 'relevant');
 
-  const plan = `# Plan: ${change}\n\n## Summary\n\nDo it.\n\n## Constitution Check\n\n| Article | Gate | Result | Note |\n|---|---|---|---|\n| I | gate | pass | tests first |\n\n## Complexity Tracking\n\nNone.\n\n## Test Strategy\n\n- **Command:** \`npm test\`\n\n## Decisions\n\n### D-01: Hash tokens\n\n**Choice:** M-01\n**Alternatives:** Raw\n**Rationale:** Dumps\n`;
+  const plan = `# Plan: ${change}\n\n## Summary\n\nDo it.\n\n## Constitution Check\n\n| Article | Gate | Result | Note |\n|---|---|---|---|\n| I | gate | pass | tests first |\n\n## Complexity Tracking\n\nNone.\n\n## Test Strategy\n\n- **Command:** \`npm test\`\n\n| Scenario | Level | Test location |\n|---|---|---|\n| \`AUTH-001.S1\` | unit | \`test/a.test.js\` |\n| \`AUTH-001.S3\` | unit | \`test/a.test.js\` |\n| \`AUTH-005.S1\` | unit | \`test/a.test.js\` |\n\n## Decisions\n\n### D-01: Hash tokens\n\n**Choice:** M-01\n**Alternatives:** Raw\n**Rationale:** Dumps\n`;
   write(root, `docs/changes/${change}/plan.md`, plan);
   assert.ok(rules(medra(root, 'validate', change, '--stage', 'plan')).includes('plan.threat-model'), 'missing threat model');
   const model = (decision, threatMits = 'M-01') => `# Threat Model: ${change}\n\n## Scope\n\n- **In:** reset\n\n## Assets\n\n- Tokens\n\n## Trust Boundaries\n\n| ID | Boundary | From → To |\n|---|---|---|\n| B-01 | API | Internet → API |\n\n## Entry Points\n\n- \`POST /reset\` (B-01)\n\n## Threats\n\n| ID | STRIDE | Threat | Boundary | Severity | Likelihood | Mitigations |\n|---|---|---|---|---|---|---|\n| TM-01 | S, I | Token guessed | B-01 | high | medium | ${threatMits} |\n\n## Mitigations\n\n| ID | Mitigation | Threats | Decision |\n|---|---|---|---|\n| M-01 | Hash and expire tokens | TM-01 | ${decision} |\n\n## Residual Risks\n\nNone.\n\n## Sources\n\n- https://cheatsheetseries.owasp.org — M-01\n`;

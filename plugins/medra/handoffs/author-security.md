@@ -16,14 +16,16 @@ This handoff gets the author an independent threat model of a security-relevant 
 
 On Claude Code, the sender passes this payload to the Agent tool, with `subagent_type: medra:security`, after the line `Contract: `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md``. On Antigravity, it passes the same text to `invoke_subagent` for that agent. On a runtime without subagents, the sender runs the receiver's pipeline itself, using this payload as its input (see `${CLAUDE_PLUGIN_ROOT}/references/portability.md`).
 
+`medra handoff <change> threat-model --focus "<text>"` prints this payload, with every field below filled from the change's state.
+
 | Field | Type | Required | Source |
 |---|---|---|---|
 | change | string | yes | The change name, from `medra status` |
 | change_path | path | yes | `docs/changes/<change>` |
 | plan_path | path | yes | `docs/changes/<change>/plan.md`, the drafted plan |
 | threat_model_path | path | yes | `docs/changes/<change>/threat-model.md` |
-| focus | string | no | Areas the author wants examined closely, in one or two sentences, from the plan's design choices |
-| revision | boolean | no | `true` when re-dispatched after the plan gate requested changes to the design; the receiver then updates the existing threat model, keeping its IDs |
+| focus | string | no | Areas the author wants examined closely, in one or two sentences, from the plan's design choices (`--focus`) |
+| revision | boolean | no | `true` whenever a threat model already exists at `threat_model_path`, as on a re-dispatch after the plan gate requested changes to the design; the receiver then updates it, keeping its IDs |
 
 ```yaml
 change: add-password-reset
@@ -58,9 +60,9 @@ unverified_sources: 0
 
 ## Validation
 
-**The sender checks before dispatch:**
-- `medra status <change> --json` reports `track: full` and `security: relevant`.
-- `plan_path` exists and `medra validate <change> --stage proposal` exits `0`.
+**`medra handoff <change> threat-model` checks before printing the payload,** and exits `1` naming what failed:
+- The change is on the full track, and the proposal says `**Security:** relevant`.
+- `plan_path` exists, and the `proposal` stage validates.
 
 **The receiver checks on receipt:**
 - `change_path` exists and contains `.medra.yaml`, and `plan_path` exists inside it.
@@ -75,7 +77,7 @@ unverified_sources: 0
 
 | Failure | Action |
 |---|---|
-| The sender's own check fails | Do not dispatch. A change that is not `relevant` gets no threat model; a fast-track change gets none either, and its security work happens at verify |
+| `medra handoff` exits `1` | Do not dispatch. A change that is not `relevant` gets no threat model; a fast-track change gets none either, and its security work happens at verify |
 | The receiver gets an invalid dispatch | Write nothing. Return `status: invalid-dispatch`, naming each failing field |
 | The receiver hits a decision it cannot make (for example, the deployment exposure is not stated anywhere) | Finish the model on the stated assumption, record the assumption in Scope, and return `status: needs-decision` with the question. The sender puts it to the user and re-dispatches with `revision: true` when the answer changes the model |
 | A source cannot be reached | Not a failure. The receiver marks it `unreachable` in Sources and counts it in `unverified_sources`; the sender presents that count at the plan gate |

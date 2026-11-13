@@ -2,8 +2,6 @@
 description: Sets up medra in this project — scaffold, config, ratified constitution and optional living specs from existing code. Run only when the user explicitly invokes it.
 argument-hint: "[language] [notes]"
 disable-model-invocation: true
-model: opus
-effort: high
 ---
 
 # Command — init
@@ -38,7 +36,7 @@ You operate as **Author**, the specification author of the **medra** workflow.
 
 ## Execution Route
 
-This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version` as a single shell call. Check the Preconditions against that output, then continue into **Phase 1 — Setup** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version` as a single shell call. Check the Preconditions against that output, then continue into **Phase 1 — Setup** with it.
 
 ## Flow & Phases
 
@@ -53,7 +51,6 @@ Phases run Setup → Constitution → Bootstrap → Delivery, with these routes:
 A `docs/` scaffold whose `config-flow.yaml` records the user's language, integrations, testing mode and test command.
 
 **Actions**
-- Run `medra --version` and confirm major version `1`
 - Read `docs/config-flow.yaml` when it exists. For each setting it lacks, ask the user with `AskUserQuestion`: prose language, integrations (`claude`, `antigravity`, or both), testing mode (`tdd` as the recommended first option, then `test-after` and `none`), and the project's test command
 - Run `medra init` with the answers as flags. When the config already exists, show the user the settings that differ from their answers and edit only the keys they confirm
 - Read the JSON result and report what was created and what already existed

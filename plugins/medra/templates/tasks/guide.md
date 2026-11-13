@@ -68,11 +68,9 @@ The title, using the exact change name.
 
 ## Quality Checklist
 
-- [ ] Every task line matches the grammar, and IDs are unique and sequential.
-- [ ] Every `after` reference points to an earlier task.
-- [ ] Every ADDED or MODIFIED requirement is referenced by at least one task.
-- [ ] Every `accepted` mitigation in `threat-model.md`, when present, is cited by at least one task.
-- [ ] In `tdd`, every such requirement has a `[TEST]` task, and its implementation tasks are `after` it.
+`medra validate` enforces this document's structure, IDs and cross-references. This list holds only what it cannot judge.
+
+- [ ] Task IDs are sequential.
 - [ ] Every task has a concrete verify clause.
 - [ ] Every path exists in the codebase or is created by an earlier task or the plan.
 - [ ] No box is ticked and no evidence line was written by hand.

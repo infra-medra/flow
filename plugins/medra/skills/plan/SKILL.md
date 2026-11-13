@@ -2,8 +2,6 @@
 description: Writes the technical plan for a full-track medra change — design, Constitution Check, test strategy and decisions, with a threat model when the change is security-relevant — and runs the plan gate. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
-model: opus
-effort: high
 ---
 
 # Command — plan
@@ -40,7 +38,7 @@ You operate as **Author**, the specification author of the **medra** workflow.
 
 ## Execution Route
 
-This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra context <change> --stage plan --md` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Grounding** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra context <change> --stage plan --md` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Grounding** with it.
 
 ## Flow & Phases
 
@@ -56,7 +54,7 @@ Phases run Grounding → Drafting → Threat Model → Self-review → Gate → 
 A verified factual base for the design: the change's requirements, the constitution's gates, the prior decisions behind every requirement being changed, and the code areas involved.
 
 **Actions**
-- Run `medra context <change> --stage plan --md`, and `medra status <change> --json` for the change's `security` relevance, which decides whether Threat Model runs
+- Take the context pack from the opening call's output, and the change's `security` relevance from its `status`, which decides whether Threat Model runs
 - For each MODIFIED or REMOVED requirement with a `last_changed_by` pointer, read only that archived change's `## Decisions` (or its `## Why` when it has no plan)
 - Read the code the requirements touch: on Claude Code, use the Explore agent when the area is unfamiliar; otherwise read the files directly. Note the paths, patterns and constraints you verified
 - Ask the user, with `AskUserQuestion`, only the technical questions whose answers change the design. Present each as options with your recommendation first
@@ -100,13 +98,15 @@ A `plan.md` whose anchors are filled and whose design satisfies every delta requ
 A `threat-model.md` from the security agent whose every mitigation is decided, with each decision recorded as a plan Decision.
 
 **Actions**
-- Read `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md` and `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md`, check the sender rules, then dispatch the security agent under that contract: on Claude Code, the Agent tool with `subagent_type: medra:security`; elsewhere, as `${CLAUDE_PLUGIN_ROOT}/references/portability.md` describes. Name in `focus` the decisions with the most exposure, and set `revision: true` when a threat model already exists
-- Validate the response against the handoff's sender rules; on `needs-decision`, put the question to the user with `AskUserQuestion` and re-dispatch with `revision: true` when the answer changes the model
+- Run `medra handoff <change> threat-model --focus "<the decisions with the most exposure, in one or two sentences>"`. It prints the dispatch payload as YAML (with `revision: true` when a threat model already exists), or exits `1` naming what blocks the dispatch
+- Dispatch the security agent with that payload, unchanged, after the line `Contract: ${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md`: on Claude Code, the Agent tool with `subagent_type: medra:security`; elsewhere, as `${CLAUDE_PLUGIN_ROOT}/references/portability.md` describes
+- Read `threat-model.md` and validate the response against it: its Threats rows by severity equal `counts`, and its Mitigations rows equal `mitigations`. When they differ, re-dispatch once; when they differ again, go on with the file and say so at the gate. On `needs-decision`, put the question to the user with `AskUserQuestion` and re-dispatch when the answer changes the model. For any other failure, read the contract's Error Handling
 - Decide each mitigation: accept it into the design as a `D-NN` Decision (and the plan sections it changes), or decline it with a `D-NN` that names the threats left open and why the residual risk is acceptable; write the `D-NN` into the mitigation's Decision cell
 - When accepting a mitigation would change observable behavior (a new error response, a limit users can hit), stop and tell the user to revise the change with `/medra:propose <change>`
 
 **Avoid**
 - Don't decline a `critical` or `high` mitigation on your own — because that leaves a serious threat open by an author's choice; put it to the user with `AskUserQuestion`, and record their answer as the Decision's rationale
+- Don't read the handoff file to dispatch — because `medra handoff` already applied its sender rules and the security agent reads it on its side; open it only for its Error Handling
 - Don't edit the threat model's threats or mitigations — because they are the security agent's independent findings; disagreement is a declined mitigation with its reason, which the human judges at the gate
 
 **Exit when:**
@@ -123,11 +123,11 @@ A plan that passes `medra validate` and an adversarial read against the template
 
 **Actions**
 - Run `medra validate <change> --stage plan --json`. When a finding is structural (`plan.structure`, or a missing row under `plan.constitution`), run `medra fix <change>` first and re-validate: it repairs titles, headings, anchors and tables from disk without you rewriting them, and leaves a `[NEEDS CLARIFICATION: …]` marker wherever a judgment is missing. Then fix the remaining findings yourself
-- Read `plan.md` back from disk and run the `${CLAUDE_PLUGIN_ROOT}/templates/plan/guide.md` Quality Checklist, and the `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md` checklist when the threat model exists
+- Run the `${CLAUDE_PLUGIN_ROOT}/templates/plan/guide.md` Quality Checklist against `plan.md` as you wrote it in this session, and the `${CLAUDE_PLUGIN_ROOT}/templates/threat-model/guide.md` checklist when the threat model exists. Re-read `plan.md` from disk only when something else changed it: `medra fix` repaired it, an earlier session wrote it, or its text is no longer verbatim in this session
 - Attack the design: a requirement no section satisfies, a path that does not exist, a decision without alternatives, work outside the proposal's In scope. Fix what you find, and record what remains after two rounds
 
 **Avoid**
-- Don't review from memory — because the plan you remember is the one you intended; the tasks step reads the one on disk
+- Don't check a recollection or a summary of the plan — because the plan you remember is the one you intended; check the exact text you wrote, and re-read the file whenever it changed on disk since
 
 **Exit when:**
 - [ ] `medra validate <change> --stage plan` exits `0`, or its remaining findings are recorded for the gate

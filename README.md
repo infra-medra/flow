@@ -122,6 +122,7 @@ medra validate --project constitution|specs|learnings [--json]
 medra gate <change> proposal|plan|tasks|verify --approve [--note "<text>"] [--by <name>]
 medra gate <change> proposal|plan|tasks|verify --request-changes --note "<text>" [--by <name>]
 medra review <change> --report <path> [--by <name>]
+medra handoff <change> check|audit|threat-model [--fixed <ids>] [--focus "<text>"]   # dispatch payload for a subagent
 
 # Task execution, red/green checkpoints & test-tampering guard
 medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit]
@@ -191,7 +192,8 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
-- **1.8.0 (2026-11-12):** Made command skills the single source for each command (removing mirrored `author`/`implementer` agent files and 8 `pipelines/*.md` files), split `conventions.md` into `gate.md` and `portability.md`, removed `model:` pins so commands and subagents inherit the user's session model (keeping `effort: high`), made `medra fix` use `pending` / `[NEEDS CLARIFICATION: …]` markers instead of guessing judgment, added the `plan.markers` validation rule, reduced `specDrift` git spawns, and split the test suite for parallel execution.
+- **Unreleased:** Removed the `model` and `effort` pins from every command skill and from the `reviewer` and `security` agents, so commands and subagents use the model and effort the user configured in their session. Added `medra handoff`, which emits each subagent's dispatch payload and the files changed since its previous round, so later verify rounds re-inspect only what the fixes touched. Added the `proposal.impact`, `proposal.open-questions` and scenario-mapping `plan.test-strategy` rules, and trimmed the template checklists and command skills accordingly.
+- **1.8.0 (2026-11-12):** Made command skills the single source for each command (removing mirrored `author`/`implementer` agent files and 8 `pipelines/*.md` files), split `conventions.md` into `gate.md` and `portability.md`, declared `model` and `effort` per command, made `medra fix` use `pending` / `[NEEDS CLARIFICATION: …]` markers instead of guessing judgment, added the `plan.markers` validation rule, reduced `specDrift` git spawns, and split the test suite for parallel execution.
 - **1.7.6 (2026-11-12):** Hardened plugin installation and cleanup against path traversal attacks (`safeJoin` guard in `cli/src/install.js`) when processing existing manifests.
 - **1.7.5 (2026-11-12):** Added Smart Slicing (`medra task context <change> [task]`) for high-efficiency bounded task packs, deterministic auto-remediation (`medra fix [change]`), and test output noise trimming / sanitization (`sanitizeTestOutput`).
 - **1.7.4 (2026-11-12):** Added prescriptive validation remediations (`remediation` in findings) across all validation stages, schema support in JSON envelope, and `↳ fix:` CLI stderr formatting.

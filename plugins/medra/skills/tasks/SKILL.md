@@ -2,8 +2,6 @@
 description: Breaks an approved medra plan into a traceable, test-first task list and runs the tasks gate. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
-model: opus
-effort: high
 ---
 
 # Command — tasks
@@ -40,7 +38,7 @@ You operate as **Author**, the specification author of the **medra** workflow.
 
 ## Execution Route
 
-This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra context <change> --stage tasks --md` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Grounding** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json ; medra context <change> --stage tasks --md` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Grounding** with it.
 
 ## Flow & Phases
 
@@ -54,8 +52,7 @@ Phases run Grounding → Drafting → Self-review → Gate → Delivery, with th
 A clear map, before any task is written, of what must be delivered (the delta requirements), in what structure (the plan), and under which testing mode.
 
 **Actions**
-- Run `medra context <change> --stage tasks --md`
-- Read `plan.md`, focusing on the Test Strategy, the freehand structure and the Decisions, then read `testing.mode` from `docs/config-flow.yaml`
+- Take the requirements from the opening call's context pack, then read `plan.md`, focusing on the Test Strategy, the freehand structure and the Decisions, then read `testing.mode` from `docs/config-flow.yaml`
 - When a draft `tasks.md` exists (from a fast track that escalated, or from a request-changes round), read it and the pending gate notes as the starting point
 
 **Avoid**
@@ -96,7 +93,7 @@ A `tasks.md` whose every line parses, whose phases follow the plan, and whose or
 A task list that passes `medra validate` and an adversarial read, with residual failures recorded.
 
 **Actions**
-- Run `medra validate <change> --stage tasks --json` and fix every `error`, then read the file back from disk and run the `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md` Quality Checklist
+- Run `medra validate <change> --stage tasks --json` and fix every `error`, then run the `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md` Quality Checklist against `tasks.md` as you wrote it in this session. Re-read it from disk only when an earlier session wrote it or its text is no longer verbatim in this session
 - Attack the order: an implementation task that could run before its test, a dependency hidden in a `[P]` task, a path neither existing nor created by an earlier task, a requirement covered only partially. Fix what you find
 - After two rounds, record what remains for the gate
 

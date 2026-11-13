@@ -97,12 +97,10 @@ The Security rationale names the criteria that fired and where, for example "Ext
 
 ## Quality Checklist
 
-- [ ] Every heading in the template is present, in order.
+`medra validate` enforces this document's structure, IDs and cross-references. This list holds only what it cannot judge.
+
 - [ ] The first sentence of Why stands alone and names who has the problem.
 - [ ] Every Out of scope item carries a reason.
-- [ ] The Track equals the change's track, and the Rationale names the criteria.
-- [ ] Security is `relevant` or `not-relevant`, and its rationale names the criteria that fired and where, or why none did.
-- [ ] The Capabilities rows and the delta files match one-to-one, with matching operations.
-- [ ] All four Impact lines are filled.
-- [ ] Open Questions reads "None." and no marker remains anywhere in the change.
+- [ ] The Rationale names the track criteria that fired.
+- [ ] The Security rationale names the criteria that fired and where, or why none did.
 - [ ] `medra validate <change> --stage proposal` exits `0`.

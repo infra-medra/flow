@@ -2,8 +2,6 @@
 description: Starts a medra change from an intent, or revises an existing change — writes the proposal and delta specs, picks the fast or full track, and runs the proposal gate. Run only when the user explicitly invokes it.
 argument-hint: "[intent | change-name]"
 disable-model-invocation: true
-model: opus
-effort: high
 ---
 
 # Command — propose
@@ -40,7 +38,7 @@ You operate as **Author**, the specification author of the **medra** workflow.
 
 ## Execution Route
 
-This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status --json ; medra index` as a single shell call. When the input names an existing change, add `medra status <change> --json ; medra context <change> --stage propose --md` to the same call. Check the Preconditions against that output, then continue into **Phase 1 — Intake** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status --json ; medra index` as a single shell call. When the input names an existing change, add `medra status <change> --json ; medra context <change> --stage propose --md` to the same call. Check the Preconditions against that output, then continue into **Phase 1 — Intake** with it.
 
 ## Flow & Phases
 
@@ -56,8 +54,7 @@ Phases run Intake → Classification → Drafting → Clarification → Fast Tas
 A restated intent — who it serves, what changes for them, and what is out of scope — that the user confirmed, with any overlapping change surfaced.
 
 **Actions**
-- Run `medra index`
-- When the input names an existing change, run `medra status <change> --json` and `medra context <change> --stage propose --md`, and take its pending gate notes as the revision brief instead of a new intent
+- When the input names an existing change, take the pending gate notes in the opening call's context pack as the revision brief instead of a new intent
 - Restate the intent in your own words: actors, outcome, the capabilities it likely touches, and what is explicitly out of scope
 - Check the active changes and the archive index for the same capability and outcome, and surface any overlap (or any `Spec drift` reported by `medra index`) to the user
 - Confirm the restatement with the user, using `AskUserQuestion` for the gaps that change scope
@@ -161,12 +158,12 @@ A change that passes CLI validation and an adversarial read against the template
 
 **Actions**
 - Run `medra validate <change> --stage proposal --json`, adding `--stage tasks` on the fast track. When a finding is structural (`proposal.structure`, `proposal.capabilities`), run `medra fix <change>` first and re-validate: it repairs titles, headings, anchors and tables from disk without you rewriting them, and leaves a `[NEEDS CLARIFICATION: …]` marker wherever a judgment is missing. Then fix the remaining findings yourself
-- Read each file back from disk and run the Quality Checklist of `${CLAUDE_PLUGIN_ROOT}/templates/proposal/guide.md`, `${CLAUDE_PLUGIN_ROOT}/templates/delta/guide.md` and, on the fast track, `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md`
+- Run the Quality Checklist of `${CLAUDE_PLUGIN_ROOT}/templates/proposal/guide.md`, `${CLAUDE_PLUGIN_ROOT}/templates/delta/guide.md` and, on the fast track, `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md` against each document as you wrote it in this session. Re-read a file from disk only when something else changed it: `medra fix` repaired it, an earlier session wrote it, or its text is no longer verbatim in this session
 - Attack the draft: a scenario that cannot fail, a requirement that is not testable, scope that crosses the fence, an ID absent from the living spec. Fix what you find
 - After two rounds, record anything still failing for the gate
 
 **Avoid**
-- Don't review from memory — because recollection fills gaps with what you meant to write; the CLI and the reviewer read the file
+- Don't check a recollection or a summary of a document — because recollection fills gaps with what you meant to write; check the exact text you wrote, and re-read the file whenever it changed on disk since
 
 **Exit when:**
 - [ ] `medra validate` exits `0` for the stages above, or its remaining findings are recorded for the gate

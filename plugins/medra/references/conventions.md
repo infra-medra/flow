@@ -22,7 +22,7 @@ Write document prose in the `language` from `docs/config-flow.yaml`. Keep every 
 
 ## CLI
 
-Run from the project root. Omit `--json` on `medra index` and pass `--md` on `medra context` (compact Markdown without JSON string-escaping overhead). Use `--json` on state and mutation commands (`status`, `validate`, `new`, `gate`, `track`, `task`, `coverage`, `review`, `constitution`, `learn`, `archive`), then read `ok`, `findings`, and payload fields.
+Run from the project root. Omit `--json` on `medra index` and `medra handoff`, and pass `--md` on `medra context` (compact Markdown or YAML without JSON string-escaping overhead). Use `--json` on state and mutation commands (`status`, `validate`, `new`, `gate`, `track`, `task`, `coverage`, `review`, `constitution`, `learn`, `archive`), then read `ok`, `findings`, and payload fields.
 
 | Exit | Meaning | Your move |
 |---|---|---|

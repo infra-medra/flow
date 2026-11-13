@@ -78,11 +78,7 @@ The system SHALL reject a password reset link used more than 15 minutes after it
 
 ## Quality Checklist
 
-- [ ] Only ADDED, MODIFIED and REMOVED operation headings appear, in that order, and none is empty.
-- [ ] ADDED IDs are new and not retired. MODIFIED and REMOVED IDs exist in the living spec.
+`medra validate` enforces this document's structure, IDs and cross-references. This list holds only what it cannot judge.
+
 - [ ] Every MODIFIED block repeats the full statement and every scenario that remains.
-- [ ] Every ADDED or MODIFIED requirement contains SHALL and has at least one valid Given/When/Then scenario.
-- [ ] Every REMOVED requirement has a Reason and a Migration.
-- [ ] A new capability has an ID prefix and a Purpose, and contains only ADDED.
-- [ ] No `[NEEDS CLARIFICATION` marker remains at the gate.
 - [ ] `medra validate <change> --stage proposal` reports no `delta.*` error.

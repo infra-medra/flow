@@ -12,7 +12,13 @@ test('gates: prerequisites, stale after edit, not stale after task done', () => 
   assert.equal(medra(root, 'gate', change, 'verify', '--approve').code, 1, 'verify needs proposal first');
   assert.equal(medra(root, 'gate', change, 'proposal', '--approve', '--by', 'Ana').json.phase, 'tasked');
   write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\n');
-  assert.equal(medra(root, 'task', 'done', change, 'T001', '--evidence', 'failing as expected', '--kind', 'red').code, 0);
+  // red and green are run-backed: written evidence cannot stand in for the CLI's own run
+  const claimed = medra(root, 'task', 'done', change, 'T001', '--evidence', 'failing as expected', '--kind', 'red');
+  assert.equal(claimed.code, 1);
+  assert.deepEqual(rules(claimed), ['task.evidence']);
+  assert.deepEqual(rules(medra(root, 'task', 'done', change, 'T001', '--evidence', 'failing as expected')), ['task.evidence'], 'the default kind in tdd is run-backed too');
+  assert.equal(medra(root, 'status', change).json.tasks.done, 0, 'a refused claim ticks nothing');
+  assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'node -e "process.exit(1)"', '--kind', 'red').code, 0);
   assert.equal(medra(root, 'status', change).json.gates.proposal.status, 'approved', 'ticking does not stale the gate');
   const p = `docs/changes/${change}/proposal.md`;
   write(root, p, read(root, p).replace('- A change.', '- A different change.'));
@@ -20,6 +26,29 @@ test('gates: prerequisites, stale after edit, not stale after task done', () => 
   const rc = medra(root, 'gate', change, 'proposal', '--request-changes', '--note', 'split it');
   assert.equal(rc.json.status, 'changes-requested');
   assert.equal(medra(root, 'context', change, '--stage', 'propose').json.gate_notes[0].note, 'split it');
+});
+
+test('task done: in tdd, only a task with no requirement and no mitigation takes manual evidence', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  tasks(root, change, [
+    '- [ ] T001 Create `src/auth/` and add the dependency — verify: folder exists',
+    '- [ ] T002 [TEST] [AUTH-001, AUTH-005] Write tests for AUTH-001.S1, AUTH-001.S3, AUTH-005.S1 in `test/a.test.js` — verify: red',
+    '- [ ] T003 [AUTH-001, AUTH-005] after T002 Implement in `src/a.js` — verify: green',
+    '- [ ] T004 Rate-limit the endpoint (M-01) in `src/a.js` — verify: attack fails',
+    '- [ ] T005 Update the README — verify: endpoint documented',
+  ]);
+  const setup = medra(root, 'task', 'done', change, 'T001', '--evidence', 'folder created, dependency in package.json');
+  assert.equal(setup.code, 0, setup.stdout);
+  assert.equal(setup.json.kind, 'manual', '--evidence defaults to manual where it is allowed');
+  assert.match(read(root, `docs/changes/${change}/tasks.md`), /- evidence manual \d{4}-\d{2}-\d{2}: folder created/);
+  assert.deepEqual(rules(medra(root, 'task', 'done', change, 'T005', '--evidence', 'done', '--kind', 'green')), ['task.evidence'], 'green still needs a run');
+  write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\n');
+  assert.deepEqual(rules(medra(root, 'task', 'done', change, 'T002', '--evidence', 'fails', '--kind', 'manual')), ['task.kind'], 'a [TEST] task is never manual in tdd');
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'node -e "process.exit(1)"', '--kind', 'red').code, 0);
+  assert.deepEqual(rules(medra(root, 'task', 'done', change, 'T003', '--evidence', 'works', '--kind', 'manual')), ['task.kind'], 'a requirement task is never manual in tdd');
+  assert.deepEqual(rules(medra(root, 'task', 'done', change, 'T004', '--evidence', 'limited', '--kind', 'manual')), ['task.kind'], 'a mitigation task is never manual in tdd');
+  assert.equal(medra(root, 'task', 'done', change, 'T005', '--run', 'node -e 0').code, 0, 'an untraced task still accepts a green run');
 });
 
 test('task done: red/green exit codes, test-tampering guard, static checks, and after ordering with --run', () => {

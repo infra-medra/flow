@@ -88,11 +88,12 @@ The title, using the exact change name. The two lines below it record who wrote 
 
 ## Quality Checklist
 
-- [ ] All nine headings are present, in order, and empty sections read "None."
+`medra validate` enforces this document's structure, IDs and cross-references. This list holds only what it cannot judge.
+
+- [ ] Empty sections read "None."
 - [ ] The Stack line names versions taken from the project's manifests.
-- [ ] Every threat names a boundary that exists in Trust Boundaries, and a severity and likelihood from the scales.
-- [ ] Every threat lists mitigations or `—`, and every `—` appears in Residual Risks.
-- [ ] Every mitigation names existing threats and cites a source in Sources, or says it has none.
+- [ ] Every threat names a boundary that exists in Trust Boundaries.
+- [ ] Every `—` in a threat's Mitigations appears in Residual Risks.
+- [ ] Every mitigation cites a source in Sources, or says it has none.
 - [ ] Every unreachable source is marked, together with the claim that rests on it.
-- [ ] Before the plan gate, no Decision is `pending`, and every `D-NN` exists in plan.md.
 - [ ] `medra validate <change> --stage plan` exits `0`.

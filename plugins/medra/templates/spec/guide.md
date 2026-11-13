@@ -66,10 +66,10 @@ The system SHALL reject a password reset link used more than 30 minutes after it
 
 ## Quality Checklist
 
-- [ ] The title, `**Capability:**` and `**ID prefix:**` lines are present, and the prefix is unique across the project.
+`medra validate` enforces this document's structure, IDs and cross-references. This list holds only what it cannot judge.
+
 - [ ] The Purpose's first sentence stands alone.
-- [ ] Every requirement statement contains SHALL or SHALL NOT, and states observable behavior.
-- [ ] Every requirement has at least one scenario, with Given before When and at least one When and one Then.
-- [ ] IDs are sequential within the capability, and none reuses a retired ID.
+- [ ] Every requirement states observable behavior.
+- [ ] IDs are sequential within the capability.
 - [ ] No implementation detail appears that users do not depend on.
 - [ ] `medra validate --project specs` exits `0`.

@@ -268,10 +268,17 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
   if (pending.length) throw refused([finding('task.after', `${id} is after ${pending.join(', ')}, not done yet`, { ref: id, remediation: `Complete prerequisite tasks first: ${pending.join(', ')}` })]);
   const config = loadConfig(root);
   const mode = config.testing.mode;
-  const allowed = ALLOWED_KINDS[mode][t.test ? 'test' : 'other'];
+  // In tdd, a task tied to no requirement and no mitigation (setup, documentation) has no test of
+  // its own to turn green, so it may also be recorded as a manual check.
+  const untraced = !t.test && !t.reqs.length && !/\bM-\d{2,}\b/.test(`${t.description} ${t.verify}`);
+  const allowed = mode === 'tdd' && untraced ? ['green', 'manual'] : ALLOWED_KINDS[mode][t.test ? 'test' : 'other'];
   if (!allowed.length) throw refused([finding('task.kind', `[TEST] tasks are not used in testing mode ${mode}`, { ref: id, remediation: `In testing mode "${mode}", remove [TEST] flag or adjust config-flow.yaml` })]);
-  const k = kind ?? allowed[0];
+  // `red` and `green` are claims about a run, so only the CLI's own run can record them.
+  const k = kind ?? (evidence && allowed.includes('manual') ? 'manual' : allowed[0]);
   if (!allowed.includes(k)) throw refused([finding('task.kind', `${id} needs ${allowed.join(' or ')} evidence in mode ${mode}`, { ref: id, remediation: `Pass --kind ${allowed[0]}` })]);
+  if (evidence && k !== 'manual') {
+    throw refused([finding('task.evidence', `${id} needs --run for ${k} evidence; --evidence records only a manual check`, { ref: id, remediation: allowed.includes('manual') ? `Pass --run "<focused command>", or --kind manual when the task has no automated check` : `Pass --run "<focused command>" so the CLI observes the ${k} result itself` })]);
+  }
   let testEdited = false;
   if (k === 'green' && !t.test && state.test_hashes) {
     const seen = new Set();

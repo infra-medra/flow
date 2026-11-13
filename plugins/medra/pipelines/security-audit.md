@@ -53,7 +53,7 @@ A validated dispatch, plus the bounded context the audit is built from.
 A verified map of what the implementation exposes: the changed files, the entry points in code, and the stack with versions.
 
 **Actions**
-- Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, then read the full diff of the security-relevant ones
+- Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, then read the full diff of the security-relevant ones. On a later round whose dispatch carries `changed_since_previous`, read only the files in that list, plus the locations of the findings in `previous_report`
 - Locate every entry point in the code (routes, consumers, jobs, file handlers) the diff adds or alters, and its authentication and authorization path on the server side
 - Read the stack's versions and the dependency changes from the manifests and lockfiles
 - Note every secret, key, connection string or token the diff touches, by location and kind only
@@ -77,10 +77,12 @@ Evidence-backed findings for every security weakness in the changed code, and a 
 - Check each dependency change against NVD, the GitHub Advisory Database and the CISA KEV catalog, comparing the pinned version to the advisory's affected range; run an installed scanner (`npm audit`, `dotnet list package --vulnerable`, `pip-audit`, `trivy`, `semgrep`, `gitleaks`) read-only when one is available, and record its version and exit code
 - When `threat-model.md` exists, judge each accepted mitigation `implemented`, `partial`, `missing` or `unverified`, with the location that shows it
 - On later rounds, re-check every finding of `previous_report`, starting with `fixed_findings`, and look for regressions the fixes introduced
+- On a later round whose dispatch carries `changed_since_previous`, limit new analysis to the files in that list. Repeat the dependency and advisory lookups only when a manifest or lockfile is in it; otherwise carry the earlier round's results forward, and the status of each accepted mitigation whose location is outside the list, marked `carried from r<N>`
 
 **Avoid**
 - Don't report a dependency as vulnerable without checking the installed version against the affected range — because a CVE that does not apply is a false positive that costs the implementer a round
 - Don't run a scanner that writes to the project, installs packages or calls a live environment — because the audit's only output is its report; an unauthorized side effect makes the audit itself an incident
+- Don't repeat on a later round the source lookups and file reads whose inputs did not change — because the CLI hashed those files at both rounds and they are identical; a second fetch of the same advisory for the same pinned version returns what the previous report already cites
 - Don't report a theoretical weakness as a confirmed vulnerability — because severity without an exploit path in this code misdirects the fix loop; record it with Origin `hypothesis` and Confidence `low`
 
 **Exit when:**

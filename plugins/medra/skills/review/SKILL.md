@@ -2,8 +2,6 @@
 description: Reviews a medra change's documents at their current stage (proposal, plan or tasks), writes a review report and records the reviewer's verdict — for authors and teammates alike. Run only when the user explicitly invokes it.
 argument-hint: "<change-name> [stage]"
 disable-model-invocation: true
-model: opus
-effort: high
 ---
 
 # Command — review
@@ -38,7 +36,7 @@ You operate as **Reviewer**, the adversarial reader of the **medra** workflow.
 
 ## Execution Route
 
-This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Scope** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json` as a single shell call. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Scope** with it.
 
 ## Flow & Phases
 
@@ -50,8 +48,7 @@ Phases run Scope → Review → Report → Verdict → Delivery. At Verdict, a r
 The stage under review, the reviewer's identity and the bounded context, all fixed before reading.
 
 **Actions**
-- Run `medra status <change> --json`
-- Choose the stage: the most advanced of `proposal`, `plan` and `tasks` whose document exists. When the user names a stage, use that one. Confirm the stage and the reviewer's name with the user (default: `git config user.name`)
+- Choose the stage from the opening call's `status`: the most advanced of `proposal`, `plan` and `tasks` whose document exists. When the user names a stage, use that one. Confirm the stage and the reviewer's name with the user (default: `git config user.name`)
 - Run `medra context <change> --stage review --md`. For each MODIFIED or REMOVED requirement with a `last_changed_by` pointer, read only that archived change's `## Decisions` (or its `## Why`)
 
 **Avoid**

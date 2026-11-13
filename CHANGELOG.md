@@ -2,6 +2,22 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [Unreleased]
+
+### Added
+- **`medra handoff <change> check|audit|threat-model`.** Prints the dispatch payload of a handoff contract — round, report path, previous report and `--fixed` findings — after applying the contract's sender checks (exit `1` names what blocks the dispatch). `/medra:verify` and `/medra:plan` pass it on unchanged and no longer read the handoff files to compose it.
+- **`changed_since_previous` in the check and audit payloads.** `medra handoff` hashes the files the change touched at every round and, from the second round on, lists the ones that differ from what the receiver's previous round saw. The reviewer and the security agent then re-inspect only those files and the open findings, and carry the rest of the previous report forward.
+- **Validation rules:** `proposal.impact` (the four Impact lines are filled), `proposal.open-questions` (the section reads `None.` once no marker is left), and two extensions: `plan.test-strategy` requires every ADDED or MODIFIED scenario ID in the Test Strategy, and `plan.constitution` requires a Note on every `pass`. A change in flight whose proposal or plan misses one of these fails validation until the document is corrected, which makes an approved gate stale.
+
+### Fixed
+- **`red` and `green` evidence needs a run.** `medra task done --evidence "<text>" --kind green` (or `red`) ticked a task on the agent's word, bypassing the exit-code check, the test-tampering guard's purpose and `testing.checks`. `--evidence` now records only `manual` evidence and is refused otherwise (`task.evidence`). In `tdd`, a task that names no requirement and cites no mitigation (setup, documentation) accepts `manual`; every other task is checkpointed with `--run`.
+
+### Changed
+- **Template checklists hold only judgment.** The Quality Checklists of the proposal, delta, plan, tasks, spec, constitution and threat-model guides drop every item `medra validate` enforces.
+- **Self-review checks the text written in the session.** `/medra:propose`, `/medra:plan` and `/medra:tasks` re-read a document from disk only when `medra fix` repaired it, an earlier session wrote it, or its text is no longer verbatim in the session.
+- **Phase 1 no longer repeats the opening call.** Each command skill's first phase works from the output of the opening shell call instead of listing the same commands again.
+- **No model or effort pins.** The `model` and `effort` frontmatter keys added in 1.8.0 are removed from the eight command skills and from `agents/reviewer.md` and `agents/security.md`. Commands run on the model and effort of the user's session, and the subagents inherit them.
+
 ## [1.8.0] — 2026-11-12
 
 ### Changed
