@@ -194,8 +194,9 @@ test('handoff: payloads, pre-dispatch refusals, rounds, fixed findings and files
   const change = brownfieldChange(root);
   const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root });
   git('add', '-A'); git('commit', '-q', '-m', 'base');
+  // Quoted: an unquoted short hash made only of digits (or digits around one `e`) parses as a YAML number.
   const state = `docs/changes/${change}/.medra.yaml`;
-  write(root, state, read(root, state).replace(/^diff_base: .*$/m, `diff_base: ${spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()}`));
+  write(root, state, read(root, state).replace(/^diff_base: .*$/m, `diff_base: "${spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()}"`));
 
   assert.equal(medra(root, 'handoff', change, 'nope').code, 2);
   const early = medra(root, 'handoff', change, 'check');
@@ -275,7 +276,7 @@ test('suite: verify.suite needs a green full run on the current code, and verify
   const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root, encoding: 'utf8' });
   git('add', '-A'); git('commit', '-q', '-m', 'base');
   const state = `docs/changes/${change}/.medra.yaml`;
-  write(root, state, read(root, state).replace(/^diff_base: .*$/m, `diff_base: ${git('rev-parse', '--short', 'HEAD').stdout.trim()}`));
+  write(root, state, read(root, state).replace(/^diff_base: .*$/m, `diff_base: "${git('rev-parse', '--short', 'HEAD').stdout.trim()}"`));
   write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\n');
   write(root, 'src/a.js', 'export const a = 1;\n');
   assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'node -e "process.exit(1)"', '--kind', 'red').code, 0);
