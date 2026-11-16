@@ -110,6 +110,8 @@ j(program.command('handoff <change> <contract>').description('Dispatch payload f
     emit(res, jsonMode ? undefined : handoffText(res));
   });
 
+j(program.command('suite <change>').description('Run the whole test suite and the static checks, and record the result')).action(run((change) => cmd.suite(root(), change)));
+
 j(program.command('coverage [change]').description('Map scenario IDs to tests').option('--all'))
   .action(run((change, o) => cmd.coverageCmd(root(), change, o)));
 

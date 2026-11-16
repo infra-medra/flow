@@ -6,7 +6,7 @@ import { section, trimBlank } from './markdown.js';
 import { parseConstitution, constitutionFindings, liveArticles, parseProposal, PROPOSAL_HEADINGS, parsePlan, PLAN_ANCHORS, parseThreatModel, THREAT_MODEL_ANCHORS } from './documents.js';
 import { loadLivingSpecs, loadDeltas, livingSpecFindings, deltaFindings } from './specs.js';
 import { loadLearnings, learningsFindings } from './learnings.js';
-import { changeDir, loadState, loadTasks, latestReport, coverage, changeScenarios, securityRelevance } from './change.js';
+import { changeDir, loadState, loadTasks, latestReport, coverage, changeScenarios, securityRelevance, suiteFindings, mergeFindings } from './change.js';
 
 export const STAGES = ['proposal', 'plan', 'tasks', 'verify'];
 
@@ -247,6 +247,7 @@ function verifyFindings(root, change, state) {
     const cov = coverage(root, changeScenarios(root, change));
     for (const id of cov.uncovered) out.push(finding('verify.coverage', `${id} is not cited by any test`, { ref: id, remediation: `Reference scenario ID "${id}" in test names, comments, or tags in the test files` }));
   }
+  out.push(...suiteFindings(root, change, state), ...mergeFindings(root, change));
   const report = latestReport(root, change, 'verify');
   const lastDone = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
   if (!report) out.push(finding('verify.report', 'No verify review report in reviews/', { remediation: 'Run reviewer verification via /medra:verify to produce a review report' }));

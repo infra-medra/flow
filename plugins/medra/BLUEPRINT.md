@@ -103,6 +103,8 @@ Each command skill is the single source for its run: it carries the persona of t
 
 No command skill or agent file declares `model` or `effort`. Commands run inline in the main session on the model and effort the user configured there, and the `reviewer` and `security` subagents inherit them. The plugin does not choose a model on the user's behalf, on Claude Code or on Antigravity.
 
+On Claude Code, `hooks/guard.mjs` (a PreToolUse hook on Bash, Write and Edit) enforces what the skills otherwise only ask for: `medra gate … --approve`, `medra constitution ratify` and `--allow-test-edit` prompt the user; hand edits of `.medra.yaml`, the archive and task ticks are denied; an existing living spec asks before a hand edit. The Antigravity install does not carry the hook.
+
 ## Documents
 
 All documents live under `docs/` at the project root and are versioned with the code. Headings, IDs and keywords are fixed in English, and prose follows the `language` key in `docs/config-flow.yaml`.

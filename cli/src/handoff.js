@@ -2,10 +2,9 @@
 // the round and report paths, and the files changed since the receiver's previous round.
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import YAML from 'yaml';
-import { refused, usageError, finding, errorsOf, readText, rel, git, today, listOpt, DOCS_DIR } from './core.js';
-import { changeDir, loadState, saveState, loadTasks, securityRelevance } from './change.js';
+import { refused, usageError, finding, errorsOf, readText, rel, today, listOpt, loadConfig } from './core.js';
+import { changeDir, loadState, saveState, loadTasks, securityRelevance, snapshot, suiteFindings, mergeFindings } from './change.js';
 import { changeFindings } from './validate.js';
 
 export const CONTRACTS = {
@@ -31,28 +30,6 @@ function roundReports(root, change) {
   }).filter(Boolean);
 }
 
-/**
- * Content hashes of every file the change touched since `diff_base` (tracked edits and untracked
- * files, outside docs/ and .agents/), or null when git cannot say.
- */
-function snapshot(root, diffBase) {
-  if (!diffBase || diffBase === 'none') return null;
-  const tracked = git(root, ['-c', 'core.quotepath=off', 'diff', '--name-only', diffBase]);
-  if (tracked === null) return null;
-  const untracked = git(root, ['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard']) ?? '';
-  const files = [...new Set(`${tracked}\n${untracked}`.split('\n').map((f) => f.trim()).filter(Boolean))]
-    .filter((f) => !f.startsWith(`${DOCS_DIR}/`) && !f.startsWith('.agents/')).sort();
-  if (files.length > MAX_SNAPSHOT) return null;
-  const out = {};
-  for (const f of files) {
-    const abs = path.join(root, f);
-    out[f] = fs.existsSync(abs) && fs.statSync(abs).isFile()
-      ? crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex')
-      : 'deleted';
-  }
-  return out;
-}
-
 const changedBetween = (before, after) => [...new Set([...Object.keys(before), ...Object.keys(after)])]
   .filter((f) => before[f] !== after[f]).sort();
 
@@ -67,6 +44,8 @@ function roundPayload(root, change, contract, state, { fixed }) {
   if (contract === 'audit' && securityRelevance(root, change) !== 'relevant') {
     findings.push(finding('handoff.security', 'The proposal does not say **Security:** relevant; this change gets no audit'));
   }
+  // A receiver's round is wasted on code whose suite is red or whose deltas no longer merge.
+  findings.push(...suiteFindings(root, change, state), ...mergeFindings(root, change));
   const reports = roundReports(root, change);
   const round = Math.max(0, ...reports.map((r) => r.round)) + 1;
   const previous = reports.filter((r) => r.kind === spec.kind).sort((a, b) => a.round - b.round).pop() ?? null;
@@ -99,7 +78,9 @@ function roundPayload(root, change, contract, state, { fixed }) {
   }
   // The snapshot of this round is what the next round is compared against. Rounds older than the
   // previous report are dropped, so the state keeps at most two snapshots per contract.
-  const now = snapshot(root, payload.diff_base);
+  const { testing } = loadConfig(root);
+  if (testing.mode !== 'none' && testing.command) payload.suite = 'green';
+  const now = snapshot(root, payload.diff_base, { max: MAX_SNAPSHOT });
   const kept = state.handoff_snapshots?.[contract] ?? {};
   if (previous && now && kept[previous.round]) {
     const changed = changedBetween(kept[previous.round], now);

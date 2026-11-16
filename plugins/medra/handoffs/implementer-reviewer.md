@@ -27,6 +27,7 @@ On Claude Code, the sender passes this payload to the Agent tool, with `subagent
 | round | integer | yes | `1` for the first check. Increment it on every re-check, including a re-check after a Request changes at the verify gate |
 | previous_report | path | no | Required on rounds after the first: the `report_path` of round `round - 1`, which may carry an earlier date |
 | fixed_findings | list | no | On rounds after the first: the finding IDs from `previous_report` that the implementer claims are fixed (`--fixed`) |
+| suite | string | no | `green` when the project configures a test command: `medra suite` passed on the code as it is at dispatch. Absent otherwise |
 | changed_since_previous | list | no | On rounds after the first: the files outside `docs/` whose content differs from what the receiver's previous round saw. Absent when the CLI holds no snapshot of that round, or `diff_base` is `none`; the receiver then inspects everything |
 
 ```yaml
@@ -77,6 +78,7 @@ unverified: 0
 
 **`medra handoff <change> check` checks before printing the payload,** and exits `1` naming what failed:
 - Every task is done, and the `tasks` stage validates.
+- When a test command is configured, `medra suite` passed on the current code (`verify.suite`), and the deltas still merge into the living specs (`verify.merge`).
 - Every `--fixed` ID is a finding of `previous_report`.
 - `report_path` is a new file in `reviews/`, one round above the highest round on disk.
 

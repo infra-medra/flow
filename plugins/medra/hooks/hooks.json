@@ -1,0 +1,13 @@
+{
+  "description": "Keeps medra's human decisions (gate approvals, constitution ratification, test-lock overrides) and its CLI-owned files out of the agent's unilateral reach.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/guard.mjs"], "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}

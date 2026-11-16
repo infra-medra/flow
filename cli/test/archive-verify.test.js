@@ -264,3 +264,69 @@ test('handoff: payloads, pre-dispatch refusals, rounds, fixed findings and files
   assert.equal(medra(root, 'handoff', change, 'threat-model').json.payload.revision, true);
   assert.equal(medra(root, 'handoff', change, 'threat-model', '--fixed', 'F-01').code, 2);
 });
+
+test('suite: verify.suite needs a green full run on the current code, and verify.merge a clean merge, before a handoff or the gate', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  const cfg = 'docs/config-flow.yaml';
+  write(root, cfg, read(root, cfg).replace('command: null', 'command: node suite.js').replace('checks: []', 'checks:\n    - node check.js'));
+  write(root, 'suite.js', 'process.exit(0);\n');
+  write(root, 'check.js', 'process.exit(0);\n');
+  const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: root, encoding: 'utf8' });
+  git('add', '-A'); git('commit', '-q', '-m', 'base');
+  const state = `docs/changes/${change}/.medra.yaml`;
+  write(root, state, read(root, state).replace(/^diff_base: .*$/m, `diff_base: ${git('rev-parse', '--short', 'HEAD').stdout.trim()}`));
+  write(root, 'test/a.test.js', '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1\n');
+  write(root, 'src/a.js', 'export const a = 1;\n');
+  assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'node -e "process.exit(1)"', '--kind', 'red').code, 0);
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'node -e 0').code, 0);
+
+  // Never run
+  assert.deepEqual(rules(medra(root, 'handoff', change, 'check')), ['verify.suite']);
+  assert.ok(rules(medra(root, 'validate', change, '--stage', 'verify')).includes('verify.suite'));
+
+  // A red suite is recorded and refused, with the failure output
+  write(root, 'suite.js', "console.error('AssertionError: regression in billing'); process.exit(3);\n");
+  const red = medra(root, 'suite', change);
+  assert.equal(red.code, 1);
+  assert.deepEqual(rules(red), ['suite.failed']);
+  assert.match(red.json.message, /regression in billing/);
+  assert.deepEqual(rules(medra(root, 'handoff', change, 'check')), ['verify.suite']);
+
+  // Green: the test command and every check ran, and the handoff says so
+  write(root, 'suite.js', 'process.exit(0);\n');
+  const green = medra(root, 'suite', change);
+  assert.equal(green.code, 0, green.stdout);
+  assert.deepEqual(green.json.ran, ['node suite.js', 'node check.js']);
+  const ok = medra(root, 'handoff', change, 'check');
+  assert.equal(ok.code, 0, ok.stdout);
+  assert.equal(ok.json.payload.suite, 'green');
+
+  // An edit after the run makes it stale, whoever made the edit and however
+  write(root, 'src/a.js', 'export const a = 2;\n');
+  assert.deepEqual(rules(medra(root, 'handoff', change, 'check')), ['verify.suite']);
+  assert.equal(medra(root, 'suite', change).code, 0);
+  assert.equal(medra(root, 'handoff', change, 'check').code, 0);
+
+  // A failing static check fails the suite too
+  write(root, 'check.js', 'process.exit(1);\n');
+  assert.deepEqual(rules(medra(root, 'suite', change)), ['suite.failed']);
+  write(root, 'check.js', 'process.exit(0);\n');
+  assert.equal(medra(root, 'suite', change).code, 0);
+
+  // Another change removes the requirement this one modifies: the deltas no longer merge
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-002', 'Remember me', [['AUTH-002.S1', 'Cookie']])], 'AUTH-004');
+  const blocked = medra(root, 'handoff', change, 'check');
+  assert.equal(blocked.code, 1);
+  assert.ok(rules(blocked).includes('verify.merge'));
+  const merge = medra(root, 'validate', change, '--stage', 'verify').json.findings.find((f) => f.rule === 'verify.merge');
+  assert.equal(merge.ref, 'AUTH-001');
+  assert.match(merge.remediation, /medra:propose/);
+});
+
+test('suite: with no test command configured it runs nothing and the rule does not apply', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  assert.deepEqual(medra(root, 'suite', change).json, { ok: true, ran: [], skipped: true });
+  assert.ok(!rules(medra(root, 'validate', change, '--stage', 'verify')).includes('verify.suite'));
+});

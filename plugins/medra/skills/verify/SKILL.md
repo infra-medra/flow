@@ -41,7 +41,7 @@ This skill is self-contained: the persona and every phase are below, and nothing
 ## Flow & Phases
 
 Phases run Readiness → Check → Fix → Gate → Delivery, with these routes:
-- Readiness with uncovered scenarios or open tasks stops the run: the user resumes `/medra:apply`.
+- Readiness with uncovered scenarios or open tasks stops the run: the user resumes `/medra:apply`. Deltas that no longer merge stop it too: the user revises through `/medra:propose`.
 - Check with every verdict `pass` skips Fix and goes to Gate. Findings or a `fail` go to Fix and then back to Check, for at most two Fix rounds; after that, go to Gate with what remains.
 - Check with `needs-decision` asks the user. An answer returns to Check; an answer that changes behavior stops the run, and the user revises through `/medra:propose`.
 - Gate: changes opens one new Fix round; rejected stops, with the change left in `implementing`.
@@ -53,6 +53,7 @@ Confirmation that the change satisfies the handoff's dispatch preconditions and 
 
 **Actions**
 - From the opening call's output, confirm that `status` reports every task done, that the `tasks` stage validates, and that `coverage` lists no uncovered scenario
+- Run `medra suite <change> --json`: the whole test suite and the static checks, once, recorded by the CLI against the code as it is now. On exit `1` the change broke something its focused tests do not cover: fix the regression inside the approved deltas and run it again. When the failure has nothing to do with this change, show the user the output and ask how to proceed
 - When the mode is `tdd` or `test-after` and coverage lists uncovered scenarios, stop and tell the user to resume `/medra:apply` with a test task for each one
 
 **Avoid**
@@ -61,6 +62,7 @@ Confirmation that the change satisfies the handoff's dispatch preconditions and 
 **Exit when:**
 - [ ] `medra status` reports every task done
 - [ ] `medra coverage` reports no uncovered scenario, or the mode is `none`
+- [ ] `medra suite` exited `0`, or reported `skipped` because the project configures no test command
 
 ---
 
@@ -70,7 +72,8 @@ Confirmation that the change satisfies the handoff's dispatch preconditions and 
 This round's verification report and, on a security-relevant change, its security report, each at its dispatched `report_path` with a validated response payload.
 
 **Actions**
-- Get the dispatch payloads from the CLI in one shell call: `medra handoff <change> check`, plus `medra handoff <change> audit` when the change is security-relevant. On later rounds, add `--fixed <IDs>` to each with the findings of its previous report that Fix resolved (`F-NN` for check, `S-NN` for audit). Each prints its payload as YAML — the round, the report path, the previous report and the files changed since that receiver's last round — or exits `1` naming what blocks the dispatch. Skip the audit in a later round when `last_security.verdict` in `medra status` is `pass`; that report stays current
+- On later rounds, run `medra suite <change> --json` first: the fixes changed code, and `medra handoff` refuses (`verify.suite`) while the recorded run predates them
+- Get the dispatch payloads from the CLI in one shell call: `medra handoff <change> check`, plus `medra handoff <change> audit` when the change is security-relevant. A `verify.merge` refusal means another change altered a living spec this one targets: stop and tell the user to revise the deltas with `/medra:propose <change>`. On later rounds, add `--fixed <IDs>` to each with the findings of its previous report that Fix resolved (`F-NN` for check, `S-NN` for audit). Each prints its payload as YAML — the round, the report path, the previous report and the files changed since that receiver's last round — or exits `1` naming what blocks the dispatch. Skip the audit in a later round when `last_security.verdict` in `medra status` is `pass`; that report stays current
 - Dispatch both in one message so they run in parallel, passing each payload unchanged after its contract line — `Contract: ${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md` for the check, `Contract: ${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md` for the audit: on Claude Code, two Agent calls (`subagent_type: medra:reviewer` and `medra:security`); on Antigravity, `invoke_subagent` for each. On a runtime without subagents, run the reviewer's check and then the audit inline, following `${CLAUDE_PLUGIN_ROOT}/references/portability.md`
 - Validate each response: the file at `report_path` exists, and its `**Verdict:**` and `**Counts:**` lines equal the response's `verdict` and `counts`. A check with verdict `pass` has no critical, major or unverified item, and one with `fail` has a critical or an unverified item; a security report has `**Stage:** security`. When a response fails this, re-dispatch that receiver once with the same payload; when it fails again, read the report directly and present it at the gate, noting that the response failed validation. For any other failure, read that contract's Error Handling
 - When a response is `needs-decision`, put its question to the user with `AskUserQuestion`, then re-dispatch that receiver with the answer recorded in the change's documents (through `/medra:propose <change>` when the answer changes behavior)
@@ -116,7 +119,7 @@ Every critical and major review finding, and every critical and high security fi
 A verify-gate decision recorded by `medra gate`.
 
 **Actions**
-- Run `medra validate <change> --stage verify --json`. When `verify.report` or `verify.security-report` fails because code changed after the last check, return to Check
+- Run `medra validate <change> --stage verify --json`. When `verify.report` or `verify.security-report` fails because code changed after the last check, return to Check. On `verify.suite`, run `medra suite <change> --json` and validate again; on `verify.merge`, stop and route the user to `/medra:propose <change>`
 - Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/gate.md` describes it (read it now), for gate `verify`. Present the current verification report with its verdict and counts, the number of check rounds, the coverage ratio, and any finding left unresolved together with its reason
 - On a security-relevant change, present the current security report as well: its verdict, open counts by severity, origin mix and unreachable sources, and put each open critical or high security finding up as its own decision to accept as residual risk or to fix
 - Record the decision with `medra gate`. On approval with open security findings, pass `--note` listing each accepted one as `accepted-risk: S-NN — <the user's reason>`

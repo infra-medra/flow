@@ -10,7 +10,7 @@ import {
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
 import { loadLivingSpecs, loadDeltas } from './specs.js';
 import { loadLearnings, saveLearnings, nextLearningId, learningsPath, renderLearnings, STAGES as LEARN_STAGES } from './learnings.js';
-import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, specDrift, coverage, changeScenarios, latestReport, securityRelevance } from './change.js';
+import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, specDrift, coverage, changeScenarios, latestReport, securityRelevance, fingerprint } from './change.js';
 import { changeFindings, projectFindings, STAGES } from './validate.js';
 import { archiveIndexPath, nextTaskPayload, taskContext } from './context.js';
 import { install } from './install.js';
@@ -200,6 +200,9 @@ export function review(root, change, { report, by }) {
 
 // ---------- tasks ----------
 
+// A verbose test run must not be cut off: Node's 1 MB default kills the command and fakes a failure.
+const RUN_BUFFER = 64 * 1024 * 1024;
+
 const ALLOWED_KINDS = {
   tdd: { test: ['red'], other: ['green'] },
   'test-after': { test: ['green'], other: ['green', 'manual'] },
@@ -307,7 +310,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
   }
   let detail;
   if (run) {
-    const res = spawnSync(run, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000 });
+    const res = spawnSync(run, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
     if (res.error && res.error.code === 'ETIMEDOUT') throw envError(`Command timed out after 10 minutes: ${run}`);
     const code = res.status ?? 1;
     if (code === 127) throw envError(`Command not found: ${run}`);
@@ -318,7 +321,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
       const checks = config.testing.checks ?? [];
       for (const chk of Array.isArray(checks) ? checks : [checks]) {
         if (!chk) continue;
-        const cres = spawnSync(chk, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000 });
+        const cres = spawnSync(chk, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
         if (cres.error && cres.error.code === 'ETIMEDOUT') throw envError(`Check timed out after 10 minutes: ${chk}`);
         const ccode = cres.status ?? 1;
         if (ccode !== 127 && ccode !== 0) {
@@ -345,6 +348,35 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
   saveState(root, change, state);
   const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state);
   return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}) };
+}
+
+// ---------- suite ----------
+
+/**
+ * Runs the whole test suite (`testing.command`, unfocused) and every `testing.checks` command, and
+ * records the outcome with a fingerprint of the change's code, so `verify.suite` can tell a run on
+ * this exact code from one that predates an edit.
+ */
+export function suite(root, change) {
+  const state = loadState(root, change);
+  const { testing } = loadConfig(root);
+  const checks = Array.isArray(testing.checks) ? testing.checks : [testing.checks];
+  const commands = [testing.mode !== 'none' ? testing.command : null, ...checks].filter(Boolean);
+  if (!commands.length) return { ran: [], skipped: true };
+  for (const command of commands) {
+    const res = spawnSync(command, { cwd: root, shell: true, encoding: 'utf8', timeout: 30 * 60 * 1000, maxBuffer: RUN_BUFFER });
+    if (res.error && res.error.code === 'ETIMEDOUT') throw envError(`Command timed out after 30 minutes: ${command}`);
+    const code = res.status ?? 1;
+    if (code === 127) throw envError(`Command not found: ${command}`);
+    if (code !== 0) {
+      state.suite = { at: nowIso(), exit: code, command };
+      saveState(root, change, state);
+      throw refused([finding('suite.failed', `"${command}" exited ${code}`, { ref: change, remediation: 'Fix the failure and run the suite again' })], sanitizeTestOutput(res.stdout, res.stderr, 20) || `Command exited ${code}`);
+    }
+  }
+  state.suite = { at: nowIso(), exit: 0, commands, fingerprint: fingerprint(root, state) };
+  saveState(root, change, state);
+  return { ran: commands, exit: 0 };
 }
 
 export function taskBlock(root, change, id, { note }, unblock = false) {

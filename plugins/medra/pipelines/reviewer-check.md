@@ -54,7 +54,7 @@ An evidence-backed judgment for every ADDED and MODIFIED requirement, and findin
 
 **Actions**
 - For each requirement, read the implementing code and the tests at the coverage locations, and judge whether each test actually exercises its scenario's Given, When and Then
-- Audit the evidence: in `tdd`, every `[TEST]` task has a red line and every implementation task has a green line. Run the focused test command once to confirm the suite is green now
+- Audit the evidence: in `tdd`, every `[TEST]` task has a red line and every implementation task has a green line. When the dispatch carries `suite: green`, the CLI ran the whole suite and the static checks on this exact code and `medra handoff` refused otherwise, so do not run them again; run a single test only when a finding depends on watching it. Without that field, run the focused test command once to confirm the tests are green now
 - Diff the test files against `diff_base` for weakening: removed assertions, added skips, loosened matchers, and mocks of the very behavior under test
 - Check the changed files against the plan's Decisions and the constitution's articles, and flag changed files that no task or plan section accounts for (scope creep)
 - On later rounds, confirm each finding in `fixed_findings` is resolved, and look for regressions the fixes introduced
