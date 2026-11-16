@@ -2,7 +2,7 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
-## [Unreleased]
+## [1.9.0] — 2026-11-16
 
 ### Added
 - **`medra handoff <change> check|audit|threat-model`.** Prints the dispatch payload of a handoff contract — round, report path, previous report and `--fixed` findings — after applying the contract's sender checks (exit `1` names what blocks the dispatch). `/medra:verify` and `/medra:plan` pass it on unchanged and no longer read the handoff files to compose it.
