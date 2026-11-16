@@ -121,10 +121,12 @@ A verify-gate decision recorded by `medra gate`.
 **Actions**
 - Run `medra validate <change> --stage verify --json`. When `verify.report` or `verify.security-report` fails because code changed after the last check, return to Check. On `verify.suite`, run `medra suite <change> --json` and validate again; on `verify.merge`, stop and route the user to `/medra:propose <change>`
 - Run the gate as `${CLAUDE_PLUGIN_ROOT}/references/gate.md` describes it (read it now), for gate `verify`. Present the current verification report with its verdict and counts, the number of check rounds, the coverage ratio, and any finding left unresolved together with its reason
+- Present the gate even when every verdict is `pass` and the change is not security-relevant: the user, not the Implementer, approves verify, and the decision to put up is whether to archive what was verified
 - On a security-relevant change, present the current security report as well: its verdict, open counts by severity, origin mix and unreachable sources, and put each open critical or high security finding up as its own decision to accept as residual risk or to fix
 - Record the decision with `medra gate`. On approval with open security findings, pass `--note` listing each accepted one as `accepted-risk: S-NN — <the user's reason>`
 
 **Avoid**
+- Don't run `medra gate verify --approve` before the user has answered the gate question — because the gate record names who approved; skipping the question because security is not relevant or the verdict is `pass` records an approval nobody gave
 - Don't accept a critical or high security finding on your own — because accepting security risk belongs to the user; put each one up as an explicit decision
 - Don't present a `fail` verdict as approvable without stating each unresolved critical finding — because approving verify lets archive merge the deltas into living specs as if they were true
 - Don't fold open security findings into a single "approve" — because an accepted risk needs a named finding and a reason on the record; the CLI does not block on them, so this gate is the only control

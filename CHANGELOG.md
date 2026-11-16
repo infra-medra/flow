@@ -2,6 +2,11 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **The verify gate is no longer skipped when the change is not security-relevant.** On Antigravity, which has no guard hook, a `pass` verdict with no security audit read as nothing to decide, and the agent recorded `medra gate verify --approve` itself. `references/gate.md` now names `ask_question` for Antigravity, stops the agent after asking until the user's answer is in the conversation, and states that a gate is never skipped, whatever the verdict or security relevance. `/medra:verify` presents the gate even when every verdict is `pass`.
+
 ## [1.9.0] — 2026-11-16
 
 ### Added

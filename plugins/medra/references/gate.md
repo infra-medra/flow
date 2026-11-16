@@ -5,8 +5,10 @@ A gate is a human decision about an inspectable artifact. Run it the same way at
 
 1. Run `medra validate` for the gate's stage. Present the gate only after it exits `0`, because `medra gate --approve` refuses an invalid stage.
 2. Present the gate render (below), with every document path and the decisions the user is arbitrating.
-3. Ask for the decision. On Claude Code, use `AskUserQuestion` with the options **Approve**, **Request changes**, and **Reject**. On a runtime without it, ask the same three options as a numbered list and wait for an explicit reply.
+3. Ask for the decision. On Claude Code, use `AskUserQuestion`; on Antigravity, use `ask_question`; with the options **Approve**, **Request changes**, and **Reject**. On a runtime without either, ask the same three options as a numbered list and wait for an explicit reply. Stop after asking: run no `medra gate` command until the user's answer is in the conversation.
 4. Record the decision. For **Approve**, run `medra gate <change> <gate> --approve`. For **Request changes**, run `medra gate … --request-changes --note "<the user's words>"`, apply the changes, and return to step 1. For **Reject**, record it as request-changes with the note `rejected: <reason>` and end the pipeline.
+
+A gate is never skipped, and never decided by you. A clean report, a `pass` verdict, a change with no security relevance or an empty **Decide** list does not remove it: the user still approves what is about to be recorded. Antigravity has no guard hook, so this rule is the only control there.
 
 Silence, "ok, continue", or an answer to a different question is not an approval. Ask again with the same options.
 
