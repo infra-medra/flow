@@ -1,9 +1,7 @@
 ---
 name: reviewer
 description: Adversarially reviews medra change documents and verifies implementations against specs.
-model: opus
 color: red
-effort: high
 tools: Read, Write, Grep, Glob, Bash, Skill, AskUserQuestion
 ---
 

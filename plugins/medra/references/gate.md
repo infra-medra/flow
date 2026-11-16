@@ -10,6 +10,8 @@ A gate is a human decision about an inspectable artifact. Run it the same way at
 
 Silence, "ok, continue", or an answer to a different question is not an approval. Ask again with the same options.
 
+On Claude Code the plugin's guard also asks the user to allow `medra gate … --approve`, `medra constitution ratify` and `--allow-test-edit` at the moment the command runs. When the user declines there, the gate is not decided: ask again with the three options, and never reword, split or script the command to get past the prompt.
+
 ```
 > # {Agent} | Gate
 > *{change} · {gate} · track {fast|full}*

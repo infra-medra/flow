@@ -1,13 +1,14 @@
 // Change folders: state (.medra.yaml), stage documents and hashes, gate status, coverage.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import YAML from 'yaml';
 import fg from 'fast-glob';
 import ignore from 'ignore';
 import picomatch from 'picomatch';
-import { envError, readText, readIf, sha256, writeAtomic, rel, loadConfig, docsPath, DOCS_DIR, git } from './core.js';
+import { envError, finding, readText, readIf, sha256, writeAtomic, rel, loadConfig, docsPath, DOCS_DIR, git } from './core.js';
 import { tasksHashBasis, parseTasks, parseReport, parseProposal } from './documents.js';
-import { loadDeltas, loadLivingSpecs } from './specs.js';
+import { loadDeltas, loadLivingSpecs, planMerge } from './specs.js';
 
 export const GATES = ['proposal', 'plan', 'tasks', 'verify'];
 export const changesDir = (root) => docsPath(root, 'changes');
@@ -199,4 +200,58 @@ export function coverage(root, scenarioIds) {
   }
   const uncovered = scenarioIds.filter((id) => !locations[id]);
   return { scenarios: scenarioIds.length, covered: scenarioIds.length - uncovered.length, uncovered, locations };
+}
+
+/**
+ * Content hashes of every file the change touched since `diffBase` (tracked edits and untracked
+ * files, outside docs/ and .agents/). Null when git cannot say, or when more than `max` files changed.
+ */
+export function snapshot(root, diffBase, { max = Infinity } = {}) {
+  if (!diffBase || diffBase === 'none') return null;
+  const tracked = git(root, ['-c', 'core.quotepath=off', 'diff', '--name-only', diffBase]);
+  if (tracked === null) return null;
+  const untracked = git(root, ['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard']) ?? '';
+  const files = [...new Set(`${tracked}\n${untracked}`.split('\n').map((f) => f.trim()).filter(Boolean))]
+    .filter((f) => !f.startsWith(`${DOCS_DIR}/`) && !f.startsWith('.agents/')).sort();
+  if (files.length > max) return null;
+  const out = {};
+  for (const f of files) {
+    const abs = path.join(root, f);
+    out[f] = fs.existsSync(abs) && fs.statSync(abs).isFile()
+      ? crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex')
+      : 'deleted';
+  }
+  return out;
+}
+
+/** One hash over the change's code as it is now, or null when git cannot say. */
+export function fingerprint(root, state) {
+  const snap = snapshot(root, state.diff_base);
+  return snap === null ? null : sha256(JSON.stringify(Object.entries(snap)));
+}
+
+/** verify.suite: a green `medra suite` run on the code as it is now. Applies when a test command is configured. */
+export function suiteFindings(root, change, state) {
+  const { testing } = loadConfig(root);
+  if (testing.mode === 'none' || !testing.command) return [];
+  const remediation = `Run "medra suite ${change}"`;
+  const s = state.suite;
+  if (!s) return [finding('verify.suite', 'The full test suite has not been run for this change', { ref: change, remediation })];
+  if (s.exit !== 0) return [finding('verify.suite', `The last full-suite run failed: "${s.command}" exited ${s.exit}`, { ref: change, remediation: `Fix the failure, then run "medra suite ${change}"` })];
+  const now = fingerprint(root, state);
+  const stale = s.fingerprint && now ? s.fingerprint !== now : Date.parse(s.at) < Date.parse(state.last_task_done_at ?? s.at);
+  return stale ? [finding('verify.suite', 'Code changed after the last full-suite run', { ref: change, remediation })] : [];
+}
+
+const MERGE_FIX = {
+  'missing-target': 'Another change removed or renamed this requirement in the living spec; rewrite the delta against the current spec through /medra:propose',
+  'added-collision': 'Another change took this ID; move the requirement to the next free ID in the delta, the tasks and the tests through /medra:propose',
+  'post-merge-invalid': 'Fix the delta block so the merged living spec validates',
+};
+
+/** verify.merge: the change's deltas merge into the living specs as they are now. */
+export function mergeFindings(root, change) {
+  return planMerge(root, changeDir(root, change)).conflicts.map((c) => finding('verify.merge',
+    `${c.operation} ${c.id ?? c.capability ?? ''} would not merge (${c.problem})${c.message ? `: ${c.message}` : ''}`,
+    { ref: c.id ?? c.capability ?? null, remediation: MERGE_FIX[c.problem] ?? null }));
 }

@@ -316,6 +316,10 @@ track_history:
 blockers:
   - { task: T005, at: …, note: "SMTP sandbox unavailable", resolved: false }
 last_task_done_at: 2026-10-30T10:12:44Z   # set by `task done`; `verify.report` compares the report against it
+suite: { at: 2026-10-30T10:20:02Z, exit: 0, commands: ["npm test --", "npm run lint"], fingerprint: <sha256> }   # set by `medra suite` (§8.17)
+handoff_snapshots:                # set by `medra handoff` (§8.16); never part of a gate hash
+  check: { 1: { src/auth/reset.js: <sha256> }, 2: { … } }
+  audit: { 1: { … } }
 ```
 
 - **Gate `hash`:** the SHA-256 over the stage's documents (see §7), taken at approval.
@@ -360,14 +364,16 @@ On the fast track there are no `plan` or `tasks` gates, and `status` reports the
 | `proposal.security` | proposal | When a `**Security:**` line is present, its value is `relevant` or `not-relevant` and a `**Security rationale:**` line follows it |
 | `proposal.markers` | proposal | Zero occurrences of `[NEEDS CLARIFICATION` in proposal.md and the deltas |
 | `proposal.capabilities` | proposal | Every Capabilities row has a delta file, every delta file has a row, and the operations match |
+| `proposal.impact` | proposal | The Impact section has a `**Code:**`, `**Interfaces:**`, `**Data:**` and `**Dependencies:**` line, each with a value that is not a template placeholder |
+| `proposal.open-questions` | proposal | With no marker left, the body of Open Questions is exactly `None.` |
 | `delta.structure` | proposal | §4.4 grammar, plus the `spec.shall` and `spec.scenario` rules applied to delta blocks |
 | `delta.targets` | proposal | ADDED IDs are absent from the living spec and not retired; MODIFIED and REMOVED IDs exist in the living spec |
 | `delta.new-capability` | proposal | A new capability has an ID prefix and a Purpose, and contains only ADDED |
 | `plan.structure` | plan | §4.6 anchors, in order |
 | `plan.markers` | plan | Zero occurrences of `[NEEDS CLARIFICATION` in plan.md |
-| `plan.constitution` | plan | The Constitution Check has exactly one row per live article; every `fail` has a Complexity Tracking row |
+| `plan.constitution` | plan | The Constitution Check has exactly one row per live article; every `pass` has a Note, and every `fail` has a Complexity Tracking row |
 | `plan.threat-model` | plan | Proposal `**Security:** relevant`: threat-model.md exists and follows §4.8b, every Threat names a Mitigation or `—`, every Mitigation names an existing Threat, and no Decision is `pending`; every `accepted`/`declined` `D-<NN>` exists in plan.md |
-| `plan.test-strategy` | plan | Present; when the mode is `none`, the `No automated tests.` line is present with a reason |
+| `plan.test-strategy` | plan | Present; when the mode is `none`, the `No automated tests.` line is present with a reason; otherwise every scenario ID of the ADDED and MODIFIED requirements appears in the section, where a range such as `AUTH-004.S1–S3` counts for each ID inside it |
 | `tasks.structure` | tasks | Every task line parses per §4.7; IDs are unique |
 | `tasks.after` | tasks | Every `after` reference exists and points to a task listed earlier |
 | `tasks.coverage` | tasks | Every ADDED or MODIFIED requirement is referenced by ≥ 1 task |
@@ -376,6 +382,8 @@ On the fast track there are no `plan` or `tasks` gates, and `status` reports the
 | `tasks.test-before-impl` | tasks | Mode `tdd`: every non-test task that references requirement R is `after` (directly or transitively) a `[TEST]` task referencing R |
 | `verify.tasks-done` | verify | Every task is `[x]` with at least one evidence line |
 | `verify.coverage` | verify | Mode `tdd` or `test-after`: `coverage` reports no uncovered scenario among the change's ADDED and MODIFIED requirements |
+| `verify.suite` | verify | A test command is configured and the mode is not `none`: the last `medra suite` run (§8.17) exited `0` and its fingerprint equals the code's current one. Without a fingerprint (no git, or `diff_base: none`), the run must be newer than the last task done |
+| `verify.merge` | verify | The change's deltas merge into the living specs as they are now: the merge `archive` performs (§8.14), run in memory, reports no conflict |
 | `verify.report` | verify | The latest `verify` review report (§4.8) exists, is newer than the last task done, and has Verdict `pass` or `pass-with-findings` |
 | `verify.security-report` | verify | Proposal `**Security:** relevant`: the latest `security` report (§4.8a) exists and is newer than the last task done. Its verdict is not checked: security findings inform the gate and never block it |
 | `learnings.structure` | learnings | §4.9 grammar; IDs unique |
@@ -537,10 +545,12 @@ medra task unblock <change> <T-NNN>
 | `test-after` | `green` | `green` or `manual` |
 | `none` | not applicable | `manual` |
 
-   When `--kind` is omitted, the CLI uses the first allowed kind.
+   In `tdd`, a non-`[TEST]` task that names no requirement and cites no mitigation (`M-<NN>`), such as setup or documentation, also accepts `manual`.
+
+   When `--kind` is omitted, the CLI uses the first allowed kind, or `manual` when `--evidence` is passed and `manual` is allowed for the task.
 4. **Test-tampering guard (`tdd` mode):** when a `[TEST]` task completes with `red`, the CLI records the SHA-256 of its test files in `.medra.yaml` (`test_hashes`). When a subsequent implementation task completes with `green`, the CLI verifies that none of those locked test files were modified or deleted (`task.test-tampered`), unless `--allow-test-edit` is explicitly passed (which stamps `[test-edited]` on the evidence line for the reviewer).
 5. **With `--run`:** the CLI runs the command (in the project root, with a 10-minute timeout) and records its exit code and sanitized output tail (stripping ANSI escapes and framework noise while highlighting assertion lines to prevent context bloat). `red` requires a non-zero exit, and `green` requires exit `0`. On a `green` non-`[TEST]` task, the CLI also runs each command in `testing.checks` (if configured), failing with `task.check` on a non-zero exit. A mismatch exits `1` with the sanitized failure output. Exit `4` when the command is not found.
-6. **With `--evidence`:** the CLI records the text as given. Skills use `--run` whenever a test command exists.
+6. **With `--evidence`:** the CLI records the text as given, and only as `manual` evidence. `red` and `green` state the result of a run, so with `--evidence` they are refused (`task.evidence`): the CLI records them only from a command it ran itself. In `tdd`, every `[TEST]` task and every task tied to a requirement or a mitigation therefore needs `--run`.
 
 On success the CLI ticks the task, appends the evidence line, sets the phase to `implementing` on the first done task, and returns `{"task", "kind", "remaining", "next", "next_task"}` (where `next_task` has the same shape as in `context --stage apply`, so agents do not need to re-invoke `context` after each task).
 
@@ -620,6 +630,33 @@ medra review <change> --report <path> [--by <name>]
 - A `request-changes` verdict also appends the report path to `gate_notes` for that stage.
 - Result: `{"stage", "verdict"}`.
 
+### 8.16 `medra handoff <change> <contract>`
+
+```
+medra handoff <change> check        [--fixed <F-NN,…>]
+medra handoff <change> audit        [--fixed <S-NN,…>]
+medra handoff <change> threat-model [--focus "<text>"]
+```
+
+Prints the dispatch payload of a handoff contract, so the sending agent passes it on without composing it. `check` is the reviewer's verification, `audit` the security agent's audit, and `threat-model` the security agent's threat model. Without `--json`, stdout is the payload alone, as the YAML block the contract defines.
+
+- **Refusals (exit `1`):** `verify.suite` and `verify.merge` as §6 defines them (`check` and `audit`: a receiver's round is not spent on code whose suite is red or whose deltas no longer merge), `handoff.tasks` (a task is open; `check` and `audit`), any `error` of the `tasks` stage (`check`) or of the `proposal` stage (`threat-model`), `handoff.security` (the proposal is not `**Security:** relevant`; `audit` and `threat-model`), `handoff.track` (the track is not `full`) and `handoff.plan` (no `plan.md`) for `threat-model`, and `handoff.fixed` (a `--fixed` ID that is not an `F-NN`/`S-NN` finding of the previous report, or `--fixed` with no previous report). An unknown contract, `--fixed` on `threat-model` or `--focus` on a round contract exits `2`.
+- **`round`:** one above the highest `-verify-agent-r<N>.md` or `-security-agent-r<N>.md` in `reviews/`, so both dispatches of one Check share it. `report_path` is `reviews/<today>-<verify|security>-agent-r<round>.md`.
+- **`suite`:** `green` in the `check` and `audit` payloads when `verify.suite` applies, which the refusal above guarantees it then passed. The receiver does not re-run the suite.
+- **`previous_report`, `fixed_findings`:** present from the receiver's second report on. `previous_report` is that receiver's latest report, which for `audit` may carry an earlier round; `fixed_findings` is the `--fixed` list, or `[]`.
+- **`changed_since_previous`:** the command hashes every file changed since `diff_base` (tracked edits plus untracked files, outside `docs/` and `.agents/`) and stores the result in `handoff_snapshots.<contract>.<round>`. On a later round it lists the paths whose hash differs from the snapshot of the previous report's round: edited, added, deleted or reverted. The field is absent when `diff_base` is `none`, when git is unavailable, when no snapshot of that round is stored, when the change touches more than 300 files (no snapshot is stored then, because `.medra.yaml` is committed), or when more than 100 paths differ; the receiver then inspects everything. Only the snapshots of the previous and the current round are kept. A repeated call for the same round overwrites that round's snapshot and compares against the same previous one.
+- **`threat-model`:** the payload is `change`, `change_path`, `plan_path`, `threat_model_path`, `focus` when given, and `revision: true` when `threat-model.md` already exists.
+- Result (`--json`): `{"contract", "agent", "handoff", "payload"}`, where `agent` is `reviewer` or `security` and `handoff` is the contract file's path inside the plugin.
+
+### 8.17 `medra suite <change>`
+
+Runs `testing.command` as configured, with nothing appended (the whole suite; skipped when the mode is `none`), then every `testing.checks` command, each in the project root with a 30-minute timeout. It stops at the first non-zero exit.
+
+- **Green:** records `suite: {at, exit: 0, commands, fingerprint}` in `.medra.yaml`. The fingerprint is one SHA-256 over the content hashes of every file changed since `diff_base` (tracked edits plus untracked files, outside `docs/` and `.agents/`), or `null` when git cannot say. Result: `{"ran": [<commands>], "exit": 0}`.
+- **Red:** records `suite: {at, exit, command}` and exits `1` with `suite.failed` and the trimmed failure output as `message`.
+- **Nothing to run** (no test command and no checks): `{"ran": [], "skipped": true}`, and nothing is recorded.
+- Generated files that tests rewrite (coverage reports, build output) must be git-ignored; an untracked artifact that changes between runs changes the fingerprint and makes the run stale.
+
 ## 9. Conflict resolution contract (`archive` exit 3)
 
 The CLI never guesses how to resolve a conflict. Each `problem` value tells the agent what to do:
@@ -643,4 +680,7 @@ The implementation is done when a test suite covers at least the following:
 - [ ] The plan gate goes `stale` after a threat-model.md edit; the verify gate goes `stale` after a new security report.
 - [ ] `learn` add / bump / merge / retire / promote, plus the `status` budget and staleness arithmetic.
 - [ ] `install --target antigravity` output matches the rewrite table, verified on the bundled plugin, is idempotent, removes an unedited legacy install, and passes `agy plugin validate --strict` when `agy` is on `PATH`.
+- [ ] `handoff`: each refusal, a shared round for `check` and `audit`, `--fixed` checked against the previous report, and `changed_since_previous` listing an edited and an added file and omitting an unchanged one.
+- [ ] `suite`: a red run is refused and recorded, a green run satisfies `verify.suite`, an edit afterwards makes it stale, and a living-spec change that breaks the merge raises `verify.merge`.
+- [ ] The plugin's `hooks/guard.mjs` asks on gate approval, ratification and `--allow-test-edit`, denies hand edits of `.medra.yaml`, the archive and task ticks, and stays silent outside a medra project.
 - [ ] `--json` output of every command validates against the envelope schema in `cli/schemas/envelope.schema.json`.

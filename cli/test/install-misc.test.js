@@ -230,6 +230,8 @@ test('medra fix: deterministically auto-remediates proposal.md and plan.md valid
     '|---|---|---|---|',
     '## Test Strategy', '',
     '- **Command:** `npm test`', '',
+    '| Scenario | Level | Test location |', '|---|---|---|',
+    '| `AUTH-001.S1–S3` | unit | `test/a.test.js` |', '| `AUTH-005.S1` | unit | `test/a.test.js` |', '',
     '## Decisions', '',
     'None.', '',
   ].join('\n'));

@@ -85,12 +85,11 @@ Between Test Strategy and Decisions, add a `##` section only for what this chang
 
 ## Quality Checklist
 
-- [ ] All six anchors are present, in order, and freehand sections sit only between Test Strategy and Decisions.
-- [ ] The Constitution Check has exactly one row per live article, and every `pass` cites evidence.
-- [ ] Every `fail` has a Complexity Tracking row, and Complexity Tracking reads "None." when there is no fail.
-- [ ] The Test Strategy maps every delta scenario ID to a level and a location, or states `No automated tests.` with a reason.
-- [ ] Every Decision has Choice, Alternatives and Rationale.
-- [ ] When threat-model.md exists, every mitigation is decided with a `D-NN` that exists here and names its `M-NN`.
+`medra validate` enforces this document's structure, IDs and cross-references. This list holds only what it cannot judge.
+
+- [ ] Every `pass` in the Constitution Check cites evidence that is in this plan.
+- [ ] Every Test Strategy row names a level and a test location that fits the project.
+- [ ] Every `D-NN` that decides a mitigation names its `M-NN`.
 - [ ] Every path or module named was checked against the codebase.
 - [ ] Nothing in the plan exceeds the proposal's In scope.
 - [ ] `medra validate <change> --stage plan` exits `0`.

@@ -2,10 +2,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { finding, readIf, readText, loadConfig, rel, docsPath } from './core.js';
+import { section, trimBlank } from './markdown.js';
 import { parseConstitution, constitutionFindings, liveArticles, parseProposal, PROPOSAL_HEADINGS, parsePlan, PLAN_ANCHORS, parseThreatModel, THREAT_MODEL_ANCHORS } from './documents.js';
 import { loadLivingSpecs, loadDeltas, livingSpecFindings, deltaFindings } from './specs.js';
 import { loadLearnings, learningsFindings } from './learnings.js';
-import { changeDir, loadState, loadTasks, latestReport, coverage, changeScenarios, securityRelevance } from './change.js';
+import { changeDir, loadState, loadTasks, latestReport, coverage, changeScenarios, securityRelevance, suiteFindings, mergeFindings } from './change.js';
 
 export const STAGES = ['proposal', 'plan', 'tasks', 'verify'];
 
@@ -19,6 +20,8 @@ export function projectFindings(root, scope) {
   if (scope === 'learnings') return learningsFindings(loadLearnings(root));
   return [finding('cli', `Unknown project scope "${scope}"`)];
 }
+
+const IMPACT_LINES = ['Code', 'Interfaces', 'Data', 'Dependencies'];
 
 function proposalFindings(root, change, state) {
   const dir = changeDir(root, change);
@@ -49,6 +52,20 @@ function proposalFindings(root, change, state) {
       if (line.includes('[NEEDS CLARIFICATION')) out.push(finding('proposal.markers', 'Open clarification marker', { file: f, line: i + 1, remediation: 'Resolve or remove [NEEDS CLARIFICATION: ...] marker before gate approval' }));
     });
   }
+  // proposal.impact: the four Impact lines, each with a value
+  const impact = section(p.lines, 'Impact', 2);
+  if (impact) {
+    for (const name of IMPACT_LINES) {
+      const line = impact.body.find((l) => new RegExp(`^\\s*[-*]?\\s*\\*\\*${name}:\\*\\*`).test(l));
+      const value = line ? line.slice(line.indexOf(':**') + 3).trim() : '';
+      if (!value || /^\{.*\}$/.test(value)) out.push(finding('proposal.impact', `Impact needs a filled **${name}:** line`, { file, remediation: `Add "- **${name}:** <what is affected>" under ## Impact, or "None."` }));
+    }
+  }
+  // proposal.open-questions: with no marker left anywhere, the section reads "None."
+  const questions = section(p.lines, 'Open Questions', 2);
+  if (questions && !out.some((f) => f.rule === 'proposal.markers') && trimBlank(questions.body).join('\n').trim() !== 'None.') {
+    out.push(finding('proposal.open-questions', 'Open Questions must read "None." once every marker is resolved', { file, remediation: 'Replace the body of ## Open Questions with "None."' }));
+  }
   // proposal.capabilities
   const living = loadLivingSpecs(root);
   const rows = new Map(p.capabilities.map((r) => [r.capability, r]));
@@ -61,6 +78,15 @@ function proposalFindings(root, change, state) {
   for (const cap of rows.keys()) if (!deltas[cap]) out.push(finding('proposal.capabilities', `Capabilities row "${cap}" has no delta file`, { file, ref: cap, remediation: `Create delta spec at "docs/changes/${change}/specs/${cap}/spec.md" or remove "${cap}" from Capabilities table` }));
   out.push(...deltaFindings(root, deltas, living));
   return out;
+}
+
+/** Scenario IDs a text cites, with ranges such as `AUTH-004.S1–S3` expanded. */
+function citedScenarios(text) {
+  const ids = new Set(text.match(/\b[A-Z][A-Z0-9]{1,9}-\d{3,}\.S\d+\b/g) ?? []);
+  for (const m of text.matchAll(/\b([A-Z][A-Z0-9]{1,9}-\d{3,})\.S(\d+)\s*[–—-]\s*S?(\d+)\b/g)) {
+    for (let n = Number(m[2]); n <= Number(m[3]) && n < Number(m[2]) + 50; n++) ids.add(`${m[1]}.S${n}`);
+  }
+  return ids;
 }
 
 function planFindings(root, change) {
@@ -92,6 +118,7 @@ function planFindings(root, change) {
   }
   for (const r of rows) {
     if (!['pass', 'fail', 'n/a'].includes(r.result)) out.push(finding('plan.constitution', `Result for Article ${r.article} must be pass, fail or n/a`, { file, remediation: `Set Result for Article ${r.article} to "pass", "fail", or "n/a"` }));
+    if (r.result === 'pass' && !r.note) out.push(finding('plan.constitution', `Article ${r.article} passes without evidence in its Note`, { file, remediation: `Write in the Note column where this plan shows that Article ${r.article} holds` }));
     if (r.result === 'n/a' && !r.note) out.push(finding('plan.constitution', `Article ${r.article} is n/a without a Note`, { file, remediation: `Add a Note column explaining why Article ${r.article} is not applicable` }));
   }
   const fails = rows.filter((r) => r.result === 'fail').map((r) => (r.article || '').replace(/^Article\s+/, ''));
@@ -106,6 +133,12 @@ function planFindings(root, change) {
   const mode = loadConfig(root).testing.mode;
   if (!p.testStrategy) out.push(finding('plan.test-strategy', '## Test Strategy is empty', { file, remediation: 'Provide a test strategy mapping delta scenarios to test levels and files' }));
   else if (mode === 'none' && !/No automated tests\.\s*\S+/.test(p.testStrategy)) out.push(finding('plan.test-strategy', 'Mode none requires "No automated tests." followed by a reason', { file, remediation: 'Write "No automated tests. <reason>" under ## Test Strategy' }));
+  else if (mode !== 'none') {
+    const cited = citedScenarios(p.testStrategy);
+    for (const id of changeScenarios(root, change)) {
+      if (!cited.has(id)) out.push(finding('plan.test-strategy', `${id} is not mapped in the Test Strategy`, { file, ref: id, remediation: `Add a Test Strategy row "| \`${id}\` | <level> | \`<test file>\` |"` }));
+    }
+  }
   if (securityRelevance(root, change) === 'relevant') out.push(...threatModelFindings(root, change, p));
   return out;
 }
@@ -214,6 +247,7 @@ function verifyFindings(root, change, state) {
     const cov = coverage(root, changeScenarios(root, change));
     for (const id of cov.uncovered) out.push(finding('verify.coverage', `${id} is not cited by any test`, { ref: id, remediation: `Reference scenario ID "${id}" in test names, comments, or tags in the test files` }));
   }
+  out.push(...suiteFindings(root, change, state), ...mergeFindings(root, change));
   const report = latestReport(root, change, 'verify');
   const lastDone = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
   if (!report) out.push(finding('verify.report', 'No verify review report in reviews/', { remediation: 'Run reviewer verification via /medra:verify to produce a review report' }));

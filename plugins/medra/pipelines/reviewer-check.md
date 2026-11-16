@@ -35,7 +35,7 @@ A validated dispatch, plus the bounded context for the check.
 **Actions**
 - In one turn, read `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md`, `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` and `${CLAUDE_PLUGIN_ROOT}/templates/review/guide.md` in parallel tool calls, together with the `medra context` call below; then validate the dispatch against the handoff's receiver rules
 - Run `medra context <change> --stage verify --md` for the requirements, constitution, test strategy and coverage
-- Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, without reading the full diff yet. On later rounds, read the findings for the IDs in `fixed_findings` from `previous_report`
+- Run `git diff --stat <diff_base>` (when `diff_base` is not `none`) to learn which files changed, without reading the full diff yet. On later rounds, read `previous_report`: its Coverage table, and the findings for the IDs in `fixed_findings`
 
 **Avoid**
 - Don't start inspecting after a failed dispatch validation — because a check against the wrong change or base produces a confident, wrong verdict
@@ -54,18 +54,20 @@ An evidence-backed judgment for every ADDED and MODIFIED requirement, and findin
 
 **Actions**
 - For each requirement, read the implementing code and the tests at the coverage locations, and judge whether each test actually exercises its scenario's Given, When and Then
-- Audit the evidence: in `tdd`, every `[TEST]` task has a red line and every implementation task has a green line. Run the focused test command once to confirm the suite is green now
+- Audit the evidence: in `tdd`, every `[TEST]` task has a red line and every implementation task has a green line. When the dispatch carries `suite: green`, the CLI ran the whole suite and the static checks on this exact code and `medra handoff` refused otherwise, so do not run them again; run a single test only when a finding depends on watching it. Without that field, run the focused test command once to confirm the tests are green now
 - Diff the test files against `diff_base` for weakening: removed assertions, added skips, loosened matchers, and mocks of the very behavior under test
 - Check the changed files against the plan's Decisions and the constitution's articles, and flag changed files that no task or plan section accounts for (scope creep)
 - On later rounds, confirm each finding in `fixed_findings` is resolved, and look for regressions the fixes introduced
+- On a later round whose dispatch carries `changed_since_previous`, inspect only what that list reaches: the requirements whose implementing code or covering tests are in it or call into it, the open findings of `previous_report`, and the test files in it for the weakening audit. Carry every other requirement forward from `previous_report` with its status and evidence, marked `carried from r<N>`. An empty list means no code changed, so only the findings are re-checked. Without the field, inspect everything
 
 **Avoid**
 - Don't accept coverage as proof — because a test that cites a scenario ID can still assert nothing; read every covering test
+- Don't re-read unchanged code on a later round to re-derive a verdict the previous report already holds — because the CLI hashed those files at both rounds and they are identical; the round's cost should track the fixes, and the test run still covers the whole change
 - Don't review style or your preferred design — because the contract is the deltas, plan and constitution; preference findings bury the real ones
 - Don't run a security audit when `medra status` reports `security: relevant` — because the security agent audits that change in parallel, and a duplicated finding costs the implementer two fixes for one problem; report a security problem only when it makes a requirement `unmet`, and leave the rest to the security report
 
 **Exit when:**
-- [ ] Every ADDED and MODIFIED requirement has a status of `met`, `partial`, `unmet` or `unverified`, with evidence
+- [ ] Every ADDED and MODIFIED requirement has a status of `met`, `partial`, `unmet` or `unverified`, with evidence of this round or carried from the previous one
 - [ ] The weakening audit and the scope-creep check were both run
 
 ---

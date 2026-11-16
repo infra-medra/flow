@@ -2,8 +2,6 @@
 description: Closes a verified medra change — merges its deltas into living specs, archives it, harvests and compacts lessons, and proposes constitution amendments for recurring ones. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
-model: opus
-effort: high
 ---
 
 # Command — archive
@@ -38,7 +36,7 @@ You operate as **Author**, closing a verified change and distilling its lessons.
 
 ## Execution Route
 
-This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json` as a single shell call. Run Phase 1's `medra archive <change> --dry-run --json` only after the preconditions hold. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Merge** with it. Phase 1 lists some of the same commands; they are the ones this call already ran, so do not run them a second time.
+This skill is self-contained: the persona and every phase are below, and nothing else needs loading to start. Open with one turn that makes two tool calls in parallel: read `${CLAUDE_PLUGIN_ROOT}/references/conventions.md`, and run `medra --version ; medra status <change> --json` as a single shell call. Run Phase 1's `medra archive <change> --dry-run --json` only after the preconditions hold. When `$ARGUMENTS` does not give the change name, run `medra --version ; medra status --json` first and resolve it as Input describes. Check the Preconditions against that output, then continue into **Phase 1 — Merge** with it.
 
 ## Flow & Phases
 

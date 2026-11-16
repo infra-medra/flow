@@ -2,6 +2,27 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [1.9.0] — 2026-11-16
+
+### Added
+- **`medra handoff <change> check|audit|threat-model`.** Prints the dispatch payload of a handoff contract — round, report path, previous report and `--fixed` findings — after applying the contract's sender checks (exit `1` names what blocks the dispatch). `/medra:verify` and `/medra:plan` pass it on unchanged and no longer read the handoff files to compose it.
+- **`changed_since_previous` in the check and audit payloads.** `medra handoff` hashes the files the change touched at every round and, from the second round on, lists the ones that differ from what the receiver's previous round saw. The reviewer and the security agent then re-inspect only those files and the open findings, and carry the rest of the previous report forward.
+- **`medra suite <change>` and the `verify.suite` rule.** The command runs the whole test suite and every `testing.checks` command and records the result with a fingerprint of the change's code. The verify gate, and every `medra handoff check|audit`, now need a green run on the code as it is: an edit after the run, by any means, makes it stale. `/medra:verify` runs it in Readiness and again after each Fix round, and the reviewer no longer re-runs the tests when the payload says `suite: green`. Applies only when `testing.command` is set.
+- **`verify.merge` rule.** The merge `medra archive` performs is run in memory at the verify stage and before every dispatch, so a living spec changed by another change is caught before the review and the gate instead of at archive.
+- **Guard hook for Claude Code (`hooks/guard.mjs`).** `medra gate … --approve`, `medra constitution ratify` and `medra task done … --allow-test-edit` ask the user at the permission prompt; hand edits of `.medra.yaml`, the archive, and task ticks or evidence lines in `tasks.md` are denied; editing an existing living spec asks first. Each gate now takes two confirmations on Claude Code: the skill's question and the guard's prompt.
+- **CI.** `.github/workflows/ci.yml` runs `check-version`, the plugin bundle and the tests on Node 20 and 22.
+- **Validation rules:** `proposal.impact` (the four Impact lines are filled), `proposal.open-questions` (the section reads `None.` once no marker is left), and two extensions: `plan.test-strategy` requires every ADDED or MODIFIED scenario ID in the Test Strategy, and `plan.constitution` requires a Note on every `pass`. A change in flight whose proposal or plan misses one of these fails validation until the document is corrected, which makes an approved gate stale.
+
+### Fixed
+- **Verbose test output no longer fakes a failure.** `medra task done --run` used Node's 1 MB output limit, so a run that printed more was killed and read as a non-zero exit. The limit is now 64 MB.
+- **`red` and `green` evidence needs a run.** `medra task done --evidence "<text>" --kind green` (or `red`) ticked a task on the agent's word, bypassing the exit-code check, the test-tampering guard's purpose and `testing.checks`. `--evidence` now records only `manual` evidence and is refused otherwise (`task.evidence`). In `tdd`, a task that names no requirement and cites no mitigation (setup, documentation) accepts `manual`; every other task is checkpointed with `--run`.
+
+### Changed
+- **Template checklists hold only judgment.** The Quality Checklists of the proposal, delta, plan, tasks, spec, constitution and threat-model guides drop every item `medra validate` enforces.
+- **Self-review checks the text written in the session.** `/medra:propose`, `/medra:plan` and `/medra:tasks` re-read a document from disk only when `medra fix` repaired it, an earlier session wrote it, or its text is no longer verbatim in the session.
+- **Phase 1 no longer repeats the opening call.** Each command skill's first phase works from the output of the opening shell call instead of listing the same commands again.
+- **No model or effort pins.** The `model` and `effort` frontmatter keys added in 1.8.0 are removed from the eight command skills and from `agents/reviewer.md` and `agents/security.md`. Commands run on the model and effort of the user's session, and the subagents inherit them.
+
 ## [1.8.0] — 2026-11-12
 
 ### Changed

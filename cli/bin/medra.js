@@ -7,6 +7,7 @@ import * as cmd from '../src/commands.js';
 import { index, indexMarkdown, context, contextMarkdown, taskDoneMarkdown, taskBlockMarkdown, taskContext, taskContextMarkdown } from '../src/context.js';
 import { archive } from '../src/archive.js';
 import { install, cliVersion } from '../src/install.js';
+import { handoff, handoffText } from '../src/handoff.js';
 
 const program = new Command();
 program.name('medra').description('Deterministic operations for the medra workflow').version(cliVersion(), '-V, --version');
@@ -101,6 +102,15 @@ j(program.command('track <change> <track>').description('Switch a change between
 
 j(program.command('review <change>').description("Record a review report's verdict").requiredOption('--report <path>').option('--by <name>'))
   .action(run((change, o) => cmd.review(root(), change, o)));
+
+j(program.command('handoff <change> <contract>').description('Dispatch payload for a handoff: check | audit | threat-model')
+  .option('--fixed <ids>', 'finding IDs of the previous report claimed fixed (check, audit)').option('--focus <text>', 'areas to examine closely (threat-model)'))
+  .action((change, contract, o) => {
+    const res = handoff(root(), change, contract, o);
+    emit(res, jsonMode ? undefined : handoffText(res));
+  });
+
+j(program.command('suite <change>').description('Run the whole test suite and the static checks, and record the result')).action(run((change) => cmd.suite(root(), change)));
 
 j(program.command('coverage [change]').description('Map scenario IDs to tests').option('--all'))
   .action(run((change, o) => cmd.coverageCmd(root(), change, o)));

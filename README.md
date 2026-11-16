@@ -122,12 +122,14 @@ medra validate --project constitution|specs|learnings [--json]
 medra gate <change> proposal|plan|tasks|verify --approve [--note "<text>"] [--by <name>]
 medra gate <change> proposal|plan|tasks|verify --request-changes --note "<text>" [--by <name>]
 medra review <change> --report <path> [--by <name>]
+medra handoff <change> check|audit|threat-model [--fixed <ids>] [--focus "<text>"]   # dispatch payload for a subagent
 
 # Task execution, red/green checkpoints & test-tampering guard
 medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit]
 medra task block <change> <T-NNN> --note "<text>"
 medra task unblock <change> <T-NNN>
 medra coverage <change> | --all [--json]
+medra suite <change>                         # whole test suite + testing.checks, recorded for the verify gate
 
 # Archive, constitution & learnings
 medra archive <change> [--dry-run] [--json]
@@ -179,6 +181,8 @@ docs/
     └── archive/
 ```
 
+On Claude Code the plugin installs a guard hook (`plugins/medra/hooks/`). It asks you to confirm `medra gate … --approve`, `medra constitution ratify` and `--allow-test-edit` when the agent runs them, denies hand edits of `.medra.yaml`, the archive and task checkboxes, and asks before an existing living spec is edited outside a change. Antigravity has no equivalent, so there these stay prompt rules.
+
 The security agent (Sentinel) runs only on security-relevant changes. It audits but never edits code, checks its claims against OWASP, NVD, CISA KEV and vendor documentation over the network, and informs the gate without blocking it.
 
 Commit `docs/` with your code. medra never commits or creates branches for you; it suggests a commit message at the end of every step.
@@ -191,7 +195,8 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
-- **1.8.0 (2026-11-12):** Made command skills the single source for each command (removing mirrored `author`/`implementer` agent files and 8 `pipelines/*.md` files), split `conventions.md` into `gate.md` and `portability.md`, removed `model:` pins so commands and subagents inherit the user's session model (keeping `effort: high`), made `medra fix` use `pending` / `[NEEDS CLARIFICATION: …]` markers instead of guessing judgment, added the `plan.markers` validation rule, reduced `specDrift` git spawns, and split the test suite for parallel execution.
+- **1.9.0 (2026-11-16):** Removed the `model` and `effort` pins from every command skill and from the `reviewer` and `security` agents, so commands and subagents use the model and effort the user configured in their session. Added `medra handoff`, which emits each subagent's dispatch payload and the files changed since its previous round, so later verify rounds re-inspect only what the fixes touched. Added the `proposal.impact`, `proposal.open-questions` and scenario-mapping `plan.test-strategy` rules, and trimmed the template checklists and command skills accordingly. Added `medra suite` with the `verify.suite` rule (the verify gate and every reviewer dispatch need a green full-suite run on the current code) and `verify.merge` (deltas must still merge into the living specs), a Claude Code hook that makes gate approvals, constitution ratification and `--allow-test-edit` ask the user and blocks hand edits of CLI-owned files, and a CI workflow.
+- **1.8.0 (2026-11-12):** Made command skills the single source for each command (removing mirrored `author`/`implementer` agent files and 8 `pipelines/*.md` files), split `conventions.md` into `gate.md` and `portability.md`, declared `model` and `effort` per command, made `medra fix` use `pending` / `[NEEDS CLARIFICATION: …]` markers instead of guessing judgment, added the `plan.markers` validation rule, reduced `specDrift` git spawns, and split the test suite for parallel execution.
 - **1.7.6 (2026-11-12):** Hardened plugin installation and cleanup against path traversal attacks (`safeJoin` guard in `cli/src/install.js`) when processing existing manifests.
 - **1.7.5 (2026-11-12):** Added Smart Slicing (`medra task context <change> [task]`) for high-efficiency bounded task packs, deterministic auto-remediation (`medra fix [change]`), and test output noise trimming / sanitization (`sanitizeTestOutput`).
 - **1.7.4 (2026-11-12):** Added prescriptive validation remediations (`remediation` in findings) across all validation stages, schema support in JSON envelope, and `↳ fix:` CLI stderr formatting.
@@ -223,6 +228,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
    - **Antigravity (global):** run `medra install --target antigravity --scope global` (refreshes `~/.gemini/config/plugins/medra/`)
 
 ## Developing & Releasing a New Version
+
+Every push to `main` and every pull request runs `check-version`, the plugin bundle and the test suite on Node 20 and 22 (`.github/workflows/ci.yml`).
 
 ```bash
 cd cli

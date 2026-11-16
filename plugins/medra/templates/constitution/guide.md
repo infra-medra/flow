@@ -59,8 +59,10 @@ Every behavior change MUST be covered by a test that is written and seen failing
 
 ## Quality Checklist
 
-- [ ] There are 3 to 9 live articles, numbered with sequential Roman numerals.
-- [ ] Every live article has exactly one `**Gate:**` line, phrased as a yes/no question.
+`medra validate` enforces this document's structure, IDs and cross-references. This list holds only what it cannot judge.
+
+- [ ] There are 3 to 9 live articles.
+- [ ] Every Gate is phrased as a yes/no question.
 - [ ] Every principle uses MUST or MUST NOT and names something a plan or code can show.
 - [ ] Every article has a Rationale tied to this project.
 - [ ] No two articles overlap, so a plan could not pass one and fail the other for the same reason.

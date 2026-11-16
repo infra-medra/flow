@@ -1,7 +1,7 @@
 // Living specs and delta specs: parsing, validation rules, and the archive merge.
 import fs from 'node:fs';
 import path from 'node:path';
-import { finding, readText, CAPABILITY_NAME, docsPath } from './core.js';
+import { finding, errorsOf, readText, CAPABILITY_NAME, docsPath } from './core.js';
 import { toLines, headings, section, label, trimBlank } from './markdown.js';
 
 const REQ_HEADING = /^REQ ([A-Z][A-Z0-9]{1,9})-(\d{3,}):\s*(.+)$/;
@@ -288,4 +288,36 @@ export function mergeDelta(cap, delta, spec) {
   model.retired = [...new Set(model.retired)];
   if (delta.retire && model.requirements.length === 0) return { delete: true, conflicts, counts };
   return { content: renderLiving(model), conflicts, counts };
+}
+
+/**
+ * Merges every delta of a change folder into the living specs, in memory: the files `archive` would
+ * write and delete, and the conflicts that stop it. Pure: writes nothing.
+ */
+export function planMerge(root, changeFolder) {
+  const living = loadLivingSpecs(root);
+  const deltas = loadDeltas(changeFolder);
+  const conflicts = [];
+  const writes = [];
+  const deletes = [];
+  const counts = { added: 0, modified: 0, removed: 0 };
+  const reqTokens = [];
+  for (const [cap, d] of Object.entries(deltas)) {
+    const r = mergeDelta(cap, d, living[cap]);
+    conflicts.push(...r.conflicts);
+    for (const k of Object.keys(counts)) counts[k] += r.counts[k];
+    for (const b of d.ops.ADDED ?? []) reqTokens.push(`+${b.id}`);
+    for (const b of d.ops.MODIFIED ?? []) reqTokens.push(`~${b.id}`);
+    for (const b of d.ops.REMOVED ?? []) reqTokens.push(`-${b.id}`);
+    if (r.delete) deletes.push(livingPath(root, cap));
+    else if (r.content !== undefined) writes.push([livingPath(root, cap), r.content]);
+  }
+  // Post-merge validation, on the merged result in memory.
+  const merged = { ...living };
+  for (const f of deletes) delete merged[path.basename(path.dirname(f))];
+  for (const [file, content] of writes) merged[path.basename(path.dirname(file))] = { file, ...parseLivingSpec(content) };
+  for (const f of errorsOf(livingSpecFindings(root, merged))) {
+    conflicts.push({ capability: f.file ? f.file.split('/').slice(-2, -1)[0] : null, id: f.ref, operation: 'merge', problem: 'post-merge-invalid', message: f.message });
+  }
+  return { deltas, conflicts, writes, deletes, counts, reqTokens };
 }

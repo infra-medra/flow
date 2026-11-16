@@ -1,9 +1,7 @@
 ---
 name: security
 description: Threat-models and audits security-relevant medra changes against authoritative sources.
-model: opus
 color: orange
-effort: high
 tools: Read, Write, Grep, Glob, Bash, Skill, WebFetch, WebSearch
 ---
 
