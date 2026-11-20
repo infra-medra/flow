@@ -134,7 +134,7 @@ j(task.command('context <change> [task]').description('Bounded smart-sliced cont
     if (o.md && !jsonMode) process.stdout.write(taskContextMarkdown(res));
     else emit(res, jsonMode ? undefined : taskContextMarkdown(res));
   });
-j(task.command('done <change> <task>').option('--run <command>').option('--evidence <text>').option('--kind <kind>').option('--allow-test-edit').option('--md', 'Markdown output'))
+j(task.command('done <change> <task>').option('--run <command>').option('--evidence <text>').option('--kind <kind>').option('--allow-test-edit').option('--reason <text>', 'why a locked test may change (required with --allow-test-edit)').option('--md', 'Markdown output'))
   .action((change, t, o) => {
     const res = cmd.taskDone(root(), change, t, o);
     if (o.md && !jsonMode) process.stdout.write(taskDoneMarkdown(res));

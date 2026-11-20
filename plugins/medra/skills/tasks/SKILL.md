@@ -72,7 +72,7 @@ A `tasks.md` whose every line parses, whose phases follow the plan, and whose or
 **Actions**
 - Read `${CLAUDE_PLUGIN_ROOT}/templates/tasks/guide.md`, copy the template and organize phases: Setup only for shared groundwork, then one phase per requirement or coupled group, in the plan's order
 - Write each task as a focused unit naming its requirement IDs, its path and a concrete verify clause. Take test tasks from the Test Strategy rows
-- In `tdd` mode, place each requirement's `[TEST]` task before its implementation tasks and add `after` links. Mark `[P]` only where a task has no dependency inside its phase
+- In `tdd` mode, place each requirement's `[TEST]` task before its implementation tasks and add `after` links. Word a `[TEST]` task whose coverage may grow (several scenarios, boundary or error cases, a table of inputs) so that it lists every case to write before its red checkpoint, and say in `tasks.md` that editing that file afterwards needs the user's authorization. Mark `[P]` only where a task has no dependency inside its phase
 - When `threat-model.md` exists, give every `accepted` mitigation at least one task that cites its `M-NN` in the description, with a verify clause that shows the control works (a test that the attack fails, where one can be written)
 - Apply every pending gate note from an earlier round
 

@@ -32,7 +32,7 @@ Coding agents are fast at generating code, but in real-world projects (especiall
 - **SHA-256 Cryptographic Human Gates & Constitution Governance:** `docs/constitution.md` defines non-negotiable project principles, each with a yes/no Gate question answered by every technical plan. Human approvals at `proposal`, `plan`, `tasks`, and `verify` record a SHA-256 hash over the stage's documents; any post-approval edit automatically marks the gate `stale`.
 - **Enforced TDD, Anti-Tampering & Static Guardrails:**
   - **Scenario-to-Test Traceability:** Every Gherkin scenario (`Given`/`When`/`Then`) gets a stable ID (`AUTH-004.S1`). Automated tests cite those IDs, and `medra coverage` deterministically verifies that every added or modified scenario is covered before `verify` can pass.
-  - **Red/Green Evidence & Test-Tampering Lock:** In `tdd` mode, `medra task done --run` requires `[TEST]` tasks to fail (`red`) before implementation tasks can run (`green`), hashes the test files at `red`, and blocks `green` (`task.test-tampered`) if an agent weakens, skips, or deletes a locked test during implementation.
+  - **Red/Green Evidence & Test-Tampering Lock:** In `tdd` mode, `medra task done --run` requires `[TEST]` tasks to fail (`red`) before implementation tasks can run (`green`), hashes the test files at `red`, and blocks `green` (`task.test-tampered`) if an agent weakens, skips, or deletes a locked test during implementation. The finding classifies the change (`additive`, `weakening`, `other`) and summarizes the diff; only the user can authorize it, with `--allow-test-edit --reason "<why>"`, which is recorded in the task evidence and re-locks the file.
   - **Continuous Static Checks:** Configured `testing.checks` (such as `lint` and `typecheck`) run automatically on every `green` implementation checkpoint (`task.check`).
 - **Token-Engineered Context & Same-Session `[P]` Batching:**
   - **Read Cost Scales with the Change, Not Repo History:** Agents never glob `docs/specs/` or browse `docs/changes/archive/`. They read compact Markdown packs from `medra index` and `medra context --stage <stage> --md`.
@@ -125,7 +125,7 @@ medra review <change> --report <path> [--by <name>]
 medra handoff <change> check|audit|threat-model [--fixed <ids>] [--focus "<text>"]   # dispatch payload for a subagent
 
 # Task execution, red/green checkpoints & test-tampering guard
-medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit]
+medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit --reason "<text>"]
 medra task block <change> <T-NNN> --note "<text>"
 medra task unblock <change> <T-NNN>
 medra coverage <change> | --all [--json]
@@ -161,6 +161,7 @@ testing:
   mode: tdd                     # tdd | test-after | none
   command: "npm test --"        # optional base test command
   checks: ["npm run lint"]      # optional static checks run on green implementation tasks
+  allow-additive-test-edits: false  # optional; accept purely additive edits of a locked test, with a warning
   paths: ["test/**", "**/*.test.*", "**/*_test.*", "tests/**"]
 learning:
   max_active: 40

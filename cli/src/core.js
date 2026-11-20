@@ -20,8 +20,8 @@ export const refused = (findings, message = 'Refused') => new MedraError(EXIT.RE
 export const envError = (message) => new MedraError(EXIT.ENV, message);
 export const usageError = (message) => new MedraError(EXIT.USAGE, message);
 
-export function finding(rule, message, { file = null, line = null, ref = null, severity = 'error', remediation = null } = {}) {
-  return { rule, severity, file, line, message, ref, ...(remediation ? { remediation } : {}) };
+export function finding(rule, message, { file = null, line = null, ref = null, severity = 'error', remediation = null, data = null } = {}) {
+  return { rule, severity, file, line, message, ref, ...(remediation ? { remediation } : {}), ...(data ?? {}) };
 }
 
 export const errorsOf = (findings) => findings.filter((f) => f.severity === 'error');
@@ -41,7 +41,7 @@ export const DEFAULT_CONFIG = {
   version: 1,
   language: 'en',
   integrations: ['claude'],
-  testing: { mode: 'tdd', command: null, checks: [], paths: ['test/**', '**/*.test.*', '**/*_test.*', 'tests/**'] },
+  testing: { mode: 'tdd', command: null, checks: [], 'allow-additive-test-edits': false, paths: ['test/**', '**/*.test.*', '**/*_test.*', 'tests/**'] },
   learning: { max_active: 40, promote_after: 3, stale_after: 10, context_max: 10 },
 };
 

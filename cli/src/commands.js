@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import YAML from 'yaml';
+import { classifyTestChange, summarizeChange, packSnapshot, unpackSnapshot } from './testdiff.js';
 import {
   refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, git, sha256,
   identity, today, nowIso, loadConfig, configWarnings, DEFAULT_CONFIG, CHANGE_NAME, ROMAN, listOpt, docsPath, docsRel, CONFIG_FILE,
@@ -257,8 +258,12 @@ export function sanitizeTestOutput(stdout = '', stderr = '', maxLines = 8) {
   return slice.map((l) => (l.length > 250 ? `${l.slice(0, 247)}...` : l)).join('\n');
 }
 
-export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit }) {
+export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit, reason }) {
   if (!!run === !!evidence) throw usageError('Pass exactly one of --run or --evidence');
+  const why = typeof reason === 'string' ? reason.replace(/\s+/g, ' ').trim() : '';
+  if (allowTestEdit && !why) {
+    throw refused([finding('task.test-edit-reason', `--allow-test-edit needs --reason "<why the locked test may change>"`, { ref: id, remediation: 'Ask the user for the decision, then pass --allow-test-edit --reason "<their reason>"' })]);
+  }
   const state = loadState(root, change);
   const file = path.join(changeDir(root, change), 'tasks.md');
   const text = readIf(file);
@@ -282,7 +287,8 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
   if (evidence && k !== 'manual') {
     throw refused([finding('task.evidence', `${id} needs --run for ${k} evidence; --evidence records only a manual check`, { ref: id, remediation: allowed.includes('manual') ? `Pass --run "<focused command>", or --kind manual when the task has no automated check` : `Pass --run "<focused command>" so the CLI observes the ${k} result itself` })]);
   }
-  let testEdited = false;
+  const testEdits = []; // { file, classification, summary, accepted: 'user' | 'additive' }
+  const relock = []; // [file, content | null] to re-lock once the checkpoint is recorded
   if (k === 'green' && !t.test && state.test_hashes) {
     const seen = new Set();
     const queue = [...t.after];
@@ -294,19 +300,37 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
       if (dt) queue.push(...dt.after);
     }
     for (const dt of tasks) if (dt.test && dt.reqs.some((r) => t.reqs.includes(r))) seen.add(dt.id);
-    const tampered = [];
+    const changed = new Map(); // file -> { cur, c, lockedBy }
     for (const tid of seen) {
       for (const [f, hash] of Object.entries(state.test_hashes[tid] ?? {})) {
+        if (changed.has(f)) { changed.get(f).lockedBy.push(tid); continue; }
         const cur = readIf(path.join(root, f));
-        if (cur === null || sha256(cur) !== hash) {
-          testEdited = true;
-          if (!allowTestEdit) {
-            tampered.push(finding('task.test-tampered', `${id} modified or deleted test file "${f}" locked at red by ${tid} (pass --allow-test-edit if intentional)`, { file: f, ref: id, remediation: `Revert edits to "${f}" or pass --allow-test-edit if modification was intentional` }));
-          }
-        }
+        if (cur !== null && sha256(cur) === hash) continue;
+        const packed = state.test_snapshots?.[hash];
+        const c = classifyTestChange(packed ? unpackSnapshot(packed) : null, cur);
+        changed.set(f, { cur, c, lockedBy: [tid] });
       }
     }
-    if (tampered.length) throw refused(tampered);
+    if (changed.size) {
+      const autoAdditive = config.testing['allow-additive-test-edits'] === true;
+      const blocked = [...changed].filter(([, e]) => !(allowTestEdit || (autoAdditive && e.c.classification === 'additive')));
+      if (blocked.length) {
+        throw refused([...changed].map(([f, e]) => {
+          const summary = summarizeChange(f, e.c);
+          const decides = e.c.classification === 'additive'
+            ? 'Show this diff summary to the user and ask whether the extra lines may stay; only their explicit yes allows `--allow-test-edit --reason "<their reason>"`, otherwise revert the extra lines'
+            : 'Revert the edit; this is not a provably additive change, so only an explicit user decision allows `--allow-test-edit --reason "<their reason>"`';
+          return finding('task.test-tampered', `${id} changed test file "${f}" locked at red by ${e.lockedBy.join(', ')}: ${summary}`, {
+            file: f, ref: id, remediation: decides,
+            data: { classification: e.c.classification, diff: { added: e.c.added, removed: e.c.removed, added_tests: e.c.added_tests, removed_tests: e.c.removed_tests, reasons: e.c.reasons }, locked_by: e.lockedBy, accepted_by: 'none' },
+          });
+        }));
+      }
+      for (const [f, e] of changed) {
+        testEdits.push({ file: f, classification: e.c.classification, summary: summarizeChange(f, e.c), accepted: allowTestEdit ? 'user' : 'additive' });
+        relock.push([f, e.cur]);
+      }
+    }
   }
   let detail;
   if (run) {
@@ -334,20 +358,43 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit 
     const tailLines = (sanitized || '').split('\n').filter(Boolean);
     detail = `\`${run.replace(/`/g, "'")}\` exit ${code}${code !== 0 && tailLines.length ? ` — "${tailLines.slice(-3).join(' | ').replace(/"/g, "'").slice(0, 300)}"` : ''}`;
   } else detail = evidence.replace(/\n/g, ' ');
-  if (testEdited) detail += ' [test-edited]';
+  const warnings = [];
+  for (const e of testEdits) {
+    if (e.accepted === 'user') detail += ` [test-edited: ${e.summary}; reason "${why.replace(/"/g, "'").slice(0, 300)}"]`;
+    else detail += ` [test-edit-additive: ${e.summary}]`;
+    warnings.push(finding('task.test-edited', `${id} ${e.accepted === 'user' ? 'was allowed' : 'accepted (testing.allow-additive-test-edits)'} to change a locked test: ${e.summary}`, { file: e.file, ref: id, severity: 'warning' }));
+  }
+  if (relock.length) {
+    state.test_snapshots ??= {};
+    for (const [f, cur] of relock) {
+      for (const hashes of Object.values(state.test_hashes)) {
+        if (!(f in hashes)) continue;
+        if (cur === null) delete hashes[f];
+        else hashes[f] = sha256(cur);
+      }
+      if (cur !== null) state.test_snapshots[sha256(cur)] = packSnapshot(cur);
+    }
+  }
   if (k === 'red' && t.test) {
     const files = testFilesForTask(root, change, t);
     if (files.length) {
       state.test_hashes ??= {};
-      state.test_hashes[id] = Object.fromEntries(files.map((f) => [f, sha256(readText(path.join(root, f)))]));
+      state.test_snapshots ??= {};
+      const texts = files.map((f) => [f, readText(path.join(root, f))]);
+      state.test_hashes[id] = Object.fromEntries(texts.map(([f, x]) => [f, sha256(x)]));
+      for (const [, x] of texts) state.test_snapshots[sha256(x)] = packSnapshot(x);
     }
+  }
+  if (state.test_snapshots) {
+    const live = new Set(Object.values(state.test_hashes ?? {}).flatMap((h) => Object.values(h)));
+    for (const h of Object.keys(state.test_snapshots)) if (!live.has(h)) delete state.test_snapshots[h];
   }
   writeAtomic([[file, tickTask(text, id, `- evidence ${k} ${today()}: ${detail}`)]]);
   if (['tasked', 'proposed'].includes(state.phase)) state.phase = 'implementing';
   state.last_task_done_at = nowIso();
   saveState(root, change, state);
   const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state);
-  return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}) };
+  return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}), ...(warnings.length ? { warnings } : {}) };
 }
 
 // ---------- suite ----------
