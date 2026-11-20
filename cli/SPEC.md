@@ -81,6 +81,7 @@ testing:
   mode: tdd                     # tdd | test-after | none
   command: "npm test --"        # optional; base command for --run
   checks: ["npm run lint"]      # optional; static checks (lint, typecheck) run on green implementation tasks
+  allow-additive-test-edits: false  # optional; accept a purely additive edit of a locked test (see §8.12)
   paths: ["test/**", "**/*.test.*", "**/*_test.*", "tests/**"]
 learning:
   max_active: 40
@@ -520,7 +521,7 @@ medra learn candidates
 
 ```
 medra task context <change> [task] [--json|--md]
-medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit]
+medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit --reason "<text>"]
 medra task block <change> <T-NNN> --note "<text>"
 medra task unblock <change> <T-NNN>
 ```
@@ -548,7 +549,20 @@ medra task unblock <change> <T-NNN>
    In `tdd`, a non-`[TEST]` task that names no requirement and cites no mitigation (`M-<NN>`), such as setup or documentation, also accepts `manual`.
 
    When `--kind` is omitted, the CLI uses the first allowed kind, or `manual` when `--evidence` is passed and `manual` is allowed for the task.
-4. **Test-tampering guard (`tdd` mode):** when a `[TEST]` task completes with `red`, the CLI records the SHA-256 of its test files in `.medra.yaml` (`test_hashes`). When a subsequent implementation task completes with `green`, the CLI verifies that none of those locked test files were modified or deleted (`task.test-tampered`), unless `--allow-test-edit` is explicitly passed (which stamps `[test-edited]` on the evidence line for the reviewer).
+4. **Test-tampering guard (`tdd` mode):** when a `[TEST]` task completes with `red`, the CLI records the SHA-256 of its test files in `.medra.yaml` (`test_hashes`). The CLI also keeps a compressed snapshot of each locked file (`test_snapshots`, keyed by content hash). When a subsequent implementation task completes with `green`, the CLI verifies that none of those locked test files were modified or deleted. A changed file is compared with its red snapshot and classified:
+
+   | Classification | Meaning |
+   |---|---|
+   | `additive` | Every line of the red version is still there, in order; only lines were added. No test or suite declaration and no assertion was removed or renamed, no added line skips, focuses or ends a test early (`.skip`, `.only`, `.todo`, `xit`, `fit`, `xdescribe`, `fdescribe`, `@Disabled`, `t.Skip`, a bare `return`, …), and no added run opens a block comment it does not close |
+   | `weakening` | A test or suite declaration or an assertion was removed, renamed or changed, an added line disables a test, or the file was deleted |
+   | `other` | Anything else: lines edited without touching a test or assertion, whitespace-only changes, a red version with no snapshot (state written by an earlier version), or files too large to compare |
+
+   Without `--allow-test-edit`, a changed file is refused (`task.test-tampered`, one finding per file). Each finding carries `classification`, `diff` (`added` and `removed` line counts, `added_tests`, `removed_tests`, `reasons`) and `locked_by`, and its message ends with a one-line summary (`test/a.spec.ts +12/-0 additive; adds "rejects a bad password"`). The classification informs the decision and never grants it: an `additive` change is refused as well, unless one of the two overrides below applies.
+
+   - **`--allow-test-edit --reason "<text>"`** accepts every changed locked file, whatever its classification. `--reason` is required with the flag (`task.test-edit-reason`, exit `1`, nothing written), because the flag records a decision of the user, which the reason states. The evidence line gets `[test-edited: <summary>; reason "<text>"]` for each file, and the result carries a `task.test-edited` warning.
+   - **`testing.allow-additive-test-edits: true`** (default `false`) accepts, without the flag, a change whose every changed file is `additive`. The evidence line gets `[test-edit-additive: <summary>]` and the result a `task.test-edited` warning. A `weakening` or `other` file still needs `--allow-test-edit`, and one such file refuses the whole checkpoint.
+
+   An accepted edit is re-locked: the new hash and snapshot replace the old ones for every task that locked the file, so the following tasks on the same file pass without the flag, and a later weakening is compared with the accepted version. A refused or failed checkpoint changes nothing.
 5. **With `--run`:** the CLI runs the command (in the project root, with a 10-minute timeout) and records its exit code and sanitized output tail (stripping ANSI escapes and framework noise while highlighting assertion lines to prevent context bloat). `red` requires a non-zero exit, and `green` requires exit `0`. On a `green` non-`[TEST]` task, the CLI also runs each command in `testing.checks` (if configured), failing with `task.check` on a non-zero exit. A mismatch exits `1` with the sanitized failure output. Exit `4` when the command is not found.
 6. **With `--evidence`:** the CLI records the text as given, and only as `manual` evidence. `red` and `green` state the result of a run, so with `--evidence` they are refused (`task.evidence`): the CLI records them only from a command it ran itself. In `tdd`, every `[TEST]` task and every task tied to a requirement or a mitigation therefore needs `--run`.
 

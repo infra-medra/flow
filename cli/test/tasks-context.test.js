@@ -225,3 +225,119 @@ test('capability Paths, spec drift detection, parallel [P] batching, and --md ou
   assert.deepEqual(afterT002.parallel_batch.map((t) => t.id), ['T003', 'T004'], 'completing red [P] batch unlocks green [P] batch');
   assert.deepEqual(afterT002.next_task.requirements, [], 'next_task omits duplicate requirements when parallel_batch is present');
 });
+
+// ---------- test-tampering guard: classification, --reason and re-locking ----------
+
+const RED = [
+  '// AUTH-001.S1 AUTH-001.S3 AUTH-005.S1',
+  "import { a } from './a';",
+  "describe('auth', () => {",
+  "  it('logs in', () => {",
+  '    expect(a()).toBe(1);',
+  '  });',
+  '});',
+  '',
+].join('\n');
+
+/** A change whose T001 is red on test/a.test.js, with two implementation tasks after it. */
+function redChange({ additive = false } = {}) {
+  const root = project();
+  const change = brownfieldChange(root);
+  tasks(root, change, [
+    '- [ ] T001 [TEST] [AUTH-001, AUTH-005] Write tests for AUTH-001.S1, AUTH-001.S3, AUTH-005.S1 in `test/a.test.js` — verify: red',
+    '- [ ] T002 [AUTH-001, AUTH-005] after T001 Implement in `src/a.js` — verify: green',
+    '- [ ] T003 [AUTH-001, AUTH-005] after T002 Harden in `src/a.js` — verify: green',
+  ]);
+  medra(root, 'gate', change, 'proposal', '--approve');
+  write(root, 'test/a.test.js', RED);
+  assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1').code, 0);
+  if (additive) write(root, 'docs/config-flow.yaml', read(root, 'docs/config-flow.yaml').replace('allow-additive-test-edits: false', 'allow-additive-test-edits: true'));
+  return { root, change };
+}
+
+const ADDITIVE = RED.replace("  it('logs in', () => {", "  it('rejects a bad password', () => {\n    expect(a('x')).toBe(0);\n  });\n  it('logs in', () => {").replace("import { a } from './a';", "import { a } from './a';\nimport { b } from './b';");
+
+test('task done guard: an additive edit is classified and reported, but still needs the flag', () => {
+  const { root, change } = redChange();
+  write(root, 'test/a.test.js', ADDITIVE);
+  const res = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  assert.equal(res.code, 1);
+  const f = res.json.findings[0];
+  assert.equal(f.rule, 'task.test-tampered');
+  assert.equal(f.classification, 'additive');
+  assert.equal(f.file, 'test/a.test.js');
+  assert.equal(f.diff.removed, 0);
+  assert.ok(f.diff.added >= 4);
+  assert.deepEqual(f.diff.added_tests, ['rejects a bad password']);
+  assert.match(f.message, /\+\d+\/-0 additive; adds "rejects a bad password"/);
+  assert.equal(medra(root, 'status', change).json.tasks.done, 1, 'a refused checkpoint ticks nothing');
+});
+
+test('task done guard: removing, renaming or skipping a test, or dropping an assertion, is weakening', () => {
+  const cases = {
+    'removed test': RED.replace(/  it\('logs in'[\s\S]*?\n  \}\);\n/, ''),
+    renamed: RED.replace("it('logs in'", "it('signs in'"),
+    skipped: RED.replace("it('logs in'", "it.skip('logs in'"),
+    focused: RED.replace("it('logs in'", "it.only('logs in'"),
+    'dropped assertion': RED.replace('    expect(a()).toBe(1);\n', ''),
+    'added skipped test': `${RED}it.skip('later', () => {});\n`,
+    'added early return': RED.replace('    expect(a()).toBe(1);', '    return;\n    expect(a()).toBe(1);'),
+  };
+  for (const [name, text] of Object.entries(cases)) {
+    const { root, change } = redChange();
+    write(root, 'test/a.test.js', text);
+    const res = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+    assert.equal(res.code, 1, name);
+    assert.equal(res.json.findings[0].classification, 'weakening', name);
+  }
+});
+
+test('task done guard: whitespace or comment-opening edits are other, and a deleted file is weakening', () => {
+  const { root, change } = redChange();
+  write(root, 'test/a.test.js', RED.replace("import { a }", "import {a}"));
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').json.findings[0].classification, 'other');
+  write(root, 'test/a.test.js', RED.replace("describe('auth'", "/*\ndescribe('auth'"));
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').json.findings[0].classification, 'other');
+  fs.rmSync(path.join(root, 'test/a.test.js'));
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').json.findings[0].classification, 'weakening');
+});
+
+test('task done guard: --allow-test-edit needs --reason, records it with the diff, and re-locks the hash', () => {
+  const { root, change } = redChange();
+  write(root, 'test/a.test.js', ADDITIVE);
+  const noReason = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0', '--allow-test-edit');
+  assert.equal(noReason.code, 1);
+  assert.deepEqual(rules(noReason), ['task.test-edit-reason']);
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0', '--allow-test-edit', '--reason', '  ').code, 1, 'a blank reason is no reason');
+  const ok = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0', '--allow-test-edit', '--reason', 'user approved two extra cases');
+  assert.equal(ok.code, 0, ok.stdout);
+  assert.equal(ok.json.warnings[0].rule, 'task.test-edited');
+  const evidence = read(root, `docs/changes/${change}/tasks.md`);
+  assert.match(evidence, /evidence green .*\[test-edited: test\/a\.test\.js \+\d+\/-0 additive; adds "rejects a bad password"; reason "user approved two extra cases"\]/);
+  // The next task on the same file passes with no flag: the hash was re-locked.
+  assert.equal(medra(root, 'task', 'done', change, 'T003', '--run', 'exit 0').code, 0);
+  assert.doesNotMatch(evidence.split('T003')[1] ?? '', /test-edited/);
+});
+
+test('task done guard: after a re-lock, a later weakening is still refused against the new snapshot', () => {
+  const { root, change } = redChange();
+  write(root, 'test/a.test.js', ADDITIVE);
+  medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0', '--allow-test-edit', '--reason', 'ok');
+  write(root, 'test/a.test.js', ADDITIVE.replace("it('rejects a bad password'", "it.skip('rejects a bad password'"));
+  const res = medra(root, 'task', 'done', change, 'T003', '--run', 'exit 0');
+  assert.equal(res.code, 1);
+  assert.equal(res.json.findings[0].classification, 'weakening');
+});
+
+test('task done guard: testing.allow-additive-test-edits accepts only additive edits, as a warning', () => {
+  const { root, change } = redChange({ additive: true });
+  write(root, 'test/a.test.js', ADDITIVE);
+  const ok = medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
+  assert.equal(ok.code, 0, ok.stdout);
+  assert.equal(ok.json.warnings[0].severity, 'warning');
+  assert.match(read(root, `docs/changes/${change}/tasks.md`), /\[test-edit-additive: test\/a\.test\.js \+\d+\/-0 additive/);
+  write(root, 'test/a.test.js', ADDITIVE.replace("it('logs in'", "it.skip('logs in'"));
+  assert.equal(medra(root, 'task', 'done', change, 'T003', '--run', 'exit 0').json.findings[0].classification, 'weakening', 'the option never covers a weakening edit');
+  write(root, 'test/a.test.js', ADDITIVE);
+  assert.equal(medra(root, 'task', 'done', change, 'T003', '--run', 'exit 0').code, 0, 'the accepted edit was re-locked');
+});

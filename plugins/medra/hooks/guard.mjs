@@ -36,7 +36,7 @@ if (tool === 'Bash') {
     decide('ask', 'medra: this ratifies the constitution, which gates every future plan. Allow it only if you approved these articles.');
   }
   if (new RegExp(`\\bmedra\\s+task\\s+done\\b${SEG}--allow-test-edit\\b`).test(cmd)) {
-    decide('ask', 'medra: --allow-test-edit accepts a change to a test that was locked when it was seen failing. Allow it only if you agreed to that test edit.');
+    decide('ask', 'medra: --allow-test-edit accepts a change to a test that was locked when it was seen failing, with the reason given in --reason. Allow it only if you agreed to that test edit.');
   }
   if (/(?:>>?|\btee\b|\bsed\s+(?:-\S+\s+)*-i)[^\n;|&]*(?:\.medra\.yaml|changes\/archive\/)/.test(cmd)) {
     decide('deny', 'medra: .medra.yaml and the archive are CLI-owned. Change state through the medra CLI (gate, task done, task block, track, archive) instead of writing the files.');

@@ -2,6 +2,17 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [Unreleased]
+
+### Added
+- **`task.test-tampered` classifies the change.** `medra task done` keeps a snapshot of each test file it locks at red and, when the file changes, compares it with that snapshot. The finding carries `classification` (`additive`, `weakening` or `other`), the `diff` (lines added and removed, test names added or removed, the reasons) and a one-line summary. `additive` is claimed only when every red line is still there and the added lines disable nothing; removing, renaming or skipping a test, dropping an assertion, adding `.skip`/`.only`/`xit`/`fit`, deleting the file or opening an unclosed block comment is never additive.
+- **`--reason` with `--allow-test-edit`.** The flag now requires `--reason "<text>"` (`task.test-edit-reason`, exit `1`). The evidence line records the reason and the diff summary, so the verify review sees what was authorized, and the accepted version is re-locked, so the next tasks on the same file pass without the flag.
+- **`testing.allow-additive-test-edits`** (default `false`). When `true`, a purely additive edit of a locked test is accepted without the flag, recorded as a `[test-edit-additive: …]` warning in the evidence and re-locked. `weakening` and `other` changes still need `--allow-test-edit`.
+
+### Changed
+- **`/medra:apply` asks before any test-edit override.** On `task.test-tampered` the skill shows the diff summary and asks with `AskUserQuestion` ("Permitir --allow-test-edit" or "Reverter as linhas extras"); an ambiguous reply is not an authorization and the agent never passes `--allow-test-edit` on its own. It also states that a test file already checkpointed red is not edited, because corrections belong to the `[TEST]` task, before its checkpoint.
+- **`/medra:tasks` lists every case before the red checkpoint.** A `[TEST]` task whose coverage can grow is worded to include all its cases, and `tasks.md` carries a note that editing the locked file afterwards needs the user's authorization.
+
 ## [1.9.0] — 2026-11-16
 
 ### Added
