@@ -2,7 +2,7 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
-## [Unreleased]
+## [1.10.0] — 2026-11-20
 
 ### Added
 - **`task.test-tampered` classifies the change.** `medra task done` keeps a snapshot of each test file it locks at red and, when the file changes, compares it with that snapshot. The finding carries `classification` (`additive`, `weakening` or `other`), the `diff` (lines added and removed, test names added or removed, the reasons) and a one-line summary. `additive` is claimed only when every red line is still there and the added lines disable nothing; removing, renaming or skipping a test, dropping an assertion, adding `.skip`/`.only`/`xit`/`fit`, deleting the file or opening an unclosed block comment is never additive.
