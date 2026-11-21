@@ -8,6 +8,7 @@ import { index, indexMarkdown, context, contextMarkdown, taskDoneMarkdown, taskB
 import { archive } from '../src/archive.js';
 import { install, cliVersion } from '../src/install.js';
 import { handoff, handoffText } from '../src/handoff.js';
+import { compileStep, stepMarkdown } from '../src/step.js';
 
 const program = new Command();
 program.name('medra').description('Deterministic operations for the medra workflow').version(cliVersion(), '-V, --version');
@@ -91,6 +92,14 @@ j(program.command('context <change>').description('Bounded context pack for one 
     const pack = context(root(), change, o.stage);
     if (o.md && !jsonMode) process.stdout.write(contextMarkdown(pack));
     else emit(pack, jsonMode ? undefined : contextMarkdown(pack));
+  });
+
+j(program.command('step <change>').description('Compile deterministic next-step prompt and handoff envelope')
+  .option('--stage <stage>').option('--diff-base <ref>').option('--md', 'Markdown output'))
+  .action((change, o) => {
+    const env = compileStep(root(), change, { stage: o.stage, diffBase: o.diffBase });
+    if (o.md && !jsonMode) process.stdout.write(stepMarkdown(env));
+    else emit(env, jsonMode ? undefined : stepMarkdown(env));
   });
 
 j(program.command('gate <change> <gate>').description('Record a gate decision')

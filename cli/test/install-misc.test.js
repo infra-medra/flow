@@ -8,7 +8,7 @@ import { medra, medraHuman, write, read, project, req, livingSpec, proposal, del
 
 test('version prints bare semver', () => {
   const r = medra(process.cwd(), '--version');
-  assert.match(r.stdout.trim(), /^1\.\d+\.\d+$/);
+  assert.match(r.stdout.trim(), /^2\.0\.0-rc\.\d+$/);
 });
 
 test('outside a project, commands exit 4', () => {
@@ -48,7 +48,7 @@ test('install --target antigravity: plugin rewrite table, manifest, idempotent, 
   const applyCmd = read(root, `${P}/skills/apply/SKILL.md`);
   assert.match(applyCmd, /## Operating Persona \(Implementer\)/);
   assert.match(applyCmd, /### Phase 1 — Resume/);
-  assert.equal(fs.readdirSync(path.join(root, P, 'skills')).length, 8, 'only 8 user commands installed as skills');
+  assert.equal(fs.readdirSync(path.join(root, P, 'skills')).length, 9, 'only 9 user commands installed as skills');
   assert.match(read(root, `${P}/templates/spec/guide.md`), /`\.agents\/plugins\/medra\/templates\/spec\/template\.md`/);
   const reviewer = read(root, `${P}/agents/reviewer.md`);
   assert.match(reviewer, /^---\nname: medra-reviewer\ndescription: [^\n]+\ntools: \[read_file, write_file, run_command, ask_question\]\nmainAgent: true\nsubagent: true\n---\n/);
@@ -283,4 +283,82 @@ test('medra fix: deterministically auto-remediates proposal.md and plan.md valid
   const after = medra(root, 'validate', change, '--stage', 'plan');
   assert.equal(after.code, 1);
   assert.deepEqual([...new Set(after.json.findings.filter((x) => x.severity === 'error').map((x) => x.rule))].sort(), ['plan.constitution', 'plan.markers']);
+});
+
+test('PLUG-005.S1 & M-07: models config accepts valid overrides, defaults to inherit, and warns on invalid entries', () => {
+  const root = project();
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const baseCfg = fs.readFileSync(cfgPath, 'utf8').replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n');
+
+  // Valid models override should not trigger config.unknown-key
+  fs.writeFileSync(cfgPath, `${baseCfg.trimEnd()}\nmodels:\n  default: inherit\n  implementer: sonnet\n  reviewer: inherit\n`);
+  const okVal = medra(root, 'validate', '--project', 'constitution');
+  assert.equal(okVal.code, 0);
+  const warningsOk = okVal.json.findings ?? [];
+  assert.equal(warningsOk.some((f) => f.rule === 'config.unknown-key' && /models/.test(f.message)), false);
+
+  // Invalid models key/value triggers a warning (M-07) without breaking validate
+  fs.writeFileSync(cfgPath, `${baseCfg.trimEnd()}\nmodels:\n  bogus_role: sonnet\n  implementer: ""\n`);
+  const warnVal = medra(root, 'validate', '--project', 'constitution');
+  assert.equal(warnVal.code, 0);
+  const warnings = warnVal.json.findings ?? [];
+  assert.ok(warnings.some((f) => f.rule === 'config.models' && f.severity === 'warning'), 'expected config.models warning for unknown role or empty tier');
+});
+
+test('STATE-005.S1: 2.0.0-rc.1 CLI runs cleanly on 1.x docs layout without models config', () => {
+  const root = project();
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  fs.writeFileSync(cfgPath, fs.readFileSync(cfgPath, 'utf8').replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n'));
+  const change = brownfieldChange(root);
+  const v = medra(process.cwd(), '--version');
+  assert.match(v.stdout.trim(), /^2\.0\.0-rc\.\d+$/);
+
+  const st = medra(root, 'status');
+  assert.equal(st.code, 0);
+
+  const ctx = medra(root, 'context', change, '--stage', 'propose');
+  assert.equal(ctx.code, 0);
+
+  const stepRes = medra(root, 'step', change, '--stage', 'propose');
+  assert.equal(stepRes.code, 0);
+  assert.equal(stepRes.json.model.tier, 'inherit');
+  assert.equal(stepRes.json.model.fallback, 'inherit');
+});
+
+test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3 & M-03/M-06: thin coordinator skills, /medra:run continuous loop and gate-pause contract, hooks guard, and Antigravity bundle parity', () => {
+  const repoRoot = path.resolve(process.cwd(), '..');
+  const skills = ['init', 'propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review', 'run'];
+
+  for (const name of skills) {
+    const srcSkill = path.join(repoRoot, 'plugins', 'medra', 'skills', name, 'SKILL.md');
+    const bundledSkill = path.join(repoRoot, 'cli', 'plugin', 'skills', name, 'SKILL.md');
+    assert.ok(fs.existsSync(srcSkill), `missing skill ${srcSkill}`);
+    assert.ok(fs.existsSync(bundledSkill), `missing bundled skill ${bundledSkill}`);
+    assert.equal(fs.readFileSync(srcSkill, 'utf8'), fs.readFileSync(bundledSkill, 'utf8'), `bundle mismatch for ${name}`);
+  }
+
+  const runSkill = fs.readFileSync(path.join(repoRoot, 'plugins', 'medra', 'skills', 'run', 'SKILL.md'), 'utf8');
+  assert.match(runSkill, /medra step\b.*--json/);
+  assert.match(runSkill, /inherit/);
+  assert.match(runSkill, /gate|human/i);
+  assert.match(runSkill, /Repeat until/i);
+  assert.match(runSkill, /pauses? only/i);
+  assert.match(runSkill, /loop back to Step 1/i);
+
+  for (const name of ['propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review']) {
+    const text = fs.readFileSync(path.join(repoRoot, 'plugins', 'medra', 'skills', name, 'SKILL.md'), 'utf8');
+    assert.match(text, /medra step\b.*--json/, `${name} skill must compile handoff via medra step --json`);
+    assert.match(text, /inherit/, `${name} skill must document inherit fallback`);
+  }
+
+  const hooksPath = path.join(repoRoot, 'plugins', 'medra', 'hooks', 'hooks.json');
+  const bundledHooksPath = path.join(repoRoot, 'cli', 'plugin', 'hooks', 'hooks.json');
+  assert.ok(fs.existsSync(hooksPath), 'hooks.json must exist');
+  assert.equal(fs.readFileSync(hooksPath, 'utf8'), fs.readFileSync(bundledHooksPath, 'utf8'));
+  assert.match(fs.readFileSync(hooksPath, 'utf8'), /PreToolUse/);
+
+  const root = project();
+  const inst = medra(root, 'install', '--target', 'antigravity');
+  assert.equal(inst.code, 0);
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'skills', 'run', 'SKILL.md')));
 });

@@ -232,6 +232,15 @@ function tasksFindings(root, change) {
     const cited = tasks.some((t) => new RegExp(`\\b${m}\\b`).test(`${t.description} — verify: ${t.verify}`));
     if (!cited) out.push(finding('tasks.mitigations', `Accepted mitigation ${m} is not cited by any task`, { file, ref: m, remediation: `Add a task citing accepted mitigation "${m}" in its description or verify clause` }));
   }
+  // tasks.traceability: every task cites a REQ/scenario or backticked file path for deterministic slicing
+  for (const t of tasks) {
+    const text = `${t.description ?? ''} ${t.verify ?? ''}`;
+    const hasReq = t.reqs.length > 0 || /\b[A-Z]{2,10}-\d{3,}(?:\.S\d+)?\b/.test(text);
+    const hasPath = /`[^`\s]+\/[^`\s]*`/.test(text);
+    if (!hasReq && !hasPath) {
+      out.push(finding('tasks.traceability', `${t.id} lacks a REQ/scenario reference and target file path`, { file, line: t.line, ref: t.id, remediation: `Cite [<REQ-ID>] or a backticked file path in ${t.id}` }));
+    }
+  }
   return out;
 }
 
