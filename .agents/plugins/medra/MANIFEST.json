@@ -1,7 +1,7 @@
 {
-  "version": "2.0.0",
+  "version": "2.0.1",
   "files": {
-    "plugin.json": "504f81108b95856ec3fafb5936d88d1a8fa502bd13d58e14195fd464a1ff454b",
+    "plugin.json": "9e50d9c1980af1886810a74de4821d45a7c4054a5b0118ff076645c695e05d44",
     "skills/apply/SKILL.md": "66146088b70e0d0913c92ec909f6eb3ce3a95e6f06c9a434e52ccffa9ef9f659",
     "skills/archive/SKILL.md": "606209a4a06bfc7d2af02c426fec133cba30a464dba91e0e2daa0e8810673058",
     "skills/init/SKILL.md": "9fcb9bc92e2a2dd4c07c5252938a6fa698182f6eefd10329f6ba3a71a7929912",
