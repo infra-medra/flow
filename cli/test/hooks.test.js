@@ -121,8 +121,41 @@ test('guard [PLUG-004.S2, PLUG-004.S3]: medra gate --approve asks in coordinator
   assert.equal(bash('node cli/bin/medra.js gate add-reset verify --approve', { env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
   assert.equal(bash('medra gate add-reset verify --approve', { extra: { agent_id: 'subagent-4' }, env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
 
+  // S-01: subagents cannot invoke medra gate ... --request-changes either (would reset verify_fix_rounds), while coordinator stays allowed
+  assert.equal(bash('medra gate add-reset verify --request-changes --note "reopen"', { env: cleanEnv }), null);
+  assert.equal(bash('medra gate add-reset verify --request-changes --note "reopen"', { env: { ...cleanEnv, MEDRA_SUBAGENT: '0' } }), null);
+  assert.equal(bash('medra gate add-reset verify --request-changes --note "reopen"', { extra: { agent_id: '' }, env: cleanEnv }), null);
+  assert.equal(bash('medra gate add-reset verify --request-changes --note "reopen"', { extra: { agent_id: 'subagent-1' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('cd app && medra gate add-reset verify --request-changes --note "reopen"', { extra: { agent_id: 'subagent-2' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('medra gate add-reset verify --request-changes --note "reopen"', { env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
+  assert.equal(bash('node cli/bin/medra.js gate add-reset verify --request-changes --note "reopen"', { env: cleanEnv }), null);
+  assert.equal(bash('node cli/bin/medra.js gate add-reset verify --request-changes --note "reopen"', { extra: { agent_id: 'subagent-3' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('medra status x --json ; echo --request-changes', { extra: { agent_id: 'subagent-1' }, env: cleanEnv }), null);
+
   const gateDoc = fs.readFileSync(path.join(PLUGIN, 'references', 'gate.md'), 'utf8');
   assert.match(gateDoc, /agent_id/, 'references/gate.md must document Claude Code PreToolUse agent_id detection');
   assert.match(gateDoc, /MEDRA_SUBAGENT=1/, 'references/gate.md must document MEDRA_SUBAGENT=1 fallback');
   assert.match(gateDoc, /Antigravity/i, 'references/gate.md must document platform limitation (e.g. Antigravity)');
+});
+
+test('guard [PLUG-004.S4, PLUG-002.S2, M-01]: medra verify-fix allows coordinator context, denies when subagent is signaled, and docs cover verify-fix boundaries', () => {
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.MEDRA_SUBAGENT;
+
+  assert.equal(bash('medra verify-fix add-reset --json', { env: cleanEnv }), null);
+  assert.equal(bash('medra verify-fix add-reset --json', { env: { ...cleanEnv, MEDRA_SUBAGENT: '0' } }), null);
+  assert.equal(bash('medra verify-fix add-reset --json', { extra: { agent_id: '' }, env: cleanEnv }), null);
+  assert.equal(bash('medra verify-fix add-reset --json', { extra: { agent_id: 'subagent-1' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('cd app && medra verify-fix add-reset --json', { extra: { agent_id: 'subagent-2' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('medra verify-fix add-reset --json', { env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
+  assert.equal(bash('node cli/bin/medra.js verify-fix add-reset --json', { env: cleanEnv }), null);
+  assert.equal(bash('node cli/bin/medra.js verify-fix add-reset --json', { extra: { agent_id: 'subagent-3' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('node cli/bin/medra.js verify-fix add-reset --json', { env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
+  assert.equal(bash('medra verify-fix add-reset --json', { extra: { agent_id: 'subagent-4' }, env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
+
+  const gateDoc = fs.readFileSync(path.join(PLUGIN, 'references', 'gate.md'), 'utf8');
+  assert.match(gateDoc, /verify-fix/, 'references/gate.md must document medra verify-fix subagent protection');
+  const portabilityDoc = fs.readFileSync(path.join(PLUGIN, 'references', 'portability.md'), 'utf8');
+  assert.match(portabilityDoc, /verify-fix/, 'references/portability.md must document medra verify-fix subagent boundary');
+  assert.match(portabilityDoc, /Antigravity/i, 'references/portability.md must document Antigravity boundary');
 });

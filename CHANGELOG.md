@@ -2,6 +2,17 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.0.0-rc.4] — 2026-11-22
+
+### Fixed
+- **Coordinator-owned `medra verify-fix` & hook protection (Item 1).** Moved `medra verify-fix` out of the fix `implementer`'s `exit_command` (now `medra suite <change> --json`) into coordinator skills (`run/SKILL.md`, `verify/SKILL.md`), added refusal guards in `verifyFix` when no blockers exist or a fix round is still unreviewed, kept `compileStep` idempotent, denied `medra verify-fix` for subagents in `plugins/medra/hooks/guard.mjs`, and documented the Antigravity boundary in `references/gate.md` and `references/portability.md`.
+- **Reset `verify_fix_rounds` on `--request-changes` (Item 2).** Reset `verify_fix_rounds` and `last_fix_round_at` in `medra gate <change> verify --request-changes` so returning to `verify` after reopened work permits a new automatic fix round.
+- **Skill & pipeline `inline` consistency (Item 4).** Removed the contradictory `propose`/`plan`/`tasks` subagent-dispatch line in `plugins/medra/skills/run/SKILL.md` and aligned coordinator skills and pipelines to follow envelope `action` strictly without inferring dispatch from stage names.
+- **Recorded timestamp & SHA-256 report freshness (Item 5).** Recorded `reviews[].recorded_at` and file SHA-256 `hash` in `medra review`, evaluating freshness in `latestReport` / `verifyFindings` via `recorded_at` + hash verification (with `mtime` fallback only for legacy 1.x states without `recorded_at`).
+
+### Changed
+- **Per-subagent model resolution & schema updates (Item 3).** Resolved each `subagents[]` entry's `model` in `compileStep` in `role -> stage -> default -> inherit` order while keeping top-level `model` at the stage tier, added validation warnings when `models.propose/plan/tasks/author` override `inherit` on `inline` stages, and updated `cli/schemas/envelope.schema.json`, `contracts/step-envelope.schema.json`, and `plugins/medra/references/portability.md`.
+
 ## [2.0.0-rc.3] — 2026-11-22
 
 ### Fixed

@@ -14,9 +14,9 @@ On Claude Code the plugin's guard (`hooks/guard.mjs`) also asks the user to allo
 
 ### Subagent Gate Protection
 
-- **Claude Code `PreToolUse` hook:** Official Claude Code `PreToolUse` hook input includes `agent_id` for subagent tool calls. `hooks/guard.mjs` checks `Boolean(input.agent_id) || process.env.MEDRA_SUBAGENT === '1'` and denies `medra gate ... --approve` when invoked by a subagent.
+- **Claude Code `PreToolUse` hook:** Official Claude Code `PreToolUse` hook input includes `agent_id` for subagent tool calls. `hooks/guard.mjs` checks `Boolean(input.agent_id) || process.env.MEDRA_SUBAGENT === '1'` and denies `medra gate ... --approve` and `medra verify-fix` when invoked by a subagent (`medra verify-fix` is coordinator-only and passes through when not in a subagent).
 - **`MEDRA_SUBAGENT=1` fallback:** Runtimes or dispatchers that do not populate `agent_id` in hook input can set `MEDRA_SUBAGENT=1` in the subagent environment to trigger the same guard denial.
-- **Platform limitation:** Runtimes without a `PreToolUse` hook (such as Antigravity) cannot enforce this denial in a hook; they rely on subagent isolation (subagent prompts prohibiting `medra gate ... --approve`) plus coordinator-only human gate confirmation.
+- **Platform limitation:** Runtimes without a `PreToolUse` hook (such as Antigravity) cannot enforce this denial in a hook; they rely on subagent role boundaries (subagent prompts prohibiting `medra gate ... --approve` and `medra verify-fix`) plus coordinator-only human gate confirmation and fix-round recording.
 
 ```
 > # {Agent} | Gate

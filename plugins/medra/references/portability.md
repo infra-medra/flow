@@ -21,5 +21,12 @@ medra runs from the same instructions on Claude Code and on Antigravity, where i
 
 ## Subagent Gate Protection
 
-- **Claude Code:** `PreToolUse` hooks (`hooks/guard.mjs`) enforce gate protection automatically by denying `medra gate ... --approve` when `agent_id` is present or `MEDRA_SUBAGENT=1` is set.
-- **Antigravity:** Antigravity lacks native `PreToolUse` hooks, so subagent gate protection is enforced by role boundary: subagent instructions prohibit calling `medra gate ... --approve`, and human gates are presented and approved only by the coordinator interacting with the user.
+- **Claude Code:** `PreToolUse` hooks (`hooks/guard.mjs`) enforce gate and fix-round protection automatically by denying `medra gate ... --approve` and `medra verify-fix` when `agent_id` is present or `MEDRA_SUBAGENT=1` is set (`medra verify-fix` is coordinator-only).
+- **Antigravity:** Antigravity lacks native `PreToolUse` hooks, so subagent protection is enforced by role boundary: subagent instructions prohibit calling `medra gate ... --approve` and `medra verify-fix`, and human gates and fix-round recording are handled only by the coordinator.
+
+## Subagent Model Selection
+
+- **`inline` stages:** Stages compiled with `action: "inline"` (`propose`, `plan`, `tasks`, and small `fast`-track `apply`) execute in the main session model, ignoring `models.<stage>` and `models.author` overrides.
+- **`dispatch` subagents:** `medra step` resolves each subagent's `model` in order `role -> stage -> default -> inherit`.
+- **Claude Code:** Pass `subagent.model.tier` to `Agent` when it is not `inherit`, falling back to `inherit` if the tier is unavailable.
+- **Antigravity:** A subagent model tier applies only if `invoke_subagent` supports model selection; otherwise, inherit the conversation/session model.

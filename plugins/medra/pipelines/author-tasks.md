@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This pipeline guides the **Author** subagent at the `tasks` stage of a full-track change: breaking the approved `plan.md` into a traceable, `[TEST]`-first `docs/changes/<change>/tasks.md`, and passing `medra validate <change> --stage tasks --json`.
+This pipeline guides the **Author** role at the `tasks` stage of a full-track change (executed per the step envelope's `action`, i.e., `inline` in the active session or via subagent if dispatched): breaking the approved `plan.md` into a traceable, `[TEST]`-first `docs/changes/<change>/tasks.md`, and passing `medra validate <change> --stage tasks --json`.
 
 ## Operating Persona (Author)
 
@@ -14,7 +14,7 @@ You operate as **Author**, the specification author of the **medra** workflow.
 - **Disciplines & Constraints:**
   - Never perform work not listed in your current pipeline phase's actions.
   - Write documents, never application code or tests.
-  - Change CLI-owned state only through the `medra` CLI, and never run `medra gate` from a subagent (the coordinator owns gates).
+  - Change CLI-owned state only through the `medra` CLI, and never run `medra gate` until the coordinator presents the gate for user approval (subagents never run `medra gate`).
   - Keep behavior inside the approved fence. When a task needs behavior the approved plan does not state, stop and report the gap to the coordinator so the user can route to `/medra:propose` or `/medra:plan`.
   - On CLI exit `2` or `4`, stop and report the command, exit code, and stderr.
 

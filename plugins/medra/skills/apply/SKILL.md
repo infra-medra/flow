@@ -1,5 +1,5 @@
 ---
-description: Implements approved tasks using adaptive granularity — compiles each step via medra step --stage apply --json and dispatches clean-context implementer subagents with CLI-checkpointed TDD evidence. Run only when the user explicitly invokes it.
+description: Implements approved tasks using adaptive granularity — compiles each step via medra step --stage apply --json and follows the envelope action (inline or dispatch with clean-context implementer subagents) with CLI-checkpointed TDD evidence. Run only when the user explicitly invokes it.
 argument-hint: "[change-name]"
 disable-model-invocation: true
 ---
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin coordinator for the `apply` stage (`PLUG-001.S3`). It compiles task handoffs via `medra step <change> --stage apply --json` and follows `action`: `inline` on `fast` track when pending tasks `<= apply.inline_max_tasks`, single-subagent `dispatch` on `fast` track above the threshold, or per-task `dispatch` on `full` track.
+Thin coordinator for the `apply` stage (`PLUG-001.S3`). It compiles task handoffs via `medra step <change> --stage apply --json` and follows only `action` (`inline` on `fast` track when pending tasks `<= apply.inline_max_tasks`, single-subagent `dispatch` on `fast` track above the threshold, or per-task `dispatch` on `full` track) without inferring dispatch from stage names.
 
 ## Input
 
@@ -25,7 +25,7 @@ Thin coordinator for the `apply` stage (`PLUG-001.S3`). It compiles task handoff
 
 ### Phase 1 — Resume
 
-1. Run `medra step <change> --stage apply --json` and follow `action`:
+1. Run `medra step <change> --stage apply --json` and follow only `action` without inferring dispatch from stage names:
    - **`action === "inline"`** (`fast` track when pending tasks `<= apply.inline_max_tasks`): read the referenced pipeline (`plugin_pointers`) and execute in the current session using the CLI-compiled context slice, checkpointing each task with `medra task done`.
    - **`action === "dispatch"`:** inspect `granularity` and `subagents[]`:
      - `full` track (`granularity === "task"`): dispatch one clean-context `implementer` subagent (`Agent` / `invoke_subagent`) for the next task.

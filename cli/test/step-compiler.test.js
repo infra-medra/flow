@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_CONFIG, loadConfig, resolveSafePath } from '../src/core.js';
+import YAML from 'yaml';
+import { DEFAULT_CONFIG, loadConfig, resolveSafePath, sha256 } from '../src/core.js';
 import { compileStep } from '../src/step.js';
 import { BIN, medra, medraHuman, project, livingSpec, req, proposal, write, read, delta, tasks, verifyReport, securityReport } from './helpers.js';
 
@@ -527,7 +528,8 @@ test('CTX-005.S8: verify failure dispatches fix implementer, verify-fix records 
   assert.equal(fixEnv.action, 'dispatch');
   assert.equal(fixEnv.subagents.length, 1);
   assert.equal(fixEnv.subagents[0].role, 'implementer');
-  assert.equal(fixEnv.subagents[0].exit_command, `medra verify-fix ${change} --json`);
+  assert.equal(fixEnv.subagents[0].exit_command, `medra suite ${change} --json`);
+  assert.doesNotMatch(fixEnv.subagents[0].exit_command, /\bmedra\s+verify-fix\b/);
   assert.ok(Array.isArray(fixEnv.subagents[0].findings) && fixEnv.subagents[0].findings.length > 0);
 
   // 3. Running verify-fix increments verify_fix_rounds and records last_fix_round_at in .medra.yaml
@@ -861,3 +863,296 @@ test('CTX-005.S14: measure-envelope.js verifies verify --json < 4096 bytes and s
   const contractSchema = JSON.parse(fs.readFileSync(path.join(repoRoot, 'contracts', 'step-envelope.schema.json'), 'utf8'));
   assert.ok(cliSchema && contractSchema);
 });
+
+// Covers CTX-005.S15 & M-02: coordinator-owned medra verify-fix, idempotent compileStep, and verify-fix refusal guards
+test('CTX-005.S15 & M-02: compileStep is idempotent without verify-fix, never delegates verify-fix to subagents, and verify-fix refuses invalid calls', async () => {
+  // 1. M-02: medra verify-fix refuses when no blocking findings exist
+  const passChange = 'verify-fix-no-blockers';
+  const passRoot = setupVerifyReadyChange(passChange, { security: 'not-relevant' });
+  touchReport(passRoot, `docs/changes/${passChange}/reviews/verify-reviewer.md`, verifyReport('pass'), Date.now() + 5000);
+  const noBlockersRes = medra(passRoot, 'verify-fix', passChange);
+  assert.equal(noBlockersRes.code, 1, 'M-02: medra verify-fix must refuse when no blocking findings exist');
+  assert.match(read(passRoot, `docs/changes/${passChange}/.medra.yaml`), /verify_fix_rounds:\s*0\b/);
+
+  // 2. CTX-005.S15: blocking findings with 0 fix rounds -> idempotent compileStep, no subagent verify-fix exit_command
+  const change = 'verify-fix-idempotent';
+  const root = setupVerifyReadyChange(change, { security: 'not-relevant' });
+  const reportRel = `docs/changes/${change}/reviews/verify-reviewer.md`;
+  const t1 = Date.now() + 1;
+  touchReport(root, reportRel, verifyReport('fail'), t1);
+
+  const firstEnv = compileStep(root, change);
+  const secondEnv = compileStep(root, change);
+  assert.deepEqual(secondEnv, firstEnv, 'CTX-005.S15: consecutive compileStep calls without verify-fix must return identical envelopes');
+  assert.equal(firstEnv.stage, 'verify');
+  assert.equal(firstEnv.action, 'dispatch');
+  assert.equal(firstEnv.subagents.length, 1);
+  assert.equal(firstEnv.subagents[0].role, 'implementer');
+  assert.equal(firstEnv.subagents[0].exit_command, `medra suite ${change} --json`);
+  for (const sub of firstEnv.subagents) {
+    assert.doesNotMatch(sub.exit_command, /\bmedra\s+verify-fix\b/, 'CTX-005.S15: no subagent exit_command may contain verify-fix');
+  }
+  assert.match(read(root, `docs/changes/${change}/.medra.yaml`), /verify_fix_rounds:\s*0\b/, 'CTX-005.S15: verify_fix_rounds must stay 0 across repeated compileStep');
+
+  // 3. Coordinator runs medra verify-fix -> old report becomes stale naturally -> re-review with blockers -> gate with findings
+  await new Promise((r) => setTimeout(r, 50));
+  const fixRes = medra(root, 'verify-fix', change);
+  assert.equal(fixRes.code, 0, fixRes.stderr || fixRes.stdout);
+  assert.equal(fixRes.json?.verify_fix_rounds, 1);
+
+  // M-02: calling medra verify-fix while an open fix round awaits review is refused
+  const duplicateFixRes = medra(root, 'verify-fix', change);
+  assert.equal(duplicateFixRes.code, 1, 'M-02: medra verify-fix must refuse while an open fix round awaits review');
+  assert.match(read(root, `docs/changes/${change}/.medra.yaml`), /verify_fix_rounds:\s*1\b/);
+
+  // Old report is now stale (report.mtime < last_fix_round_at) -> re-dispatch reviewer
+  const reverifyEnv = compileStep(root, change);
+  assert.equal(reverifyEnv.stage, 'verify');
+  assert.equal(reverifyEnv.action, 'dispatch');
+  assert.ok(reverifyEnv.subagents.some((s) => s.role === 'reviewer'));
+  for (const sub of reverifyEnv.subagents) {
+    assert.doesNotMatch(sub.exit_command, /\bmedra\s+verify-fix\b/);
+  }
+
+  // Re-review with blockers -> action: "gate", gate: "verify" with findings
+  touchReport(root, reportRel, verifyReport('fail'), Date.now() + 5000);
+  const gateEnv = compileStep(root, change);
+  assert.equal(gateEnv.stage, 'verify');
+  assert.equal(gateEnv.action, 'gate');
+  assert.equal(gateEnv.gate, 'verify');
+  assert.ok(Array.isArray(gateEnv.findings) && gateEnv.findings.length > 0);
+
+  // S-04: verify-fix refuses once verify_fix_rounds >= 1 even after fresh failing re-review
+  const limitFixRes = medra(root, 'verify-fix', change);
+  assert.equal(limitFixRes.code, 1, 'S-04: medra verify-fix must refuse once verify_fix_rounds >= 1');
+  assert.ok((limitFixRes.json?.findings ?? []).some((f) => f.rule === 'verify.fix-limit'));
+  assert.match(read(root, `docs/changes/${change}/.medra.yaml`), /verify_fix_rounds:\s*1\b/);
+});
+
+// Covers STATE-005.S2: medra gate verify --request-changes resets verify_fix_rounds and last_fix_round_at
+test('STATE-005.S2: medra gate verify --request-changes resets verify_fix_rounds and last_fix_round_at so returning to verify allows one new fix round', async () => {
+  const change = 'verify-reset-rounds';
+  const root = setupVerifyReadyChange(change, { security: 'not-relevant' });
+  const reportRel = `docs/changes/${change}/reviews/verify-reviewer.md`;
+
+  // 1. Initial blocking findings -> dispatch fix implementer, coordinator runs medra verify-fix (verify_fix_rounds === 1)
+  const t1 = Date.now() + 1;
+  touchReport(root, reportRel, verifyReport('fail'), t1);
+  const initialFixEnv = compileStep(root, change);
+  assert.equal(initialFixEnv.stage, 'verify');
+  assert.equal(initialFixEnv.action, 'dispatch');
+  assert.equal(initialFixEnv.subagents[0].role, 'implementer');
+
+  await new Promise((r) => setTimeout(r, 50));
+  const fixRes = medra(root, 'verify-fix', change);
+  assert.equal(fixRes.code, 0, fixRes.stderr || fixRes.stdout);
+  assert.equal(fixRes.json?.verify_fix_rounds, 1);
+
+  // 2. Re-review still has blockers -> action: "gate", gate: "verify"
+  touchReport(root, reportRel, verifyReport('fail'), Date.now() + 5000);
+  const gateEnv = compileStep(root, change);
+  assert.equal(gateEnv.stage, 'verify');
+  assert.equal(gateEnv.action, 'gate');
+  assert.equal(gateEnv.gate, 'verify');
+  assert.ok(Array.isArray(gateEnv.findings) && gateEnv.findings.length > 0);
+
+  // 3. Human requests changes at verify gate -> verify_fix_rounds and last_fix_round_at are reset
+  const reqChangesRes = medra(root, 'gate', change, 'verify', '--request-changes', '--note', 'Fix remaining issue');
+  assert.equal(reqChangesRes.code, 0, reqChangesRes.stderr || reqChangesRes.stdout);
+
+  const resetYaml = read(root, `docs/changes/${change}/.medra.yaml`);
+  assert.match(resetYaml, /verify_fix_rounds:\s*0\b/);
+  assert.match(resetYaml, /last_fix_round_at:\s*null\b/);
+
+  // 4. After new work and updated blocking review report -> compileStep dispatches fix implementer (1 new fix round allowed)
+  write(root, 'src/auth.js', '// updated after request-changes\n');
+  touchReport(root, reportRel, verifyReport('fail'), Date.now() + 10000);
+  const nextFixEnv = compileStep(root, change);
+  assert.equal(nextFixEnv.stage, 'verify');
+  assert.equal(nextFixEnv.action, 'dispatch');
+  assert.equal(nextFixEnv.subagents.length, 1);
+  assert.equal(nextFixEnv.subagents[0].role, 'implementer');
+  assert.equal(nextFixEnv.subagents[0].exit_command, `medra suite ${change} --json`);
+});
+
+// Covers CTX-005.S16, PLUG-005.S2, M-04: per-subagent model resolution precedence and inline override warnings
+test('CTX-005.S16, PLUG-005.S2 & M-04: compileStep resolves subagent model via role -> stage -> default -> inherit and validate warns on inline overrides', () => {
+  const stripModels = (cfg) => cfg.replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n').trimEnd();
+
+  // 1. models: { verify: 'pro', security: 'flash' } -> envelope 'pro', reviewer 'pro', security 'flash'
+  const verifyChange = 'verify-model-overrides';
+  const verifyRoot = setupVerifyReadyChange(verifyChange, { security: 'relevant' });
+  const verifyCfgPath = path.join(verifyRoot, 'docs', 'config-flow.yaml');
+  fs.writeFileSync(verifyCfgPath, `${stripModels(fs.readFileSync(verifyCfgPath, 'utf8'))}\nmodels:\n  verify: pro\n  security: flash\n`);
+
+  const verifyEnv = compileStep(verifyRoot, verifyChange, { stage: 'verify' });
+  assert.equal(verifyEnv.stage, 'verify');
+  assert.equal(verifyEnv.action, 'dispatch');
+  assert.deepEqual(verifyEnv.model, { tier: 'pro', fallback: 'inherit' });
+  const revSub = verifyEnv.subagents.find((s) => s.role === 'reviewer');
+  const secSub = verifyEnv.subagents.find((s) => s.role === 'security');
+  assert.ok(revSub && secSub, 'expected reviewer and security subagents');
+  assert.deepEqual(revSub.model, { tier: 'pro', fallback: 'inherit' });
+  assert.deepEqual(secSub.model, { tier: 'flash', fallback: 'inherit' });
+
+  // 2. models: { implementer: 'flash' } -> apply envelope 'inherit', task implementer 'flash'
+  const applyRoot = project({ mode: 'tdd' });
+  livingSpec(applyRoot, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
+  medra(applyRoot, 'new', 'apply-model-override', '--track', 'full');
+  proposal(applyRoot, 'apply-model-override', { track: 'full', caps: [['auth', 'modified', 'AUTH-001']] });
+  write(applyRoot, 'docs/changes/apply-model-override/specs/auth/spec.md', delta('auth', `## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`));
+  write(applyRoot, 'docs/changes/apply-model-override/plan.md', '# Plan: apply-model-override\n\n## Summary\n\nPlan.\n');
+  tasks(applyRoot, 'apply-model-override', [
+    '- [ ] T001 [TEST] [AUTH-001] Write test for AUTH-001.S1 in `test/auth.test.js` — verify: red',
+  ]);
+  const applyCfgPath = path.join(applyRoot, 'docs', 'config-flow.yaml');
+  fs.writeFileSync(applyCfgPath, `${stripModels(fs.readFileSync(applyCfgPath, 'utf8'))}\nmodels:\n  implementer: flash\n`);
+
+  const applyEnv = compileStep(applyRoot, 'apply-model-override', { stage: 'apply' });
+  assert.equal(applyEnv.stage, 'apply');
+  assert.equal(applyEnv.action, 'dispatch');
+  assert.equal(applyEnv.granularity, 'task');
+  assert.deepEqual(applyEnv.model, { tier: 'inherit', fallback: 'inherit' });
+  assert.equal(applyEnv.subagents.length, 1);
+  assert.equal(applyEnv.subagents[0].role, 'implementer');
+  assert.deepEqual(applyEnv.subagents[0].model, { tier: 'flash', fallback: 'inherit' });
+
+  // 3. No models configured -> envelope and all subagents default to { tier: 'inherit', fallback: 'inherit' }
+  const defaultChange = 'verify-model-defaults';
+  const defaultRoot = setupVerifyReadyChange(defaultChange, { security: 'relevant' });
+  const defaultCfgPath = path.join(defaultRoot, 'docs', 'config-flow.yaml');
+  fs.writeFileSync(defaultCfgPath, `${stripModels(fs.readFileSync(defaultCfgPath, 'utf8'))}\n`);
+
+  const defaultEnv = compileStep(defaultRoot, defaultChange, { stage: 'verify' });
+  assert.deepEqual(defaultEnv.model, { tier: 'inherit', fallback: 'inherit' });
+  assert.equal(defaultEnv.subagents.length, 2);
+  for (const sub of defaultEnv.subagents) {
+    assert.deepEqual(sub.model, { tier: 'inherit', fallback: 'inherit' });
+  }
+
+  // 4. medra validate --project emits a warning when inline stage/author keys are non-'inherit'
+  const valRoot = project();
+  const valCfgPath = path.join(valRoot, 'docs', 'config-flow.yaml');
+  const baseCfg = stripModels(fs.readFileSync(valCfgPath, 'utf8'));
+  for (const inlineKey of ['propose', 'plan', 'tasks', 'author']) {
+    fs.writeFileSync(valCfgPath, `${baseCfg}\nmodels:\n  ${inlineKey}: flash\n`);
+    const res = medra(valRoot, 'validate', '--project', 'constitution');
+    assert.equal(res.code, 0, res.stderr || res.stdout);
+    const warnings = (res.json.findings ?? []).filter((f) => f.severity === 'warning');
+    assert.ok(
+      warnings.some((f) => f.rule === 'config.models' && f.message.includes(inlineKey)),
+      `expected config.models warning when models.${inlineKey} is non-inherit`,
+    );
+  }
+});
+
+// Covers CTX-005.S17 & M-03: recorded_at + SHA-256 hash report freshness (with 1.x mtime fallback)
+test('CTX-005.S17 & M-03: verify report freshness uses recorded_at and SHA-256 hash, falling back to mtime only for 1.x states without recorded_at', async () => {
+  // 1. Setup change with 3 tasks; complete T001 and T002, then record verify report via medra review
+  const change = 'verify-recorded-hash-freshness';
+  const root = project({ mode: 'tdd' });
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
+  assert.equal(medra(root, 'new', change, '--track', 'fast').code, 0);
+  proposal(root, change, { track: 'fast', caps: [['auth', 'modified', 'AUTH-001']], security: 'not-relevant' });
+  write(root, `docs/changes/${change}/specs/auth/spec.md`, delta('auth', `## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`));
+  tasks(root, change, [
+    '- [ ] T001 [TEST] [AUTH-001] Test AUTH-001.S1 in `test/auth.test.js` — verify: red',
+    '- [ ] T002 [AUTH-001] after T001 Implement login in `src/auth.js` — verify: green',
+    '- [ ] T003 [AUTH-001] after T002 Polish login in `src/auth.js` — verify: green',
+  ]);
+  assert.equal(medra(root, 'gate', change, 'proposal', '--approve').code, 0);
+  write(root, 'test/auth.test.js', '// AUTH-001.S1\n');
+  assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1').code, 0);
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').code, 0);
+
+  const reportRel = `docs/changes/${change}/reviews/verify-reviewer.md`;
+  const reportContent = verifyReport('pass');
+  write(root, reportRel, reportContent);
+  const revRes = medra(root, 'review', change, '--report', reportRel, '--by', 'reviewer');
+  assert.equal(revRes.code, 0, revRes.stderr || revRes.stdout);
+
+  const stateAfterReview = YAML.parse(read(root, `docs/changes/${change}/.medra.yaml`));
+  assert.ok(Array.isArray(stateAfterReview.reviews) && stateAfterReview.reviews.length === 1);
+  const recordedEntry = stateAfterReview.reviews[0];
+  assert.equal(typeof recordedEntry.recorded_at, 'string', 'CTX-005.S17: medra review must store reviews[].recorded_at');
+  assert.ok(!Number.isNaN(Date.parse(recordedEntry.recorded_at)), 'CTX-005.S17: reviews[].recorded_at must be a valid ISO timestamp');
+  assert.equal(
+    recordedEntry.hash,
+    sha256(reportContent.replace(/\r\n/g, '\n')),
+    'CTX-005.S17: medra review must store SHA-256 hash of report in reviews[].hash',
+  );
+
+  // 2. Touch report mtime +60s into the future, then complete T003 (sub-second precision, no whole-second wait) -> last_task_done_at > recorded_at -> stale
+  const future1 = new Date(Date.now() + 60_000);
+  fs.utimesSync(path.join(root, reportRel), future1, future1);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(medra(root, 'task', 'done', change, 'T003', '--run', 'exit 0').code, 0);
+  const stateAfterDone = YAML.parse(read(root, `docs/changes/${change}/.medra.yaml`));
+  assert.match(stateAfterDone.last_task_done_at, /\.\d{3}Z$/, 'F-01/S-03: last_task_done_at must preserve millisecond precision');
+
+  const staleByTimeEnv = compileStep(root, change);
+  assert.equal(staleByTimeEnv.stage, 'verify');
+  assert.equal(staleByTimeEnv.action, 'dispatch', 'CTX-005.S17: report with recorded_at < last_task_done_at must be stale even if mtime is in the future');
+  assert.ok(staleByTimeEnv.subagents.some((s) => s.role === 'reviewer'));
+
+  const valTimeRes = medra(root, 'validate', change, '--stage', 'verify');
+  assert.equal(valTimeRes.code, 1, 'CTX-005.S17: medra validate --stage verify must fail on stale report');
+  assert.ok((valTimeRes.json?.findings ?? []).some((f) => f.rule === 'verify.report' && f.severity === 'error'));
+
+  // 3. Re-record via medra review -> fresh (gates verify); then modify file content on disk -> divergent hash -> stale
+  assert.equal(medra(root, 'review', change, '--report', reportRel, '--by', 'reviewer').code, 0);
+  const freshEnv = compileStep(root, change);
+  assert.equal(freshEnv.stage, 'verify');
+  assert.equal(freshEnv.action, 'gate', 'CTX-005.S17: re-recorded verify report must gate verify');
+  assert.equal(freshEnv.gate, 'verify');
+
+  write(root, reportRel, `${verifyReport('pass')}\n<!-- tampered without medra review -->\n`);
+  const future2 = new Date(Date.now() + 60_000);
+  fs.utimesSync(path.join(root, reportRel), future2, future2);
+
+  const staleByHashEnv = compileStep(root, change);
+  assert.equal(staleByHashEnv.stage, 'verify');
+  assert.equal(staleByHashEnv.action, 'dispatch', 'M-03: modified report with divergent SHA-256 hash must be treated as stale');
+  assert.ok(staleByHashEnv.subagents.some((s) => s.role === 'reviewer'));
+
+  const valHashRes = medra(root, 'validate', change, '--stage', 'verify');
+  assert.equal(valHashRes.code, 1, 'M-03: medra validate --stage verify must fail when report hash diverges');
+  assert.ok((valHashRes.json?.findings ?? []).some((f) => f.rule === 'verify.report' && f.severity === 'error'));
+
+  // 4. Legacy 1.x fallback: when .medra.yaml has no recorded_at, freshness falls back to file mtime
+  const legacyChange = 'verify-legacy-1x-mtime';
+  const legacyRoot = setupVerifyReadyChange(legacyChange, { security: 'not-relevant' });
+  const legacyReportRel = `docs/changes/${legacyChange}/reviews/verify-reviewer.md`;
+
+  // 4a. No reviews[] entries (1.x state) + future mtime -> fresh (gate), past mtime -> stale (dispatch)
+  touchReport(legacyRoot, legacyReportRel, verifyReport('pass'), Date.now() + 5000);
+  const legacyFreshEnv = compileStep(legacyRoot, legacyChange);
+  assert.equal(legacyFreshEnv.action, 'gate', 'M-03: 1.x state without recorded_at and fresh mtime must gate verify');
+  assert.equal(legacyFreshEnv.gate, 'verify');
+
+  touchReport(legacyRoot, legacyReportRel, verifyReport('pass'), Date.now() - 60_000);
+  const legacyStaleEnv = compileStep(legacyRoot, legacyChange);
+  assert.equal(legacyStaleEnv.action, 'dispatch', 'M-03: 1.x state without recorded_at and stale mtime must dispatch reviewers');
+  assert.ok(legacyStaleEnv.subagents.some((s) => s.role === 'reviewer'));
+
+  // 4b. Legacy reviews[] entry lacking recorded_at/hash -> still falls back to mtime
+  const legacyStatePath = `docs/changes/${legacyChange}/.medra.yaml`;
+  const legacyState = YAML.parse(read(legacyRoot, legacyStatePath));
+  legacyState.reviews = [{
+    stage: 'verify',
+    by: 'reviewer',
+    at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    verdict: 'pass',
+    report: 'reviews/verify-reviewer.md',
+  }];
+  write(legacyRoot, legacyStatePath, YAML.stringify(legacyState, { lineWidth: 0 }));
+
+  touchReport(legacyRoot, legacyReportRel, verifyReport('pass'), Date.now() + 5000);
+  const legacyEntryFreshEnv = compileStep(legacyRoot, legacyChange);
+  assert.equal(legacyEntryFreshEnv.action, 'gate', 'M-03: 1.x reviews[] entry without recorded_at and fresh mtime must gate verify');
+
+  touchReport(legacyRoot, legacyReportRel, verifyReport('pass'), Date.now() - 60_000);
+  const legacyEntryStaleEnv = compileStep(legacyRoot, legacyChange);
+  assert.equal(legacyEntryStaleEnv.action, 'dispatch', 'M-03: 1.x reviews[] entry without recorded_at and stale mtime must dispatch reviewers');
+});
+

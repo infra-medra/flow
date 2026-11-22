@@ -10,6 +10,8 @@ Delivers bounded project indexes and stage-specific context packs so agents avoi
 
 ## Requirements
 
+<!-- retired: CTX-005.S1, CTX-005.S2, CTX-005.S3, CTX-005.S4, CTX-005.S5, CTX-005.S6, CTX-005.S7, CTX-005.S9, CTX-005.S10, CTX-005.S11, CTX-005.S12, CTX-005.S13 -->
+
 ### REQ CTX-001: Bounded project index
 
 The system SHALL emit a compact project index via `medra index` listing constitution article titles, capability summaries, requirement titles, active changes, spec drift, and optional scoped learnings.
@@ -52,88 +54,34 @@ The system SHALL manage scoped lessons and preferences in `docs/learnings.md` vi
 
 ### REQ CTX-005: Deterministic step and prompt compilation
 
-The system SHALL compile a minimal, self-contained step prompt and handoff envelope from on-disk change state via the `medra` CLI, resolving only the active step's touched requirements, scenarios, scoped decisions, scoped learnings, hybrid code references, and unambiguous runtime-portable plugin pointers, mapping flow stages to valid `medra validate` stages, transitioning `verify` deterministically between `dispatch` and `gate` using CLI-tracked fix rounds, deduplicating large embedded blocks at the top level, supporting compact default `--json` envelopes with deterministic `--role <role> [--task <T-ID>] --md` subagent fetch output (`--full` preserved), and supporting `action: "inline"` for small `fast`-track `apply` (and `propose`/`plan`/`tasks` if approved in plan), while surfacing git diff failures explicitly and fencing untrusted embedded content with `<untrusted_data>`.
-
-#### Scenario CTX-005.S1: Compiling a single-task apply prompt
-
-- **Given** a `full-track` change in `implementing` phase with pending task `T-01` citing `REQ CTX-005` and path `cli/src/context.js`
-- **When** the CLI step-prompt compiler runs for the change
-- **Then** the compiled output contains only `T-01`, the cited requirement/scenarios, scoped decisions/learnings, code path pointers, the `apply` pipeline pointer, and the exact `medra task done` exit command
-
-#### Scenario CTX-005.S2: Embedding contracts and diff for verify
-
-- **Given** a change in a git repository with a base commit, a modifying commit, all tasks completed, and files in `contracts/`
-- **When** the CLI step-prompt compiler runs for `verify`
-- **Then** `safeGitDiff` returns `{ diff, truncated }` with the changed lines stored in top-level `embedded` fenced in `<untrusted_data source="git-diff">`, and diffs exceeding `MAX_EMBED_BYTES` set `truncated: true` with a truncation warning in the prompt
-
-#### Scenario CTX-005.S3: Legacy 1.x task fallback
-
-- **Given** an existing 1.x `tasks.md` whose tasks omit explicit `REQ` or path pointers
-- **When** the CLI step-prompt compiler runs for `apply`
-- **Then** it falls back gracefully to the stage-scoped context pack without failing
-
-#### Scenario CTX-005.S4: Distinguishing empty diff from git diff failure
-
-- **Given** a change whose `diff_base` is a nonexistent git ref or a non-git directory versus a valid ref with no changes
-- **When** the CLI step-prompt compiler runs for `verify`
-- **Then** a legitimate empty diff succeeds with no error, whereas a git failure surfaces an explicit diff error in the envelope and prompt warning instead of silently returning an empty diff
-
-#### Scenario CTX-005.S5: Pipeline pointers and author template guidance
-
-- **Given** an active change at stage `propose`, `plan`, `tasks`, `apply`, or `verify`
-- **When** the CLI step-prompt compiler runs for that stage
-- **Then** the compiled envelope includes the corresponding plugin pipeline file in `pointers` instructing the subagent to read it first, and `author` prompts explicitly name the target document's `template.md`, `guide.md`, and completion criteria
-
-#### Scenario CTX-005.S6: Security verify exit command and untrusted tag neutralization
-
-- **Given** a security-relevant change at stage `verify` whose diff contains a closing `</untrusted_data>`, `</ untrusted_data >`, or `</untrusted-data>` injection
-- **When** the CLI step-prompt compiler builds the `verify` subagents
-- **Then** no subagent `exit_command` invokes `medra gate`, `security` uses a review-recording `exit_command`, and the fenced diff contains exactly one opening `<untrusted_data ...>` tag and one closing `</untrusted_data>` tag
-
-#### Scenario CTX-005.S7: Flow-stage to validate-stage mapping in generated commands
-
-- **Given** an active change at stage `propose`, `plan`, `tasks`, `apply`, or `verify`
-- **When** `compileStep` generates `exit_command` and completion criteria text
-- **Then** flow stage `propose` maps to `medra validate <change> --stage proposal`, and running any generated `exit_command` on an example project never exits with code `2`
+The system SHALL compile a minimal, self-contained step prompt and handoff envelope from on-disk change state via the `medra` CLI, resolving only the active step's touched requirements, scenarios, scoped decisions, scoped learnings, hybrid code references, and unambiguous runtime-portable plugin pointers, mapping flow stages to valid `medra validate` stages, transitioning `verify` deterministically between `dispatch` and `gate` using coordinator-recorded CLI fix rounds (without delegating `medra verify-fix` to subagent `exit_command`s), resolving per-subagent models (`role -> stage -> default -> inherit`), deduplicating large embedded blocks at the top level, supporting compact default `--json` envelopes with deterministic `--role <role> [--task <T-ID>] --md` subagent fetch output (`--full` preserved), and supporting `action: "inline"` for small `fast`-track `apply` and `propose`/`plan`/`tasks`, while surfacing git diff failures explicitly and fencing untrusted embedded content with `<untrusted_data>`.
 
 #### Scenario CTX-005.S8: Verify action transitions with CLI-tracked fix rounds
 
 - **Given** a change at `verify` with valid current review/security reports
 - **When** `resolveStage` and `compileStep` evaluate `verifyFindings`
-- **Then** no blockers returns `action: "gate", gate: "verify"`, blocking findings with `0` fix rounds returns `action: "dispatch"` for a fix implementer, and blocking findings after `1` CLI-recorded fix round returns `action: "gate", gate: "verify"` with findings in the envelope for human decision
-
-#### Scenario CTX-005.S9: Unambiguous plugin pointers in external projects
-
-- **Given** a user project without `plugins/` or `.agents/` at the repository root
-- **When** `compileStep` emits `pipelinePointer` and template/guide pointers
-- **Then** plugin-relative pointers are distinguished from project-relative pointers, resolve unambiguously in `cli/plugin/`, and do not prefer `.agents/plugins/medra/` over `plugins/medra/`
-
-#### Scenario CTX-005.S10: Deduplicated top-level embedded blocks in verify envelope
-
-- **Given** a security-relevant change at `verify` with a ~60 KB git diff and contracts
-- **When** `compileStep` builds the `--full` verify envelope
-- **Then** `diff` and `contracts` are stored once in top-level `embedded` and referenced by key from subagents without repeating the diff in `prompt`, so `JSON.stringify(env)` grows by at most 1x diff plus 1x contracts plus small margin
-
-#### Scenario CTX-005.S11: Compact default JSON envelope and deterministic --role --md output
-
-- **Given** an active change at any dispatchable stage
-- **When** `medra step <change> --json` runs without `--full` versus `medra step <change> --role <role> [--task <T-ID>] --md`
-- **Then** default `--json` omits inline prompt/embedded bodies and returns `role`, `task_id`, `model`, `exit_command`, and `fetch_command` (keeping verify coordinator JSON < 4 KB), while `--role ... --md` deterministically prints that role's exact prompt and referenced embedded blocks matching `--full`
-
-#### Scenario CTX-005.S12: Small fast-track inline apply threshold
-
-- **Given** a `fast`-track change at `apply` with `apply.inline_max_tasks` configured in `docs/config-flow.yaml` (default `3`)
-- **When** pending tasks are `<= inline_max_tasks` versus `> inline_max_tasks`
-- **Then** `compileStep` returns `action: "inline"` when at or below the threshold and `action: "dispatch"` when above it
-
-#### Scenario CTX-005.S13: Inline propose, plan, and tasks execution (plan-gated)
-
-- **Given** the B3 design decision is approved at the plan gate
-- **When** `compileStep` runs for `propose`, `plan`, or `tasks`
-- **Then** it returns `action: "inline"` using the CLI context slice and pipeline pointer rather than `action: "dispatch"`
+- **Then** no blockers returns `action: "gate", gate: "verify"`, blocking findings with `0` fix rounds returns `action: "dispatch"` for a fix implementer whose `exit_command` runs test verification (never `medra verify-fix`), repeated `compileStep` calls without `medra verify-fix` are idempotent, coordinator-recorded `medra verify-fix` makes old reports stale for re-verification, and blocking findings after `1` fix round returns `action: "gate", gate: "verify"` with findings in the envelope for human decision
 
 #### Scenario CTX-005.S14: Step envelope schemas and size measurement script
 
-- **Given** the updated optional envelope fields (`fetch_command`, `embedded` keys, `plugin_pointers`, `findings`)
+- **Given** the updated optional envelope fields (`fetch_command`, `embedded` keys, `plugin_pointers`, `findings`, per-subagent `model`)
 - **When** `cli/schemas/envelope.schema.json`, `contracts/step-envelope.schema.json`, and `cli/scripts/measure-envelope.js` are evaluated
-- **Then** both schemas validate the new optional fields without breaking existing 1.x/2.0-rc consumers and `measure-envelope.js` reports coordinator `--json` size < 4 KB
+- **Then** both schemas validate the fields without breaking existing 1.x/2.0-rc consumers and `measure-envelope.js` reports coordinator `verify` `--json` size < 4 KB with no stage growing more than 10% over `2.0.0-rc.3`
+
+#### Scenario CTX-005.S15: Coordinator-owned fix round and idempotent compileStep
+
+- **Given** a change at `verify` with blocking review findings and `0` recorded fix rounds
+- **When** `medra step` runs twice consecutively without `medra verify-fix` in between
+- **Then** both calls return the identical fix-implementer envelope without incrementing `verify_fix_rounds` and no subagent `exit_command` contains `verify-fix`
+
+#### Scenario CTX-005.S16: Per-subagent model resolution precedence and inline warning
+
+- **Given** `docs/config-flow.yaml` with `models` overrides across `role`, `stage`, and `default`
+- **When** `compileStep` builds `subagents[]`
+- **Then** each subagent resolves `role -> stage -> default -> inherit` while the envelope `model` remains the stage tier, and `medra validate --project` (or documentation) addresses `models.<stage>` / `models.author` on `inline` stages
+
+#### Scenario CTX-005.S17: Recorded review timestamp and hash freshness (plan-gated)
+
+- **Given** a review report recorded via `medra review` with `reviews[].recorded_at` and file hash stored in state
+- **When** the file's `mtime` is touched to the future and a new task is completed afterward (or the file hash diverges)
+- **Then** if Item 5 is approved at the `plan` gate, the report is treated as stale using `recorded_at` and hash (falling back to `mtime` only for 1.x changes lacking `recorded_at`); if rejected at the `plan` gate, the limitation is recorded under Known issues in `CHANGELOG.md`

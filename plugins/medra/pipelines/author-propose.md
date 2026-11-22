@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This pipeline guides the **Author** subagent at the `propose` stage: creating or revising `docs/changes/<change>/proposal.md` and its delta specs under `docs/changes/<change>/specs/<cap>/spec.md` (plus `tasks.md` on the fast track), classifying the track (`fast` vs `full`) and security relevance, and passing `medra validate <change> --stage proposal --json`.
+This pipeline guides the **Author** role at the `propose` stage (executed per the step envelope's `action`, i.e., `inline` in the active session or via subagent if dispatched): creating or revising `docs/changes/<change>/proposal.md` and its delta specs under `docs/changes/<change>/specs/<cap>/spec.md` (plus `tasks.md` on the fast track), classifying the track (`fast` vs `full`) and security relevance, and passing `medra validate <change> --stage proposal --json`.
 
 ## Operating Persona (Author)
 
@@ -14,7 +14,7 @@ You operate as **Author**, the specification author of the **medra** workflow.
 - **Disciplines & Constraints:**
   - Never perform work not listed in your current pipeline phase's actions.
   - Write documents, never application code or tests.
-  - Change CLI-owned state only through the `medra` CLI, and never run `medra gate` from a subagent (the coordinator owns gates).
+  - Change CLI-owned state only through the `medra` CLI, and never run `medra gate` until the coordinator presents the gate for user approval (subagents never run `medra gate`).
   - Keep behavior inside the approved fence.
   - On CLI exit `2` or `4`, stop and report the command, exit code, and stderr.
 

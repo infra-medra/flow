@@ -8,7 +8,7 @@ import { loadDeltas, loadLivingSpecs } from './specs.js';
 import { loadLearnings, selectLearnings } from './learnings.js';
 import { changeDir, loadState, loadTasks, nextTask, securityRelevance, gateStatus, latestReport } from './change.js';
 import { context } from './context.js';
-import { verifyFindings } from './validate.js';
+import { verifyFindings, reportFreshness } from './validate.js';
 
 const MAX_CONTRACT_BYTES = 16 * 1024;
 const MAX_EMBED_BYTES = 64 * 1024;
@@ -181,9 +181,10 @@ function resolveStage(root, change, state, tasks, explicitStage) {
   return 'archive';
 }
 
-function modelFor(config, key) {
-  const configured = config.models?.[key] ?? config.models?.default ?? 'inherit';
-  return { tier: typeof configured === 'string' && configured.trim() ? configured.trim() : 'inherit', fallback: 'inherit' };
+function modelFor(config, role, stage) {
+  const pick = (key) => (key && typeof config.models?.[key] === 'string' && config.models[key].trim() ? config.models[key].trim() : null);
+  const tier = pick(role) ?? pick(stage) ?? pick('default') ?? 'inherit';
+  return { tier, fallback: 'inherit' };
 }
 
 function buildApplySubagents(root, change, state, tasks, config) {
@@ -315,7 +316,9 @@ function compileVerifyStep(root, change, state, opts, envelope) {
   const report = latestReport(root, change, 'verify');
   const secRelevant = securityRelevance(root, change) === 'relevant';
   const sec = secRelevant ? latestReport(root, change, 'security') : null;
-  const missingOrStale = !report || report.mtime < freshFloor || (secRelevant && (!sec || sec.mtime < freshFloor));
+  const missingOrStale = !report
+    || !reportFreshness(root, change, state, report, freshFloor).fresh
+    || (secRelevant && (!sec || !reportFreshness(root, change, state, sec, freshFloor).fresh));
   if (missingOrStale) {
     const verify = buildVerifySubagents(root, change, state, opts);
     return envelope({ stage: 'verify', granularity: 'round', diff_error: verify.diff_error, embedded: verify.embedded, subagents: verify.subagents });
@@ -332,7 +335,7 @@ function compileVerifyStep(root, change, state, opts, envelope) {
     const prompt = [
       ...(applyPtr ? [`Read \`${applyPtr}\` first.`] : []),
       PLUGIN_POINTER_NOTE,
-      `Fix the blocking verification findings for change \`${change}\` and run tests to confirm they pass.`,
+      `Fix the blocking verification findings for change \`${change}\` and run \`medra suite ${change} --json\` to confirm tests pass (do not run \`medra verify-fix\`).`,
       '',
       '## Blocking Findings',
       findingsText,
@@ -349,7 +352,7 @@ function compileVerifyStep(root, change, state, opts, envelope) {
         pointers: safeProjectPointers(root, [], applyPtr),
         plugin_pointers: applyPtr ? [applyPtr] : [],
         findings: blocking,
-        exit_command: `medra verify-fix ${change} --json`,
+        exit_command: `medra suite ${change} --json`,
       }],
     });
   }
@@ -384,13 +387,13 @@ export function compileStep(root, change, opts = {}) {
 
   const envelope = (overrides = {}) => {
     const targetStage = overrides.stage ?? stage;
-    const envModel = modelFor(config, targetStage);
+    const envModel = modelFor(config, null, targetStage);
     const rawSubagents = overrides.subagents ?? [];
     let subagents = rawSubagents.map((s) => {
       const base = {
         role: s.role,
         task_id: s.task_id ?? null,
-        model: s.model ?? envModel,
+        model: s.model ?? modelFor(config, s.role, targetStage),
         plugin_pointers: s.plugin_pointers ?? [],
         pointers: s.pointers ?? [],
         embedded_keys: s.embedded_keys ?? [],

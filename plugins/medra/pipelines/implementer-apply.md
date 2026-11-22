@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This pipeline guides the **Implementer** subagent at the `apply` stage (and fix rounds during `verify`): turning approved tasks in `docs/changes/<change>/tasks.md` into working code and tests, one CLI-checkpointed task at a time, with red/green evidence via `medra task done`.
+This pipeline guides the **Implementer** role at the `apply` stage (via subagent when `action === "dispatch"`, or inline in the active session on `fast` track when `action === "inline"`) and fix rounds during `verify`: turning approved tasks in `docs/changes/<change>/tasks.md` into working code and tests, one CLI-checkpointed task at a time, with red/green evidence via `medra task done`.
 
 ## Operating Persona (Implementer)
 

@@ -12,7 +12,7 @@ import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseRepor
 import { loadLivingSpecs, loadDeltas } from './specs.js';
 import { loadLearnings, saveLearnings, nextLearningId, learningsPath, renderLearnings, STAGES as LEARN_STAGES } from './learnings.js';
 import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, specDrift, coverage, changeScenarios, latestReport, securityRelevance, fingerprint } from './change.js';
-import { changeFindings, projectFindings, STAGES } from './validate.js';
+import { changeFindings, projectFindings, verifyFindings, reportFreshness, STAGES } from './validate.js';
 import { archiveIndexPath, nextTaskPayload, taskContext } from './context.js';
 import { install } from './install.js';
 import { fixChange } from './fix.js';
@@ -160,6 +160,10 @@ export function gate(root, change, name, { approve, requestChanges, note, by }) 
     const prev = state.gates[name] ?? {};
     state.gates[name] = { status: 'changes-requested', by: who, at: nowIso(), last_approved_at: prev.status === 'approved' ? prev.at : prev.last_approved_at ?? null };
     state.gate_notes.push({ gate: name, by: who, at: nowIso(), note });
+    if (name === 'verify') {
+      state.verify_fix_rounds = 0;
+      state.last_fix_round_at = null;
+    }
     saveState(root, change, state);
     return { gate: name, status: 'changes-requested', phase: state.phase };
   }
@@ -200,7 +204,17 @@ export function review(root, change, { report, by }) {
   if (f.length) throw refused(f);
   const state = loadState(root, change);
   const who = identity(root, by);
-  state.reviews.push({ stage: r.stage, by: who, at: nowIso(), verdict: r.verdict, report: rel(changeDir(root, change), file) });
+  const recordedAt = new Date().toISOString();
+  const hash = sha256(text);
+  state.reviews.push({
+    stage: r.stage,
+    by: who,
+    at: nowIso(),
+    recorded_at: recordedAt,
+    hash,
+    verdict: r.verdict,
+    report: rel(changeDir(root, change), file),
+  });
   if (r.verdict === 'request-changes') state.gate_notes.push({ gate: r.stage, by: who, at: nowIso(), report: rel(changeDir(root, change), file) });
   saveState(root, change, state);
   return { stage: r.stage, verdict: r.verdict };
@@ -398,7 +412,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit,
   }
   writeAtomic([[file, tickTask(text, id, `- evidence ${k} ${today()}: ${detail}`)]]);
   if (['tasked', 'proposed'].includes(state.phase)) state.phase = 'implementing';
-  state.last_task_done_at = nowIso();
+  state.last_task_done_at = new Date().toISOString();
   saveState(root, change, state);
   const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state);
   return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}), ...(warnings.length ? { warnings } : {}) };
@@ -433,8 +447,38 @@ export function suite(root, change) {
   return { ran: commands, exit: 0 };
 }
 
+function isReportNewerThanFix(root, change, state, report, lastFixMs) {
+  if (!report) return false;
+  const freshness = reportFreshness(root, change, state, report, lastFixMs);
+  return !freshness.hashMismatch && freshness.timestampMs > lastFixMs;
+}
+
 export function verifyFix(root, change) {
   const state = loadState(root, change);
+  const lastDoneMs = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
+  const lastFixMs = state.last_fix_round_at ? Date.parse(state.last_fix_round_at) : 0;
+  const report = latestReport(root, change, 'verify');
+  const secRelevant = securityRelevance(root, change) === 'relevant';
+  const sec = secRelevant ? latestReport(root, change, 'security') : null;
+
+  if (lastFixMs && (!isReportNewerThanFix(root, change, state, report, lastFixMs) || (secRelevant && !isReportNewerThanFix(root, change, state, sec, lastFixMs)))) {
+    throw refused([finding('verify.fix-open', 'An open verify fix round is already awaiting re-verification', { ref: change, remediation: 'Re-run reviewer/security verification before starting another fix round' })]);
+  }
+
+  if (Number(state.verify_fix_rounds || 0) >= 1) {
+    throw refused([finding('verify.fix-limit', 'Maximum verify fix rounds (1) already used', { ref: change, remediation: 'Proceed to the verify gate or request changes via `medra gate <change> verify --request-changes --note "..."`' })]);
+  }
+
+  const freshFloor = Math.max(lastDoneMs || 0, lastFixMs || 0);
+  if (!report || !reportFreshness(root, change, state, report, freshFloor).fresh || (secRelevant && (!sec || !reportFreshness(root, change, state, sec, freshFloor).fresh))) {
+    throw refused([finding('verify.report', 'No current verify review report with blocking findings', { ref: change, remediation: 'Run /medra:verify review before recording a fix round' })]);
+  }
+
+  const blocking = errorsOf(verifyFindings(root, change, state));
+  if (blocking.length === 0) {
+    throw refused([finding('verify.no-blockers', 'No blocking verify findings require a fix round', { ref: change, remediation: 'Proceed to the verify gate instead of running verify-fix' })]);
+  }
+
   state.verify_fix_rounds = Number(state.verify_fix_rounds || 0) + 1;
   state.last_fix_round_at = new Date().toISOString();
   saveState(root, change, state);

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This pipeline guides the **Author** subagent at the `plan` stage of a full-track change: grounding the design in the codebase and prior decisions, drafting `docs/changes/<change>/plan.md` (with `contracts/` when interfaces change), integrating threat-model decisions when security-relevant, and passing `medra validate <change> --stage plan --json`.
+This pipeline guides the **Author** role at the `plan` stage of a full-track change (executed per the step envelope's `action`, i.e., `inline` in the active session or via subagent if dispatched): grounding the design in the codebase and prior decisions, drafting `docs/changes/<change>/plan.md` (with `contracts/` when interfaces change), integrating threat-model decisions when security-relevant, and passing `medra validate <change> --stage plan --json`.
 
 ## Operating Persona (Author)
 
@@ -14,7 +14,7 @@ You operate as **Author**, the specification author of the **medra** workflow.
 - **Disciplines & Constraints:**
   - Never perform work not listed in your current pipeline phase's actions.
   - Write documents, never application code or tests.
-  - Change CLI-owned state only through the `medra` CLI, and never run `medra gate` from a subagent (the coordinator owns gates).
+  - Change CLI-owned state only through the `medra` CLI, and never run `medra gate` until the coordinator presents the gate for user approval (subagents never run `medra gate`).
   - Keep behavior inside the approved fence. When a plan needs behavior the approved deltas do not state, stop and report the gap to the coordinator so the user can revise via `/medra:propose`.
   - On CLI exit `2` or `4`, stop and report the command, exit code, and stderr.
 

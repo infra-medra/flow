@@ -50,6 +50,7 @@
               "task_id": { "type": ["string", "null"] },
               "model": {
                 "type": "object",
+                "description": "Resolved model tier for this subagent (precedence: role -> stage -> default -> inherit), with fallback.",
                 "required": ["tier", "fallback"],
                 "properties": {
                   "tier": { "type": "string" },
@@ -61,6 +62,10 @@
               "pointers": { "type": "array", "items": { "type": "string" } },
               "plugin_pointers": { "type": "array", "items": { "type": "string" } },
               "embedded_keys": { "type": "array", "items": { "type": "string" } },
+              "findings": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/finding" }
+              },
               "exit_command": { "type": "string" }
             }
           }

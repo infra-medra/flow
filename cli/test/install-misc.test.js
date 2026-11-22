@@ -408,11 +408,11 @@ test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3: coordinator skills handle diff_erro
   }
 });
 
-test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.3', () => {
+test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.4', () => {
   const pkgVersion = JSON.parse(fs.readFileSync(path.join(CLI_ROOT, 'package.json'), 'utf8')).version;
   const pluginVersion = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'plugins', 'medra', '.claude-plugin', 'plugin.json'), 'utf8')).version;
-  assert.equal(pkgVersion, '2.0.0-rc.3');
-  assert.equal(pluginVersion, '2.0.0-rc.3');
+  assert.equal(pkgVersion, '2.0.0-rc.4');
+  assert.equal(pluginVersion, '2.0.0-rc.4');
 
   const checkVer = spawnSync(process.execPath, [path.join(CLI_ROOT, 'scripts', 'check-version.js')], { cwd: REPO_ROOT, encoding: 'utf8' });
   assert.equal(checkVer.status, 0, checkVer.stdout + checkVer.stderr);
@@ -423,7 +423,7 @@ test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.3', () 
   assert.equal(driftRes.status, 0, driftRes.stdout + driftRes.stderr);
 });
 
-test('STATE-005.S1: 2.0.0-rc.3 CLI runs cleanly on 1.x docs layout without models or apply config', () => {
+test('STATE-005.S1: 2.0.0-rc.4 CLI runs cleanly on 1.x docs layout without models or apply config', () => {
   const root = project();
   const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
   const strippedCfg = fs.readFileSync(cfgPath, 'utf8')
@@ -433,7 +433,7 @@ test('STATE-005.S1: 2.0.0-rc.3 CLI runs cleanly on 1.x docs layout without model
   const change = brownfieldChange(root);
 
   const v = medra(CLI_ROOT, '--version');
-  assert.equal(v.stdout.trim(), '2.0.0-rc.3');
+  assert.equal(v.stdout.trim(), '2.0.0-rc.4');
 
   const loaded = loadConfig(root);
   assert.equal(loaded.apply?.inline_max_tasks, 3);
@@ -469,4 +469,64 @@ test('PLUG-002.S1 & PLUG-002.S2: Antigravity bundle installs into .agents/plugin
   assert.match(portability, /Antigravity/i);
   assert.match(portability, /gate/i, 'portability.md must document the Antigravity equivalent for subagent gate protection');
   assert.match(portability, /PreToolUse|hooks/i, 'portability.md must contrast Claude Code PreToolUse hooks with Antigravity');
+
+  // PLUG-002.S2 & PLUG-005.S2: Antigravity subagent model selection conditional on invoke_subagent support + inline stages use session model
+  assert.match(
+    portability,
+    /invoke_subagent[\s\S]*model|model[\s\S]*invoke_subagent/i,
+    'portability.md must document that Antigravity subagent model tier applies only if invoke_subagent supports model selection',
+  );
+  assert.match(
+    portability,
+    /inherit/i,
+    'portability.md must document inheriting the conversation/session model when model selection is unsupported',
+  );
+  assert.match(
+    portability,
+    /inline[\s\S]*session model/i,
+    'portability.md must document that inline stages use the session model',
+  );
+});
+
+test('PLUG-001.S4: no skill states that propose, plan, or tasks are dispatched to a subagent', () => {
+  const skillsDir = path.join(REPO_ROOT, 'plugins', 'medra', 'skills');
+  const skillNames = fs.readdirSync(skillsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(path.join(skillsDir, d.name, 'SKILL.md')))
+    .map((d) => d.name)
+    .sort();
+
+  assert.ok(skillNames.includes('run'), 'run/SKILL.md must exist');
+
+  for (const name of skillNames) {
+    const text = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(
+      text,
+      /Other stages \(`?propose`?,\s*`?plan`?,\s*`?tasks`?\):\s*dispatch/i,
+      `${name}/SKILL.md must not contain stage-based dispatch override for propose/plan/tasks`,
+    );
+    assert.doesNotMatch(
+      text,
+      /(?:propose|plan|tasks)[^\n.]*\bdispatch(?:es|ed)?\b[^\n.]*\bauthor\b[^\n.]*\bsubagent|\bdispatch(?:es|ed)?\b[^\n.]*\bauthor\b[^\n.]*\bsubagent[^\n.]*(?:propose|plan|tasks)/i,
+      `${name}/SKILL.md must not claim propose, plan, or tasks are dispatched to an author subagent`,
+    );
+    if (name === 'propose' || name === 'plan' || name === 'tasks') {
+      assert.doesNotMatch(
+        text,
+        /\b(?:dispatch(?:es|ed)?|spawn)\b[^\n]*\bauthor\b[^\n]*\bsubagent/i,
+        `${name}/SKILL.md must not claim ${name} dispatches to a clean-context author subagent`,
+      );
+    }
+  }
+
+  const runSkill = fs.readFileSync(path.join(skillsDir, 'run', 'SKILL.md'), 'utf8');
+  assert.match(
+    runSkill,
+    /follow(?:s)?\s+only\s+[^.\n]*`?action`?[^.\n]*(?:inline|dispatch|gate)/i,
+    'run/SKILL.md must explicitly state that the coordinator follows only action (inline / dispatch / gate)',
+  );
+  assert.match(
+    runSkill,
+    /(?:without|never)\s+infer(?:ring)?\s+dispatch\s+from\s+stage\s+names/i,
+    'run/SKILL.md must state not to infer dispatch from stage names',
+  );
 });
