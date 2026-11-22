@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import YAML from 'yaml';
 import { classifyTestChange, summarizeChange, packSnapshot, unpackSnapshot } from './testdiff.js';
 import {
-  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, resolveSafePath, git, sha256,
+  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, resolveSafePath, git, childEnv, sha256,
   identity, today, nowIso, loadConfig, configWarnings, DEFAULT_CONFIG, CHANGE_NAME, ROMAN, listOpt, docsPath, docsRel, CONFIG_FILE,
 } from './core.js';
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
@@ -362,7 +362,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit,
   }
   let detail;
   if (run) {
-    const res = spawnSync(run, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
+    const res = spawnSync(run, { cwd: root, shell: true, env: childEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
     if (res.error && res.error.code === 'ETIMEDOUT') throw envError(`Command timed out after 10 minutes: ${run}`);
     const code = res.status ?? 1;
     if (code === 127) throw envError(`Command not found: ${run}`);
@@ -373,7 +373,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit,
       const checks = config.testing.checks ?? [];
       for (const chk of Array.isArray(checks) ? checks : [checks]) {
         if (!chk) continue;
-        const cres = spawnSync(chk, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
+        const cres = spawnSync(chk, { cwd: root, shell: true, env: childEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
         if (cres.error && cres.error.code === 'ETIMEDOUT') throw envError(`Check timed out after 10 minutes: ${chk}`);
         const ccode = cres.status ?? 1;
         if (ccode !== 127 && ccode !== 0) {
@@ -439,7 +439,7 @@ export function suite(root, change) {
   const commands = [testing.mode !== 'none' ? testing.command : null, ...checks].filter(Boolean);
   if (!commands.length) return { ran: [], skipped: true };
   for (const command of commands) {
-    const res = spawnSync(command, { cwd: root, shell: true, encoding: 'utf8', timeout: 30 * 60 * 1000, maxBuffer: RUN_BUFFER });
+    const res = spawnSync(command, { cwd: root, shell: true, env: childEnv(), encoding: 'utf8', timeout: 30 * 60 * 1000, maxBuffer: RUN_BUFFER });
     if (res.error && res.error.code === 'ETIMEDOUT') throw envError(`Command timed out after 30 minutes: ${command}`);
     const code = res.status ?? 1;
     if (code === 127) throw envError(`Command not found: ${command}`);

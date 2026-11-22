@@ -2,6 +2,18 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.0.0-rc.7] — 2026-11-22
+
+### Fixed
+- **Child test and check process isolation from `MEDRA_SUBAGENT` (`VAL-006`).** Added `childEnv()` in `cli/src/core.js` to return a copy of `process.env` with `MEDRA_SUBAGENT` removed and passed `env: childEnv()` to all three `spawnSync(..., { shell: true })` child-command invocations in `cli/src/commands.js` (`medra task done --run`, `testing.checks`, and `medra suite`), while keeping `requireCoordinator` reading `process.env.MEDRA_SUBAGENT` directly for direct CLI calls.
+- **Test harness isolation under `MEDRA_SUBAGENT=1` (`PLUG-011`).** Stripped `MEDRA_SUBAGENT` from the default child environment in `medra()` and `medraHuman()` (`cli/test/helpers.js`), `guard()` (`cli/test/hooks.test.js`), and `medra()` (`cli/scripts/measure-envelope.js`), so the full test suite passes when invoked directly or from a subagent shell with `MEDRA_SUBAGENT=1`, while explicit `MEDRA_SUBAGENT: '1'` refusal tests remain intact.
+
+### Changed
+- **Documented `MEDRA_SUBAGENT=1` command scope (`PLUG-012`).** Updated `plugins/medra/references/gate.md` and `plugins/medra/references/portability.md` to clarify that `MEDRA_SUBAGENT=1` applies only to the `medra` command invoked by the subagent and that the CLI strips it from the environment of child test and check commands it executes.
+
+### Verified
+- **Subagent-shell execution of `MEDRA_SUBAGENT=1 medra suite`.** Executed `MEDRA_SUBAGENT=1 node cli/bin/medra.js suite isolate-subagent-env-rc7 --json` inside an isolated subagent (`{"ok":true,"ran":["npm --prefix cli test"],"exit":0}`) and `MEDRA_SUBAGENT=1 npm --prefix cli test` (`102/102` tests passing, `0` failed, `0` skipped).
+
 ## [2.0.0-rc.6] — 2026-11-22
 
 ### Fixed

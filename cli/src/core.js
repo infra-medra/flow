@@ -154,6 +154,13 @@ export function git(root, args) {
   }
 }
 
+/** Child process environment for test/check commands, stripped of MEDRA_SUBAGENT. */
+export function childEnv() {
+  const env = { ...process.env };
+  delete env.MEDRA_SUBAGENT;
+  return env;
+}
+
 export function identity(root, by) {
   return by || git(root, ['config', 'user.name']) || process.env.USER || 'unknown';
 }

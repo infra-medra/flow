@@ -9,8 +9,14 @@ import { write, project, brownfieldChange, BIN, rules } from './helpers.js';
 const PLUGIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'plugins', 'medra');
 const GUARD = path.join(PLUGIN, 'hooks', 'guard.mjs');
 
+function cleanEnv() {
+  const env = { ...process.env };
+  delete env.MEDRA_SUBAGENT;
+  return env;
+}
+
 /** Runs the guard as Claude Code does: the tool call as JSON on stdin. Returns its decision, or null when it stays silent. */
-function guard(tool_name, tool_input, { extra = {}, env = process.env } = {}) {
+function guard(tool_name, tool_input, { extra = {}, env = cleanEnv() } = {}) {
   const res = spawnSync(process.execPath, [GUARD], {
     input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name, tool_input, ...extra }),
     encoding: 'utf8',

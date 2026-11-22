@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 import { compileStep } from '../src/step.js';
+import { childEnv } from '../src/core.js';
 import { loadTasks, saveState, stageHash } from '../src/change.js';
 import { tickTask, tasksHashBasis } from '../src/documents.js';
 
@@ -25,6 +26,7 @@ function git(cwd, ...args) {
 function medra(cwd, ...args) {
   return execFileSync(process.execPath, [BIN, ...args], {
     cwd,
+    env: childEnv(),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });

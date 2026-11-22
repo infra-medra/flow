@@ -1,7 +1,7 @@
 {
-  "version": "2.0.0-rc.6",
+  "version": "2.0.0-rc.7",
   "files": {
-    "plugin.json": "715acebbe09f76d3c0496bc6bafea4ecf53c4a64eb46653eb5c7abca17fb7a60",
+    "plugin.json": "accd9c7ad1721fd44a35a98f50ed308c48cc4a7a599a6b289b71f3902f53491b",
     "skills/apply/SKILL.md": "66146088b70e0d0913c92ec909f6eb3ce3a95e6f06c9a434e52ccffa9ef9f659",
     "skills/archive/SKILL.md": "606209a4a06bfc7d2af02c426fec133cba30a464dba91e0e2daa0e8810673058",
     "skills/init/SKILL.md": "9fcb9bc92e2a2dd4c07c5252938a6fa698182f6eefd10329f6ba3a71a7929912",
@@ -44,8 +44,8 @@
     "handoffs/implementer-reviewer.md": "c5b77ae16505ed0aa11e36100a387f07a3ab5261079e9a083fbc22397304f415",
     "handoffs/implementer-security.md": "5eaf83c337a0f912fb16d4b1ce173d082d51b209f9add75c334e53f28fd631b6",
     "references/conventions.md": "9a26042466cd4509fa7ff8fc1abede55862ea3d1e4074aa251610388c989fbff",
-    "references/gate.md": "cff2fc9bf7e9227c754ce9ae4870008160da3def77172e2c0cd7e2a3ee34c0b8",
-    "references/portability.md": "3a0edf8edece11ba5c7fd3b809b1f5281ae4c095fdbc31db0bc8e99f7226b699",
+    "references/gate.md": "53887564c641c89b7c9083c9d2e777d8364d7d6a2ce4d9430cffa809d0eb756f",
+    "references/portability.md": "f428ca9be90a092a03636f5c8ed5450a67d65ed7d45c18ce1e2ebf5e1b77ee36",
     "agents/reviewer.md": "726edaed4af2f729bf962ce698c9aa5c48e6d5b6510399486a47c50dc04d7e5a",
     "agents/security.md": "af710db2b9d5e5da8cc2312117569db194f84991bff1866d7526bc95f46237e6"
   }

@@ -7,15 +7,21 @@ import { fileURLToPath } from 'node:url';
 
 export const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'medra.js');
 
+function cleanEnv() {
+  const env = { ...process.env };
+  delete env.MEDRA_SUBAGENT;
+  return env;
+}
+
 export function medra(cwd, ...args) {
-  const res = spawnSync(process.execPath, [BIN, ...args, '--json'], { cwd, encoding: 'utf8' });
+  const res = spawnSync(process.execPath, [BIN, ...args, '--json'], { cwd, encoding: 'utf8', env: cleanEnv() });
   let json = null;
   try { json = JSON.parse(res.stdout.trim().split('\n').pop()); } catch { /* non-JSON output */ }
   return { code: res.status, json, stdout: res.stdout, stderr: res.stderr };
 }
 
 export function medraHuman(cwd, ...args) {
-  const res = spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
+  const res = spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8', env: cleanEnv() });
   return { code: res.status, stdout: res.stdout, stderr: res.stderr };
 }
 
