@@ -6,7 +6,13 @@
     {
       "type": "object",
       "required": ["ok"],
-      "properties": { "ok": { "const": true } }
+      "properties": {
+        "ok": { "const": true },
+        "diff_error": {
+          "type": ["string", "null"],
+          "description": "Optional error message when computing the git diff for a verify step envelope fails; null when diff computation succeeds."
+        }
+      }
     },
     {
       "type": "object",

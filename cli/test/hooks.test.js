@@ -10,8 +10,12 @@ const PLUGIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..
 const GUARD = path.join(PLUGIN, 'hooks', 'guard.mjs');
 
 /** Runs the guard as Claude Code does: the tool call as JSON on stdin. Returns its decision, or null when it stays silent. */
-function guard(tool_name, tool_input) {
-  const res = spawnSync(process.execPath, [GUARD], { input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name, tool_input }), encoding: 'utf8' });
+function guard(tool_name, tool_input, { extra = {}, env = process.env } = {}) {
+  const res = spawnSync(process.execPath, [GUARD], {
+    input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name, tool_input, ...extra }),
+    encoding: 'utf8',
+    env,
+  });
   assert.equal(res.status, 0, res.stderr);
   if (!res.stdout) return null;
   const out = JSON.parse(res.stdout).hookSpecificOutput;
@@ -19,7 +23,7 @@ function guard(tool_name, tool_input) {
   assert.ok(out.permissionDecisionReason.startsWith('medra: '));
   return out.permissionDecision;
 }
-const bash = (command) => guard('Bash', { command });
+const bash = (command, opts) => guard('Bash', { command }, opts);
 
 test('hooks.json registers the guard for Bash, Write and Edit', () => {
   const cfg = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'hooks', 'hooks.json'), 'utf8'));
@@ -90,4 +94,27 @@ test('guard: malformed input and other tools never block a call', () => {
   assert.equal(res.status, 0);
   assert.equal(res.stdout, '');
   assert.equal(guard('Read', { file_path: '/x/docs/changes/y/.medra.yaml' }), null);
+});
+
+test('guard [PLUG-004.S1]: hand-edits to .medra.yaml and docs/changes/archive/ are denied via Write, Edit, and Bash', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  const p = (rel) => path.join(root, rel);
+  assert.equal(guard('Write', { file_path: p(`docs/changes/${change}/.medra.yaml`), content: 'phase: verified\n' }), 'deny');
+  assert.equal(guard('Write', { file_path: p('docs/changes/archive/2026-11-21-x/proposal.md'), content: '# x\n' }), 'deny');
+  assert.equal(guard('Edit', { file_path: p('docs/changes/archive/INDEX.md'), old_string: 'a', new_string: 'b' }), 'deny');
+  assert.equal(bash(`echo "x" >> docs/changes/archive/INDEX.md`), 'deny');
+});
+
+test('guard [PLUG-004.S2]: medra gate --approve asks in coordinator context and denies when subagent is signaled', () => {
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.MEDRA_SUBAGENT;
+
+  assert.equal(bash('medra gate add-reset plan --approve', { env: cleanEnv }), 'ask');
+  assert.equal(bash('medra gate add-reset plan --approve', { env: { ...cleanEnv, MEDRA_SUBAGENT: '0' } }), 'ask');
+  assert.equal(bash('medra gate add-reset plan --approve', { extra: { agent_id: 'subagent-1' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('cd app && medra gate add-reset verify --approve --note "x"', { extra: { agent_id: 'subagent-2' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('medra gate add-reset plan --approve', { env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
+  assert.equal(bash('node cli/bin/medra.js gate add-reset verify --approve', { env: cleanEnv }), 'ask');
+  assert.equal(bash('node cli/bin/medra.js gate add-reset verify --approve', { extra: { agent_id: 'subagent-3' }, env: cleanEnv }), 'deny');
 });

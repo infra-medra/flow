@@ -4,7 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { medra, medraHuman, write, read, project, req, livingSpec, proposal, delta, tasks, verifyReport, securityReport, rules, brownfieldChange } from './helpers.js';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const CLI_ROOT = path.join(REPO_ROOT, 'cli');
 
 test('version prints bare semver', () => {
   const r = medra(process.cwd(), '--version');
@@ -46,14 +50,14 @@ test('install --target antigravity: plugin rewrite table, manifest, idempotent, 
   assert.match(cmd, /## Operating Persona \(Author\)/);
   assert.match(cmd, /### Phase 1 — Intake/);
   const applyCmd = read(root, `${P}/skills/apply/SKILL.md`);
-  assert.match(applyCmd, /## Operating Persona \(Implementer\)/);
+  assert.match(applyCmd, /## Coordinator Steps/);
   assert.match(applyCmd, /### Phase 1 — Resume/);
   assert.equal(fs.readdirSync(path.join(root, P, 'skills')).length, 9, 'only 9 user commands installed as skills');
   assert.match(read(root, `${P}/templates/spec/guide.md`), /`\.agents\/plugins\/medra\/templates\/spec\/template\.md`/);
   const reviewer = read(root, `${P}/agents/reviewer.md`);
   assert.match(reviewer, /^---\nname: medra-reviewer\ndescription: [^\n]+\ntools: \[read_file, write_file, run_command, ask_question\]\nmainAgent: true\nsubagent: true\n---\n/);
   assert.deepEqual(fs.readdirSync(path.join(root, P, 'agents')).sort(), ['reviewer.md', 'security.md'], 'only dispatched agents ship');
-  assert.deepEqual(fs.readdirSync(path.join(root, P, 'pipelines')).sort(), ['reviewer-check.md', 'security-audit.md', 'security-threat-model.md'], 'only subagent pipelines ship');
+  assert.deepEqual(fs.readdirSync(path.join(root, P, 'pipelines')).sort(), ['author-archive.md', 'author-init.md', 'author-plan.md', 'author-propose.md', 'author-tasks.md', 'implementer-apply.md', 'reviewer-check.md', 'security-audit.md', 'security-threat-model.md'], 'all subagent pipelines ship');
   assert.deepEqual(fs.readdirSync(path.join(root, P, 'references')).sort(), ['conventions.md', 'gate.md', 'portability.md']);
   assert.match(read(root, `${P}/handoffs/implementer-reviewer.md`), /subagent_type: medra-reviewer/);
   assert.match(read(root, `${P}/agents/security.md`), /tools: \[read_file, write_file, run_command, search_web\]\nmainAgent: true\nsubagent: true\n---/, 'a dispatched agent is a subagent');
@@ -361,4 +365,80 @@ test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3 & M-03/M-06: thin coordinator skills
   const inst = medra(root, 'install', '--target', 'antigravity');
   assert.equal(inst.code, 0);
   assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'skills', 'run', 'SKILL.md')));
+});
+
+test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3: coordinator skills handle diff_error, drop empty persona headers, use medra review --report, standardize <untrusted_data>, and ship 1.x authoring pipelines', () => {
+  const skillsDir = path.join(REPO_ROOT, 'plugins', 'medra', 'skills');
+  const pipelinesDir = path.join(REPO_ROOT, 'plugins', 'medra', 'pipelines');
+
+  const verifySkill = fs.readFileSync(path.join(skillsDir, 'verify', 'SKILL.md'), 'utf8');
+  assert.match(verifySkill, /diff_error/, 'verify/SKILL.md must check step.diff_error');
+  assert.match(verifySkill, /warn|pause/i, 'verify/SKILL.md must warn/pause on diff_error');
+
+  const runSkill = fs.readFileSync(path.join(skillsDir, 'run', 'SKILL.md'), 'utf8');
+  assert.match(runSkill, /diff_error/, 'run/SKILL.md must check step.diff_error');
+  assert.match(runSkill, /warn|pause/i, 'run/SKILL.md must warn/pause on diff_error');
+
+  const applySkill = fs.readFileSync(path.join(skillsDir, 'apply', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(applySkill, /## Operating Persona/, 'apply/SKILL.md must not contain an empty Operating Persona header');
+
+  const reviewSkill = fs.readFileSync(path.join(skillsDir, 'review', 'SKILL.md'), 'utf8');
+  assert.match(reviewSkill, /medra review <change> --report/, 'review/SKILL.md must use medra review --report');
+  assert.doesNotMatch(reviewSkill, /--stage\b.*--verdict\b/, 'review/SKILL.md must not use invalid --stage/--verdict flags');
+
+  for (const name of ['init', 'propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review', 'run']) {
+    const text = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(text, /<\/?untrusted-data/i, `${name}/SKILL.md must standardize on <untrusted_data>`);
+  }
+
+  const expectedPipelines = [
+    'author-init.md',
+    'author-propose.md',
+    'author-plan.md',
+    'author-tasks.md',
+    'implementer-apply.md',
+    'author-archive.md',
+    'reviewer-check.md',
+    'security-audit.md',
+    'security-threat-model.md',
+  ];
+  for (const file of expectedPipelines) {
+    assert.ok(fs.existsSync(path.join(pipelinesDir, file)), `missing pipeline ${file}`);
+  }
+});
+
+test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.2', () => {
+  const pkgVersion = JSON.parse(fs.readFileSync(path.join(CLI_ROOT, 'package.json'), 'utf8')).version;
+  const pluginVersion = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'plugins', 'medra', '.claude-plugin', 'plugin.json'), 'utf8')).version;
+  assert.equal(pkgVersion, '2.0.0-rc.2');
+  assert.equal(pluginVersion, '2.0.0-rc.2');
+
+  const checkVer = spawnSync(process.execPath, [path.join(CLI_ROOT, 'scripts', 'check-version.js')], { cwd: REPO_ROOT, encoding: 'utf8' });
+  assert.equal(checkVer.status, 0, checkVer.stdout + checkVer.stderr);
+
+  const driftScript = path.join(CLI_ROOT, 'scripts', 'check-bundle-drift.js');
+  assert.ok(fs.existsSync(driftScript), 'cli/scripts/check-bundle-drift.js must exist');
+  const driftRes = spawnSync(process.execPath, [driftScript], { cwd: REPO_ROOT, encoding: 'utf8' });
+  assert.equal(driftRes.status, 0, driftRes.stdout + driftRes.stderr);
+});
+
+test('STATE-005.S1: 2.0.0-rc.2 CLI runs cleanly on 1.x docs layout without models config', () => {
+  const root = project();
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  fs.writeFileSync(cfgPath, fs.readFileSync(cfgPath, 'utf8').replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n'));
+  const change = brownfieldChange(root);
+
+  const v = medra(CLI_ROOT, '--version');
+  assert.equal(v.stdout.trim(), '2.0.0-rc.2');
+
+  const st = medra(root, 'status');
+  assert.equal(st.code, 0);
+
+  const ctx = medra(root, 'context', change, '--stage', 'propose');
+  assert.equal(ctx.code, 0);
+
+  const stepRes = medra(root, 'step', change, '--stage', 'propose');
+  assert.equal(stepRes.code, 0);
+  assert.equal(stepRes.json.model.tier, 'inherit');
+  assert.equal(stepRes.json.model.fallback, 'inherit');
 });

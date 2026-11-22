@@ -23,5 +23,5 @@ Thin coordinator for independent document or stage review. It compiles the curre
 ## Coordinator Steps
 
 1. Run `medra step <change> --json` to resolve the current `stage`, `pointers`, and `model` (`inherit` default, falling back to `inherit` if a configured tier is unavailable).
-2. Dispatch a clean-context `reviewer` subagent (`Agent` / `invoke_subagent`) with the compiled `prompt`, `pointers`, and `medra review <change> --stage <stage> --verdict <approved|changes-requested>` exit command. Never bypass `PreToolUse` hooks (`M-03`).
+2. Dispatch a clean-context `reviewer` subagent (`Agent` / `invoke_subagent`) with the compiled `prompt`, `pointers`, and `medra review <change> --report <path> [--by reviewer]` exit command. Never bypass `PreToolUse` hooks (`M-03`).
 3. Re-run `medra status <change> --json` and `medra step <change> --json` (`M-06`) to verify the review verdict was recorded.

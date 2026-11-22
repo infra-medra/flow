@@ -2,6 +2,34 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.0.0-rc.2] — 2026-11-21
+
+### Fixed
+- **Verify git diff embedding and failure surfacing (P1, P2).** Unified `safeGitDiff` to return `{ diff, truncated }` and distinguish empty diffs from git command failures, surfacing `diff_error` in the compiled step envelope and `cli/schemas/envelope.schema.json` so `/medra:run` and `/medra:verify` abort instead of reviewing a blind empty diff.
+- **Subagent authoring and implementation pipelines (P3).** Restored 1.x authoring rules, personas, phases, and exit criteria into `plugins/medra/pipelines/` (`author-init`, `author-propose`, `author-plan`, `author-tasks`, `author-archive`, `implementer-apply`), wired them into `compileStep` pointers and instructions, and removed empty headers in `apply/SKILL.md`.
+- **Security subagent exit command and gate approval guard (P4).** Replaced `security` verify `exit_command` with `medra review` instead of `medra gate`, and enforced blocking `medra gate ... --approve` calls in `plugins/medra/hooks/guard.mjs`.
+- **Standardized `<untrusted_data>` fencing (P5).** Unified untrusted-data tags on `<untrusted_data>` across `cli/src/step.js`, skills, and pipelines while neutralizing both hyphen/underscore and whitespace/case closing-tag variants.
+
+### Changed
+- **Bundle drift verification (P6).** Added `cli/scripts/check-bundle-drift.js` and CI enforcement to keep `cli/plugin/` and `.agents/plugins/medra/` in lockstep with `plugins/medra/`.
+- **`compileStep` envelope helper (P7).** Extracted the `envelope(base, overrides)` helper in `cli/src/step.js` for consistent step-envelope construction.
+
+## [2.0.0-rc.1] — 2026-11-21
+
+### Added
+- **Deterministic step compiler (`medra step <change> [--stage <stage>] [--json]`).** Compiles minimal, self-contained handoff envelopes (`action`, `granularity`, `model`, `subagents[]`, `gate`, `legacy_fallback`) from on-disk change state (`cli/src/step.js`). Uses hybrid code references: path `pointers` for `plan`/`apply` and `<untrusted_data>`-fenced `contracts/*` + `git diff` for `verify`.
+- **New `/medra:run` coordinator skill.** Loops deterministically through `medra step --json`, dispatches isolated clean-context subagents, and pauses only at human gates or open `[NEEDS CLARIFICATION]` prompts.
+- **Optional `models:` config with `inherit` fallback.** `docs/config-flow.yaml` supports optional `models:` per-stage/per-role overrides while defaulting to `inherit` and falling back to `inherit` if a runtime rejects a configured tier (`configWarnings` validates unknown keys/tiers).
+- **Task traceability validation (`tasks.traceability`).** At `--stage tasks`, `medra validate` requires tasks to cite target `REQ-NNN`/scenario IDs and backticked file paths, enabling deterministic per-task prompt slicing (`legacy_fallback: true` preserved for 1.x tasks).
+- **Path-safe pointer filtering (`resolveSafePath`).** Task `pointers` extracted from `tasks.md` are validated against workspace boundaries to reject traversal (`../`) and absolute paths.
+
+### Changed
+- **Thin coordinator command skills & adaptive granularity.** All 9 command skills (`init`, `propose`, `plan`, `tasks`, `apply`, `verify`, `archive`, `review`, `run`) delegate execution to `medra step --json` and isolated subagents (`task` granularity on `full` track, `stage` on `fast` track, parallel `reviewer` + `security` `round` on `verify`).
+- **Measured token & payload reduction vs `1.x` (`main`):**
+  - **Coordinator `SKILL.md` overhead (`-78.9%`):** `88,176 B` (~`22,044` tokens across 8 skills in `1.x`) reduced to `18,568 B` (~`4,642` tokens across 9 skills in `2.0.0-rc.1`).
+  - **Initial `apply` context per task (`-96.4%`):** On the `remodel-deterministic-v2-flow` benchmark (`T001`), `1.x` `medra context --stage apply` references `30,477 B` (~`7,620` tokens) of stage docs loaded cumulatively in one session, whereas `2.0.0-rc.1` `medra step --stage apply --json` compiles `648 B` of task prompt (`1,103 B` full JSON envelope; ~`162` / `276` tokens) for an isolated clean-context subagent — eliminating cross-task context accumulation across 14 tasks.
+  - **`verify` isolation:** Embeds `contracts/*` and `git diff` (`15,592 B` / ~`3,898` tokens in the compiled envelope) only at verification inside parallel `reviewer` and `security` subagents.
+
 ## [1.10.0] — 2026-11-20
 
 ### Added

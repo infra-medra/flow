@@ -20,8 +20,6 @@ Thin coordinator for the `apply` stage (`PLUG-001.S3`). It compiles task handoff
 | CLI | `medra --version` prints major version `2` | Stop and tell the user to install/update `@medra.dev/flow` |
 | State | `medra status <change> --json` shows `tasks` gate `approved` (or `proposal` on `fast` track) | Stop and tell the user to run `/medra:tasks` or `/medra:propose` first |
 
-## Operating Persona (Implementer)
-
 ## Coordinator Steps
 
 ### Phase 1 — Resume

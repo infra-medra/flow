@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import YAML from 'yaml';
 import { classifyTestChange, summarizeChange, packSnapshot, unpackSnapshot } from './testdiff.js';
 import {
-  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, git, sha256,
+  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, resolveSafePath, git, sha256,
   identity, today, nowIso, loadConfig, configWarnings, DEFAULT_CONFIG, CHANGE_NAME, ROMAN, listOpt, docsPath, docsRel, CONFIG_FILE,
 } from './core.js';
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
@@ -181,15 +181,21 @@ export function gate(root, change, name, { approve, requestChanges, note, by }) 
 }
 
 export function review(root, change, { report, by }) {
-  const file = path.resolve(root, report);
+  let file;
+  try {
+    file = resolveSafePath(root, report);
+  } catch {
+    throw usageError('report path must stay within project root');
+  }
+  if (!file) throw usageError('report path must stay within project root');
   const text = readIf(file);
   if (text === null) throw envError(`Report ${report} not found`);
   const r = parseReport(text);
   const verdicts = ['approve', 'request-changes', 'comment', 'pass', 'pass-with-findings', 'fail'];
   const f = [];
-  if (!['proposal', 'plan', 'tasks', 'verify'].includes(r.stage)) f.push(finding('review.report', '**Stage:** must be proposal, plan, tasks or verify', { file: report }));
+  if (!['proposal', 'plan', 'tasks', 'verify', 'security'].includes(r.stage)) f.push(finding('review.report', '**Stage:** must be proposal, plan, tasks, verify or security', { file: report }));
   if (!verdicts.includes(r.verdict)) f.push(finding('review.report', `**Verdict:** must be one of ${verdicts.join(', ')}`, { file: report }));
-  if (!r.counts) f.push(finding('review.report', '**Counts:** must read "critical <n> · major <n> · minor <n>"', { file: report }));
+  if (!r.counts) f.push(finding('review.report', r.stage === 'security' ? '**Counts:** must read "critical <n> · high <n> · medium <n> · low <n> · info <n>"' : '**Counts:** must read "critical <n> · major <n> · minor <n>"', { file: report }));
   if (f.length) throw refused(f);
   const state = loadState(root, change);
   const who = identity(root, by);

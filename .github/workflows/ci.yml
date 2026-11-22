@@ -36,4 +36,6 @@ jobs:
       - run: npm run check-version
       # The published package ships a copy of the plugin; make sure it still bundles.
       - run: npm run bundle-plugin
+      # .agents/plugins/medra/ and cli/plugin/ must match plugins/medra/.
+      - run: node scripts/check-bundle-drift.js
       - run: npm test

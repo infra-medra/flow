@@ -48,6 +48,8 @@ test('archive round-trip: modified/kept/new/dropped scenarios, removed, added, i
     medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1');
     medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0');
     write(root, `docs/changes/${change}/reviews/2026-10-30-verify-agent.md`, verifyReport());
+    assert.notEqual(medra(root, 'review', change, '--report', '../outside.md').code, 0, 'rejects ../ traversal');
+    assert.notEqual(medra(root, 'review', change, '--report', '/etc/passwd').code, 0, 'rejects absolute path outside root');
     assert.equal(medra(root, 'review', change, '--report', `docs/changes/${change}/reviews/2026-10-30-verify-agent.md`).code, 0);
     const g = medra(root, 'gate', change, 'verify', '--approve');
     assert.equal(g.code, 0, JSON.stringify(g.json));
