@@ -22,6 +22,7 @@ apply:
   # full-track apply dispatch granularity: batch | task
   granularity: batch
   batch_max_tasks: 4
+  batch_scope: cross-phase
   inline_max_tasks: 3
 models:
   default: inherit

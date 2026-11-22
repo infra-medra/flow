@@ -59,7 +59,7 @@ test('install --target antigravity: plugin rewrite table, manifest, idempotent, 
   assert.match(reviewer, /^---\nname: medra-reviewer\ndescription: [^\n]+\ntools: \[read_file, write_file, run_command, ask_question\]\nmainAgent: true\nsubagent: true\n---\n/);
   assert.deepEqual(fs.readdirSync(path.join(root, P, 'agents')).sort(), ['reviewer.md', 'security.md'], 'only dispatched agents ship');
   assert.deepEqual(fs.readdirSync(path.join(root, P, 'pipelines')).sort(), ['author-archive.md', 'author-init.md', 'author-plan.md', 'author-propose.md', 'author-tasks.md', 'implementer-apply.md', 'reviewer-check.md', 'security-audit.md', 'security-threat-model.md'], 'all subagent pipelines ship');
-  assert.deepEqual(fs.readdirSync(path.join(root, P, 'references')).sort(), ['conventions.md', 'gate.md', 'portability.md']);
+  assert.deepEqual(fs.readdirSync(path.join(root, P, 'references')).sort(), ['apply-recovery.md', 'author-edge-cases.md', 'conventions.md', 'gate.md', 'portability.md', 'verify-checklists.md']);
   assert.match(read(root, `${P}/handoffs/implementer-reviewer.md`), /subagent_type: medra-reviewer/);
   assert.match(read(root, `${P}/agents/security.md`), /tools: \[read_file, write_file, run_command, search_web\]\nmainAgent: true\nsubagent: true\n---/, 'a dispatched agent is a subagent');
   assert.equal(read(root, `${P}/VERSION`).trim(), version);

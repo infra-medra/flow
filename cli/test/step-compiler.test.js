@@ -1462,7 +1462,11 @@ test('PLUG-006.S1 & CTX-006.S1: compileStep batches same-phase satisfied tasks u
   assert.equal((sub.prompt.match(/^- `src\/auth\.js`$/gm) ?? []).length, 1, 'CTX-006.S1: Code Pointers bullet for src/auth.js must appear once');
   assert.equal((sub.prompt.match(/^- `test\/auth\.test\.js`$/gm) ?? []).length, 1, 'CTX-006.S1: Code Pointers bullet for test/auth.test.js must appear once');
 
-  // Phase boundary even when Phase 1 has fewer tasks than batch_max_tasks
+  // Phase boundary when apply.batch_scope: phase even when Phase 1 has fewer tasks than batch_max_tasks
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const cfg = YAML.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.apply = { ...cfg.apply, batch_scope: 'phase' };
+  fs.writeFileSync(cfgPath, YAML.stringify(cfg));
   const phaseChange = 'batch-phase-boundary';
   assert.equal(medra(root, 'new', phaseChange, '--track', 'full').code, 0);
   proposal(root, phaseChange, { track: 'full', caps: [['auth', 'modified', 'AUTH-001, AUTH-002']] });

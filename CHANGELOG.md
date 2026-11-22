@@ -2,6 +2,16 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **Lean core pipelines and on-demand references (`PLUG-013`).** Refactored all 9 `plugins/medra/pipelines/*.md` workflows into compact core procedures and moved verbose edge-case, checklist, and recovery guidance into `plugins/medra/references/apply-recovery.md`, `plugins/medra/references/author-edge-cases.md`, and `plugins/medra/references/verify-checklists.md`, syncing `cli/plugin/` and `.agents/plugins/medra/`.
+- **Self-contained `medra step --md` task pack (`CTX-008`) and scoped `--run` test hints (`PLUG-014`).** Enriched `medra step <change> --role <role> [--task <T-ID>] --md` in `cli/src/step.js` with compact ratified `constitution.md` summaries, referenced `REQ`/scenario blocks, matching `tasks.md` lines, and targeted `--run` test guidance while keeping default `medra step --json` envelopes unchanged; updated `plugins/medra/pipelines/implementer-apply.md` and `author-tasks.md` to reserve full-suite runs for `medra suite`.
+- **Cross-phase `apply` batching (`PLUG-006`) and non-verify `compileStep` fast path (`STATE-008`).** Added `apply.batch_scope: phase | cross-phase` (default `cross-phase`) in `cli/src/core.js`, `cli/src/step.js`, and `docs/config-flow.yaml` so `batch` groups satisfied tasks across phases up to `apply.batch_max_tasks`, and scoped `compileStep` so non-verify stages skip `safeGitDiff`, `suiteFindings`, and `prepareVerifyRound`.
+
+### Verified
+- **Envelope & benchmark measurements (`measure-envelope.js`, `check-bundle-drift.js`).** Measured `total_pipeline_bytes` reduction from `74,369 B` to `35,189 B` across the 5 core stages (`53,175 B` total stage bytes) and `remodel_benchmark.batch` reduction from `54,695 B` to `24,539 B` (`4` dispatches vs `14` task dispatches at `84,475 B`).
+
 ## [2.0.0-rc.7] — 2026-11-22
 
 ### Fixed
