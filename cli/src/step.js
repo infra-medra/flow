@@ -224,9 +224,31 @@ function resolveStage(root, change, state, tasks, explicitStage) {
   return 'archive';
 }
 
-function modelFor(config, role, stage) {
-  const pick = (key) => (key && typeof config.models?.[key] === 'string' && config.models[key].trim() ? config.models[key].trim() : null);
-  const tier = pick(role) ?? pick(stage) ?? pick('default') ?? 'inherit';
+function detectRuntime(opts, config) {
+  const explicit = opts?.runtime ?? (process.env.MEDRA_RUNTIME || null);
+  if (explicit === 'claude' || explicit === 'antigravity') return explicit;
+  if (process.env.ANTIGRAVITY_AGENT || process.env.GEMINI_CLI) return 'antigravity';
+  if (process.env.CLAUDECODE || process.env.CLAUDE_CODE_ENTRYPOINT) return 'claude';
+  const ints = Array.isArray(config.integrations) ? config.integrations : [];
+  const hasClaude = ints.includes('claude');
+  const hasAgy = ints.includes('antigravity');
+  if (hasClaude && !hasAgy) return 'claude';
+  if (hasAgy && !hasClaude) return 'antigravity';
+  return null;
+}
+
+function modelFor(config, role, stage, runtime = null) {
+  const rtModels = runtime && config.models?.[runtime] && typeof config.models[runtime] === 'object'
+    ? config.models[runtime]
+    : null;
+  const pick = (obj, key) => (obj && key && typeof obj[key] === 'string' && obj[key].trim() ? obj[key].trim() : null);
+  const tier = pick(rtModels, role)
+    ?? pick(rtModels, stage)
+    ?? pick(rtModels, 'default')
+    ?? pick(config.models, role)
+    ?? pick(config.models, stage)
+    ?? pick(config.models, 'default')
+    ?? 'inherit';
   return { tier, fallback: 'inherit' };
 }
 
@@ -616,13 +638,14 @@ export function compileStep(root, change, opts = {}) {
     const withSubagentPrompt = (prompt) => (isSubagent && prompt && !prompt.includes(SUBAGENT_PREFIX_NOTE)
       ? `${prompt}\n${SUBAGENT_PREFIX_NOTE}`
       : prompt);
-    const envModel = modelFor(config, null, targetStage);
+    const runtime = detectRuntime(opts, config);
+    const envModel = modelFor(config, null, targetStage, runtime);
     const rawSubagents = overrides.subagents ?? [];
     let subagents = rawSubagents.map((s) => {
       const base = {
         role: s.role,
         task_id: s.task_id ?? null,
-        model: s.model ?? modelFor(config, s.role, targetStage),
+        model: s.model ?? modelFor(config, s.role, targetStage, runtime),
         plugin_pointers: s.plugin_pointers ?? [],
         pointers: s.pointers ?? [],
         embedded_keys: s.embedded_keys ?? [],

@@ -7,7 +7,7 @@ description: Verifies a finished medra change against its specs — compiles iso
 
 ## Purpose
 
-Thin coordinator for `verify`. Always respond in the user's language. Compiles verification handoffs (including neutralized `<untrusted_data>` blocks) via `medra step <change> --stage verify --json`, runs `coordinator_steps[]` before dispatching `subagents[]`, and presents the verify gate.
+Thin coordinator for `verify`. Always respond in the user's language. Compiles verification handoffs (including neutralized `<untrusted_data>` blocks) via `medra step <change> --runtime antigravity --stage verify --json`, runs `coordinator_steps[]` before dispatching `subagents[]`, and presents the verify gate.
 
 ## Input
 
@@ -24,7 +24,7 @@ Thin coordinator for `verify`. Always respond in the user's language. Compiles v
 
 Repeat until `action === "gate"`:
 
-1. Run `medra step <change> --stage verify --json` first, then `medra step <change> --json` after each dispatch so `compileStep` decides `action`.
+1. Run `medra step <change> --runtime antigravity --stage verify --json` first, then `medra step <change> --runtime antigravity --json` after each dispatch so `compileStep` decides `action`.
 2. Execute `coordinator_steps[]` in order before dispatching `subagents[]`:
    - `type === "command"` (e.g. `medra verify-fix <change> --json`): run `command` once as coordinator.
    - `type === "ask_user"` (e.g. non-null `diff_error`): warn the user with details and pause via `AskUserQuestion` / `ask_question`.
@@ -36,4 +36,4 @@ Repeat until `action === "gate"`:
 ## Avoid
 - Never let subagents run `medra verify-fix` or `medra gate`, because fix-round accounting and gate approvals are coordinator-only actions enforced by CLI and hooks.
 - Never bypass `PreToolUse` hooks or ignore `diff_error` prompts, because incomplete diffs invalidate review coverage.
-- Never loop without calling `medra step <change> --json`, because `compileStep` caps fix rounds and transitions to the gate.
+- Never loop without calling `medra step <change> --runtime antigravity --json`, because `compileStep` caps fix rounds and transitions to the gate.

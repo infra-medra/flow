@@ -60,6 +60,7 @@ function rewriteBody(text, { root, skillDir, agents }) {
     .replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, root)
     .replace(/\$\{CLAUDE_SKILL_DIR\}/g, skillDir)
     .replace(/\$ARGUMENTS/g, 'the text the user typed after the command')
+    .replace(/\bmedra step (<change>)(?! --runtime\b)/g, 'medra step $1 --runtime antigravity')
     .replace(/medra:([a-z][a-z0-9-]*)/g, (all, name) => (agents.includes(name) ? `medra-${name}` : all));
 }
 

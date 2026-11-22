@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Entry point: wires commands, prints `--json` or a human summary, and maps failures to exit codes.
 import { Command, CommanderError } from 'commander';
-import { MedraError, EXIT, requireRoot, findRoot } from '../src/core.js';
+import { MedraError, EXIT, requireRoot, findRoot, usageError } from '../src/core.js';
 import { migrateLayout } from '../src/migrate.js';
 import * as cmd from '../src/commands.js';
 import { index, indexMarkdown, context, contextMarkdown, taskDoneMarkdown, taskBlockMarkdown, taskContext, taskContextMarkdown } from '../src/context.js';
@@ -95,14 +95,18 @@ j(program.command('context <change>').description('Bounded context pack for one 
   });
 
 j(program.command('step <change>').description('Compile deterministic next-step prompt and handoff envelope')
-  .option('--stage <stage>').option('--diff-base <ref>').option('--role <role>').option('--task <id>').option('--full').option('--md', 'Markdown output'))
+  .option('--stage <stage>').option('--diff-base <ref>').option('--role <role>').option('--task <id>').option('--runtime <runtime>').option('--full').option('--md', 'Markdown output'))
   .action((change, o) => {
+    if (o.runtime && o.runtime !== 'claude' && o.runtime !== 'antigravity') {
+      throw usageError(`Invalid --runtime "${o.runtime}"; expected "claude" or "antigravity"`);
+    }
     const needsFull = Boolean(o.full || (o.md && !jsonMode) || !jsonMode);
     const env = compileStep(root(), change, {
       stage: o.stage,
       diffBase: o.diffBase,
       role: o.role,
       task: o.task,
+      runtime: o.runtime,
       full: needsFull,
     });
     if (o.md && !jsonMode) process.stdout.write(stepMarkdown(env, { role: o.role, task: o.task }));

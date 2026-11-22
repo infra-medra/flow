@@ -2,6 +2,15 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.1.0] — 2026-11-22
+
+### Added
+- **Per-runtime model configuration (`PLUG-005`).** Added `models.claude` and `models.antigravity` nested mappings in `docs/config-flow.yaml` (`cli/src/core.js`, `cli/src/validate.js`), resolving subagent tiers in precedence `models[runtime][role] -> models[runtime][stage] -> models[runtime].default -> models[role] -> models[stage] -> models.default -> inherit` while preserving flat `models:` configs.
+- **Runtime detection & CLI flag (`cli/src/step.js`, `cli/bin/medra.js`, `cli/src/install.js`).** Added `--runtime <claude|antigravity>` to `medra step`, `MEDRA_RUNTIME` and environment auto-detection (`CLAUDECODE` / `CLAUDE_CODE_ENTRYPOINT` vs `ANTIGRAVITY_AGENT`), and automatic `--runtime antigravity` rewriting in installed `.agents/plugins/medra/skills/*/SKILL.md`.
+
+### Documentation
+- **v2 Value-Driven `README.md`.** Rewrote `README.md` to highlight v2 architecture, token/cost savings, and full CLI/configuration reference including `models.claude` and `models.antigravity`.
+
 ## [2.0.1] — 2026-11-22
 
 ### Documentation

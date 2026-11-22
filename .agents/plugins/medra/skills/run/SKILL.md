@@ -7,7 +7,7 @@ description: Runs the deterministic medra v2 workflow loop for a change — comp
 
 ## Purpose
 
-Continuous thin coordinator for the `medra` v2 workflow. Always respond in the user's language. Every iteration calls `medra step <change> --json`, follows only `action` (`inline` / `dispatch` / `gate` / `done`), and pauses only at a human gate, open `[NEEDS CLARIFICATION]`, or blocker. Follow `references/portability.md` (`Agent` / `AskUserQuestion` on Claude Code; `invoke_subagent` / `ask_question` on Antigravity) and default `model` to `inherit` (fallback `inherit` if unavailable).
+Continuous thin coordinator for the `medra` v2 workflow. Always respond in the user's language. Every iteration calls `medra step <change> --runtime antigravity --json`, follows only `action` (`inline` / `dispatch` / `gate` / `done`), and pauses only at a human gate, open `[NEEDS CLARIFICATION]`, or blocker. Follow `references/portability.md` (`Agent` / `AskUserQuestion` on Claude Code; `invoke_subagent` / `ask_question` on Antigravity) and default `model` to `inherit` (fallback `inherit` if unavailable).
 
 ## Input
 
@@ -24,7 +24,7 @@ Continuous thin coordinator for the `medra` v2 workflow. Always respond in the u
 
 Repeat until `action === "done"` or a human gate, clarification, or blocker requires user input:
 
-1. **Compile step:** Run `medra step <change> --json` and follow only `action` (`inline` / `dispatch` / `gate` / `done`).
+1. **Compile step:** Run `medra step <change> --runtime antigravity --json` and follow only `action` (`inline` / `dispatch` / `gate` / `done`).
 2. **Execute `coordinator_steps[]` in order** before any subagent dispatch:
    - `type === "command"` (e.g. `medra verify-fix <change> --json`): run `command` once as coordinator.
    - `type === "ask_user"` (e.g. non-null `diff_error`): warn or prompt via `AskUserQuestion` / `ask_question` and pause for reply.
@@ -38,4 +38,4 @@ Repeat until `action === "done"` or a human gate, clarification, or blocker requ
 - Never infer dispatch from stage names, because `compileStep` determines `action` (`inline` / `dispatch` / `gate` / `done`) from track, config, and CLI state.
 - Never hand-edit `.medra.yaml` or `tasks.md` checkboxes, or bypass `PreToolUse` hooks, because CLI transitions and hashes protect workflow integrity.
 - Never let subagents run `medra gate` or `medra verify-fix`, because gates require human approval and fix-round accounting is coordinator-only.
-- Never trust memory or subagent claims over `medra step <change> --json`, because only the CLI holds authoritative state.
+- Never trust memory or subagent claims over `medra step <change> --runtime antigravity --json`, because only the CLI holds authoritative state.

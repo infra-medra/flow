@@ -42,6 +42,7 @@ const MODEL_KEYS = new Set([
   'author', 'implementer', 'reviewer', 'security',
   'init', 'propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review',
 ]);
+const RUNTIME_KEYS = new Set(['claude', 'antigravity']);
 
 export const DEFAULT_CONFIG = {
   version: 1,
@@ -78,6 +79,13 @@ export function loadConfig(root) {
   const models = { ...DEFAULT_CONFIG.models };
   for (const [k, v] of Object.entries(rawModels)) {
     if (MODEL_KEYS.has(k) && typeof v === 'string' && v.trim()) models[k] = v.trim();
+    else if (RUNTIME_KEYS.has(k) && v && typeof v === 'object' && !Array.isArray(v)) {
+      const rt = {};
+      for (const [rk, rv] of Object.entries(v)) {
+        if (MODEL_KEYS.has(rk) && typeof rv === 'string' && rv.trim()) rt[rk] = rv.trim();
+      }
+      models[k] = rt;
+    }
   }
   return {
     ...DEFAULT_CONFIG,
@@ -100,7 +108,19 @@ export function configWarnings(root) {
       warnings.push(finding('config.models', 'Invalid models configuration; expected mapping of role/stage to tier', { file: configRel, severity: 'warning' }));
     } else {
       for (const [k, v] of Object.entries(raw.models)) {
-        if (!MODEL_KEYS.has(k)) {
+        if (RUNTIME_KEYS.has(k)) {
+          if (!v || typeof v !== 'object' || Array.isArray(v)) {
+            warnings.push(finding('config.models', `Invalid models.${k} configuration; expected mapping of role/stage to tier`, { file: configRel, severity: 'warning' }));
+          } else {
+            for (const [rk, rv] of Object.entries(v)) {
+              if (!MODEL_KEYS.has(rk)) {
+                warnings.push(finding('config.models', `Unknown models.${k} key "${rk}"; falling back to inherit`, { file: configRel, severity: 'warning' }));
+              } else if (typeof rv !== 'string' || !rv.trim()) {
+                warnings.push(finding('config.models', `Invalid model tier for "${k}.${rk}"; falling back to inherit`, { file: configRel, severity: 'warning' }));
+              }
+            }
+          }
+        } else if (!MODEL_KEYS.has(k)) {
           warnings.push(finding('config.models', `Unknown models key "${k}"; falling back to inherit`, { file: configRel, severity: 'warning' }));
         } else if (typeof v !== 'string' || !v.trim()) {
           warnings.push(finding('config.models', `Invalid model tier for "${k}"; falling back to inherit`, { file: configRel, severity: 'warning' }));

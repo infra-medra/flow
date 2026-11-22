@@ -14,13 +14,30 @@ const INLINE_MODEL_KEYS = ['propose', 'plan', 'tasks', 'author'];
 
 function inlineModelWarnings(root) {
   const models = loadConfig(root).models ?? {};
-  return INLINE_MODEL_KEYS
-    .filter((k) => models[k] && models[k] !== 'inherit')
-    .map((k) => finding(
-      'config.models',
-      `models.${k} (${models[k]}) does not apply because inline stages (propose, plan, tasks) run in the main session`,
-      { file: configRel, severity: 'warning' },
-    ));
+  const warnings = [];
+  for (const k of INLINE_MODEL_KEYS) {
+    if (typeof models[k] === 'string' && models[k] !== 'inherit') {
+      warnings.push(finding(
+        'config.models',
+        `models.${k} (${models[k]}) does not apply because inline stages (propose, plan, tasks) run in the main session`,
+        { file: configRel, severity: 'warning' },
+      ));
+    }
+  }
+  for (const rt of ['claude', 'antigravity']) {
+    const rtModels = models[rt];
+    if (!rtModels || typeof rtModels !== 'object') continue;
+    for (const k of INLINE_MODEL_KEYS) {
+      if (typeof rtModels[k] === 'string' && rtModels[k] !== 'inherit') {
+        warnings.push(finding(
+          'config.models',
+          `models.${rt}.${k} (${rtModels[k]}) does not apply because inline stages (propose, plan, tasks) run in the main session`,
+          { file: configRel, severity: 'warning' },
+        ));
+      }
+    }
+  }
+  return warnings;
 }
 
 export function projectFindings(root, scope) {

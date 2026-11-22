@@ -27,6 +27,6 @@ medra runs from the same instructions on Claude Code and on Antigravity, where i
 ## Subagent Model Selection
 
 - **`inline` stages:** Stages compiled with `action: "inline"` (`propose`, `plan`, `tasks`, and small `fast`-track `apply`) execute in the main session model, ignoring `models.<stage>` and `models.author` overrides.
-- **`dispatch` subagents:** `medra step` resolves each subagent's `model` in order `role -> stage -> default -> inherit`.
+- **`dispatch` subagents:** `docs/config-flow.yaml` supports flat `models:` keys and per-runtime `models.claude` / `models.antigravity` mappings. `medra step` selects `runtime` via `--runtime <claude|antigravity>`, `MEDRA_RUNTIME`, runtime environment detection (`CLAUDECODE` / `CLAUDE_CODE_ENTRYPOINT` vs `ANTIGRAVITY_AGENT` / `GEMINI_CLI`), or single-integration fallback, and resolves each subagent's `model` in order `models[runtime][role] -> models[runtime][stage] -> models[runtime].default -> models[role] -> models[stage] -> models.default -> inherit`.
 - **Claude Code:** Pass `subagent.model.tier` to `Agent` when it is not `inherit`, falling back to `inherit` if the tier is unavailable.
 - **Antigravity:** A subagent model tier applies only if `invoke_subagent` supports model selection; otherwise, inherit the conversation/session model.
