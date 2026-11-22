@@ -2,6 +2,11 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.0.0] — 2026-11-22
+
+### Released
+- **Medra v2.0.0 GA (`2.0.0-rc.1` through `2.0.0-rc.8`).** Stabilizes the deterministic `medra step` compiler, lean coordinator skills, `coordinator_steps[]` (auto-running `medra suite` before `verify`), incremental `verify` handoffs (`round`, `previous_report`, `changed_since_previous`), `cross-phase` `batch` `apply` granularity, `MEDRA_SUBAGENT=1` CLI guard with `childEnv()` subprocess isolation, compact `medra step --md` task packs, and lean core pipelines (`24,872 B` raw / `36,575 B` measured in `measure-envelope.js` vs `74,369 B` baseline) with restored guardrails and rule rationales.
+
 ## [2.0.0-rc.8] — 2026-11-22
 
 ### Changed
