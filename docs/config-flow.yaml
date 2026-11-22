@@ -18,3 +18,13 @@ learning:
   promote_after: 3
   stale_after: 10
   context_max: 10
+models:
+  default: inherit
+  init: flash
+  propose: inherit
+  plan: pro
+  tasks: inherit
+  apply: flash
+  verify: pro
+  review: pro
+  archive: flash
