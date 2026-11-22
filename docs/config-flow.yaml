@@ -18,11 +18,16 @@ learning:
   promote_after: 3
   stale_after: 10
   context_max: 10
+apply:
+  # full-track apply dispatch granularity: batch | task
+  granularity: batch
+  batch_max_tasks: 4
+  inline_max_tasks: 3
 models:
   default: inherit
   init: flash
   propose: inherit
-  plan: pro
+  plan: inherit
   tasks: inherit
   apply: flash
   verify: pro

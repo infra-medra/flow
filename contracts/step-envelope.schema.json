@@ -11,7 +11,7 @@
     "phase": { "type": "string" },
     "stage": { "enum": ["propose", "plan", "tasks", "apply", "verify", "archive"] },
     "action": { "enum": ["dispatch", "gate", "inline", "done"] },
-    "granularity": { "enum": ["stage", "task", "round"] },
+    "granularity": { "enum": ["stage", "task", "batch", "round"] },
     "model": {
       "type": "object",
       "required": ["tier", "fallback"],
@@ -43,6 +43,20 @@
       "type": "object",
       "additionalProperties": { "type": "string" }
     },
+    "coordinator_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "enum": ["command", "ask_user"] },
+          "command": { "type": "string" },
+          "gate": { "type": ["string", "null"] },
+          "reason": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
     "subagents": {
       "type": "array",
       "items": {
@@ -51,6 +65,7 @@
         "properties": {
           "role": { "enum": ["author", "implementer", "reviewer", "security"] },
           "task_id": { "type": ["string", "null"] },
+          "task_ids": { "type": "array", "items": { "type": "string" } },
           "model": {
             "type": "object",
             "description": "Resolved model tier for this subagent (precedence: role -> stage -> default -> inherit), with fallback.",
@@ -65,6 +80,11 @@
           "pointers": { "type": "array", "items": { "type": "string" } },
           "plugin_pointers": { "type": "array", "items": { "type": "string" } },
           "embedded_keys": { "type": "array", "items": { "type": "string" } },
+          "round": { "type": "integer", "minimum": 1 },
+          "report": { "type": "string" },
+          "previous_report": { "type": "string" },
+          "changed_since_previous": { "type": "array", "items": { "type": "string" } },
+          "suite": { "type": "string" },
           "findings": {
             "type": "array",
             "items": {

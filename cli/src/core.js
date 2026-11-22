@@ -49,7 +49,7 @@ export const DEFAULT_CONFIG = {
   integrations: ['claude'],
   testing: { mode: 'tdd', command: null, checks: [], 'allow-additive-test-edits': false, paths: ['test/**', '**/*.test.*', '**/*_test.*', 'tests/**'] },
   learning: { max_active: 40, promote_after: 3, stale_after: 10, context_max: 10 },
-  apply: { inline_max_tasks: 3 },
+  apply: { inline_max_tasks: 3, granularity: 'batch', batch_max_tasks: 4 },
   models: { default: 'inherit' },
 };
 

@@ -150,7 +150,14 @@ export function validate(root, change, { stage, project }) {
 
 const GATE_PHASE = { plan: 'planned', tasks: 'tasked', verify: 'verified' };
 
+function requireCoordinator(command) {
+  if (process.env.MEDRA_SUBAGENT === '1') {
+    throw refused([finding('subagent.forbidden', `medra ${command} cannot be run by a subagent (MEDRA_SUBAGENT=1)`, { remediation: 'Return to the coordinator to run this command' })]);
+  }
+}
+
 export function gate(root, change, name, { approve, requestChanges, note, by }) {
+  requireCoordinator('gate');
   if (!GATES.includes(name)) throw usageError(`Gate must be one of ${GATES.join(', ')}`);
   if (!!approve === !!requestChanges) throw usageError('Pass exactly one of --approve or --request-changes');
   const state = loadState(root, change);
@@ -454,6 +461,7 @@ function isReportNewerThanFix(root, change, state, report, lastFixMs) {
 }
 
 export function verifyFix(root, change) {
+  requireCoordinator('verify-fix');
   const state = loadState(root, change);
   const lastDoneMs = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
   const lastFixMs = state.last_fix_round_at ? Date.parse(state.last_fix_round_at) : 0;

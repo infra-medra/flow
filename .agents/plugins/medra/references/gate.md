@@ -14,9 +14,9 @@ On Claude Code the plugin's guard (`hooks/guard.mjs`) also asks the user to allo
 
 ### Subagent Gate Protection
 
-- **Claude Code `PreToolUse` hook:** Official Claude Code `PreToolUse` hook input includes `agent_id` for subagent tool calls. `hooks/guard.mjs` checks `Boolean(input.agent_id) || process.env.MEDRA_SUBAGENT === '1'` and denies `medra gate ... --approve` and `medra verify-fix` when invoked by a subagent (`medra verify-fix` is coordinator-only and passes through when not in a subagent).
-- **`MEDRA_SUBAGENT=1` fallback:** Runtimes or dispatchers that do not populate `agent_id` in hook input can set `MEDRA_SUBAGENT=1` in the subagent environment to trigger the same guard denial.
-- **Platform limitation:** Runtimes without a `PreToolUse` hook (such as Antigravity) cannot enforce this denial in a hook; they rely on subagent role boundaries (subagent prompts prohibiting `medra gate ... --approve` and `medra verify-fix`) plus coordinator-only human gate confirmation and fix-round recording.
+- **Claude Code `PreToolUse` hook:** Official Claude Code `PreToolUse` hook input includes `agent_id` for subagent tool calls. `hooks/guard.mjs` checks `Boolean(input.agent_id) || process.env.MEDRA_SUBAGENT === '1'` and denies `medra gate ... --approve`, `medra gate ... --request-changes`, and `medra verify-fix` when invoked by a subagent (`medra verify-fix` is coordinator-only and passes through when not in a subagent).
+- **`MEDRA_SUBAGENT=1` CLI enforcement:** Both `medra verify-fix` and `medra gate` (`--approve` and `--request-changes`) enforce `MEDRA_SUBAGENT=1` directly inside the CLI and refuse execution (`subagent.forbidden`, exit `1`) when `MEDRA_SUBAGENT=1` is set in the subagent environment. Runtimes or dispatchers without `agent_id` in hook input (including Antigravity subagent dispatch) set `MEDRA_SUBAGENT=1` to trigger this refusal.
+- **Platform limitation:** On runtimes without `PreToolUse` hooks (such as Antigravity), CLI commands (`verify-fix`, `gate`) are enforced by `MEDRA_SUBAGENT=1`, but direct manual file edits to `.medra.yaml` or `tasks.md` cannot be intercepted by a hook and rely on subagent instructions and CLI hash/gate verification.
 
 ```
 > # {Agent} | Gate

@@ -8,21 +8,26 @@ disable-model-invocation: true
 
 ## Purpose
 
-Thin coordinator for the `archive` stage. It compiles the deterministic handoff via `medra step <change> --stage archive --json`, executes `medra archive <change> --json` (or dispatches a clean-context `author` subagent to harvest/compact learnings), and reports the archived state.
+Thin coordinator for `archive`. Always respond in the user's language. Compiles `medra step <change> --stage archive --json`, executes `coordinator_steps[]` and `action` (`inline` or `dispatch`), and confirms the archived state.
 
 ## Input
 
-`$ARGUMENTS` is the change name. If empty, pick the single verified change from `medra status --json` or ask the user.
+`$ARGUMENTS` is the change name. If empty, pick the single verified change from `medra status --json`, or ask via `AskUserQuestion` / `ask_question`.
 
 ## Preconditions
 
 | Requires | Check | If missing |
 |---|---|---|
-| CLI | `medra --version` prints major version `2` | Stop and tell the user to install/update `@medra.dev/flow` |
-| State | `medra status <change> --json` shows `verify` gate `approved` | Stop and tell the user to run `/medra:verify` first |
+| CLI | `medra --version` major `2` | Tell user to install/update `@medra.dev/flow` |
+| State | `medra status <change> --json` `verify` `approved` | Tell user to run `/medra:verify` |
 
-## Coordinator Steps
+## Steps
 
-1. Run `medra step <change> --stage archive --json` to obtain `prompt`, `pointers`, `model` (`inherit` default, falling back to `inherit` if a configured tier is unavailable), and `exit_command`.
-2. Dispatch a clean-context `author` subagent (`Agent` / `invoke_subagent`) or run `medra archive <change> --json` directly, never bypassing `PreToolUse` hooks (`M-03`).
-3. Re-run `medra status --json` (`M-06`) to confirm the change is archived and living specs validate cleanly.
+1. Run `medra step <change> --stage archive --json` to read `action`, `coordinator_steps[]`, `subagents[]`, `plugin_pointers` / `pointers`, `model` (default/fallback `inherit`), and `exit_command`.
+2. Execute `coordinator_steps[]` in order before any dispatch (`type === "command"` runs `command`; `type === "ask_user"` prompts via `AskUserQuestion` / `ask_question` and pauses).
+3. Follow `action`: run `inline` with `plugin_pointers` and `medra archive <change> --json`, or dispatch `subagents[]` (`Agent` / `invoke_subagent`) passing `fetch_command` (or `prompt` if `--full`), `exit_command`, and `<untrusted_data>` data-only rules.
+4. Re-run `medra status --json` to confirm the change is archived and living specs validate cleanly.
+
+## Avoid
+- Never bypass `PreToolUse` hooks or hand-edit `.medra.yaml` or living specs directly during archive, because `medra archive` merges deltas and records state atomically.
+- Never skip `medra status --json` after archiving, because only CLI state confirms archive completion.

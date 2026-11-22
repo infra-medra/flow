@@ -7,7 +7,9 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
 import { DEFAULT_CONFIG, loadConfig, resolveSafePath, sha256 } from '../src/core.js';
+import { latestReport, loadState } from '../src/change.js';
 import { compileStep } from '../src/step.js';
+import { reportFreshness } from '../src/validate.js';
 import { BIN, medra, medraHuman, project, livingSpec, req, proposal, write, read, delta, tasks, verifyReport, securityReport } from './helpers.js';
 
 function git(cwd, ...args) {
@@ -53,6 +55,10 @@ test('M-01: resolveSafePath allows valid relative paths and rejects traversal, a
 // Covers CTX-005.S1, PLUG-001.S3, M-06
 test('CTX-005.S1 & PLUG-001.S3: compileStep slices single-task apply prompt on full track and stage-level on fast track', () => {
   const root = project({ mode: 'tdd' });
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const cfg = YAML.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.apply = { ...(cfg.apply ?? {}), granularity: 'task' };
+  fs.writeFileSync(cfgPath, YAML.stringify(cfg));
   livingSpec(root, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
   livingSpec(root, 'billing', 'BILL', [req('BILL-001', 'Invoice', [['BILL-001.S1', 'Create invoice']])]);
 
@@ -293,8 +299,8 @@ test('CTX-005.S6: verify subagents never invoke medra gate and neutralize all cl
   assert.match(rev.plugin_pointers[0], /reviewer-check\.md$/);
   assert.match(sec.plugin_pointers[0], /security-audit\.md$/);
   assert.match(sec.prompt, /security-audit\.md/);
-  assert.match(rev.exit_command, /^medra review sec-verify --report .*verify-reviewer\.md/);
-  assert.match(sec.exit_command, /^medra review sec-verify --report .*verify-security\.md/);
+  assert.match(rev.exit_command, /^medra review sec-verify --report .*verify-reviewer-r\d+\.md/);
+  assert.match(sec.exit_command, /^medra review sec-verify --report .*verify-security-r\d+\.md/);
 
   // Exactly one opening and one closing <untrusted_data> tag in diff and contracts
   for (const fenced of [env.embedded.diff, env.embedded['contracts/api.json']]) {
@@ -312,7 +318,7 @@ test('P7: compileStep envelopes conform to envelope.schema.json and preserve exa
   const okBranch = schema.oneOf.find((b) => b.properties?.ok?.const === true);
   assert.ok(okBranch, 'envelope.schema.json must define ok: true branch');
 
-  const baseKeys = ['action', 'change', 'gate', 'granularity', 'legacy_fallback', 'model', 'ok', 'phase', 'stage', 'subagents', 'track'];
+  const baseKeys = ['action', 'change', 'coordinator_steps', 'gate', 'granularity', 'legacy_fallback', 'model', 'ok', 'phase', 'stage', 'subagents', 'track'];
   const verifyKeys = [...baseKeys, 'diff_error'].sort();
 
   function assertValidEnvelope(env, expectedKeys = baseKeys) {
@@ -384,7 +390,7 @@ test('P7: compileStep envelopes conform to envelope.schema.json and preserve exa
   assertValidEnvelope(applyDispatch);
   assert.equal(applyDispatch.stage, 'apply');
   assert.equal(applyDispatch.action, 'dispatch');
-  assert.equal(applyDispatch.granularity, 'task');
+  assert.equal(applyDispatch.granularity, 'batch');
   assert.equal(applyDispatch.gate, null);
   assert.equal(applyDispatch.subagents.length, 1);
 
@@ -1011,7 +1017,7 @@ test('CTX-005.S16, PLUG-005.S2 & M-04: compileStep resolves subagent model via r
   const applyEnv = compileStep(applyRoot, 'apply-model-override', { stage: 'apply' });
   assert.equal(applyEnv.stage, 'apply');
   assert.equal(applyEnv.action, 'dispatch');
-  assert.equal(applyEnv.granularity, 'task');
+  assert.equal(applyEnv.granularity, 'batch');
   assert.deepEqual(applyEnv.model, { tier: 'inherit', fallback: 'inherit' });
   assert.equal(applyEnv.subagents.length, 1);
   assert.equal(applyEnv.subagents[0].role, 'implementer');
@@ -1154,5 +1160,529 @@ test('CTX-005.S17 & M-03: verify report freshness uses recorded_at and SHA-256 h
   touchReport(legacyRoot, legacyReportRel, verifyReport('pass'), Date.now() - 60_000);
   const legacyEntryStaleEnv = compileStep(legacyRoot, legacyChange);
   assert.equal(legacyEntryStaleEnv.action, 'dispatch', 'M-03: 1.x reviews[] entry without recorded_at and stale mtime must dispatch reviewers');
+});
+
+// Covers STATE-006.S1: Incremental verify handoff metadata, non-overwriting round reports, and highest-round resolution
+test('STATE-006.S1: verify emits round 1 and round 2 incremental handoff metadata without overwriting round 1, and latestReport/reportFreshness resolve highest round', async () => {
+  const change = 'verify-incremental-rounds';
+  const root = project({ mode: 'tdd' });
+
+  // Configure testing.command so suite gating and suite: "green" apply
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const cfg = YAML.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.testing = { ...cfg.testing, mode: 'tdd', command: 'node -e "process.exit(0)"' };
+  fs.writeFileSync(cfgPath, YAML.stringify(cfg));
+
+  // Commit an unrelated baseline file before `medra new`
+  write(root, 'src/unrelated.js', '// unrelated unchanged file\n');
+  git(root, 'add', 'src/unrelated.js', 'docs/config-flow.yaml');
+  git(root, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'add unrelated baseline');
+
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
+  assert.equal(medra(root, 'new', change, '--track', 'fast').code, 0);
+  proposal(root, change, { track: 'fast', caps: [['auth', 'modified', 'AUTH-001']], security: 'relevant' });
+  write(root, `docs/changes/${change}/specs/auth/spec.md`, delta('auth', `## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`));
+  tasks(root, change, [
+    '- [ ] T001 [TEST] [AUTH-001] Test AUTH-001.S1 in `test/auth.test.js` — verify: red',
+    '- [ ] T002 [AUTH-001] after T001 Implement login in `src/auth.js` — verify: green',
+  ]);
+  assert.equal(medra(root, 'gate', change, 'proposal', '--approve').code, 0);
+
+  write(root, 'test/auth.test.js', '// AUTH-001.S1\n');
+  write(root, 'src/auth.js', 'export const login = () => false;\n');
+  write(root, 'src/other.js', 'export const untouched = true;\n');
+  assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1').code, 0);
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').code, 0);
+
+  const suite1 = medra(root, 'suite', change);
+  assert.equal(suite1.code, 0, suite1.stderr || suite1.stdout);
+
+  // Round 1 of verify
+  const env1 = compileStep(root, change);
+  assert.equal(env1.stage, 'verify');
+  assert.equal(env1.action, 'dispatch');
+  const rev1 = env1.subagents.find((s) => s.role === 'reviewer');
+  const sec1 = env1.subagents.find((s) => s.role === 'security');
+  assert.ok(rev1 && sec1, 'STATE-006.S1: expected reviewer and security subagents on round 1');
+
+  assert.equal(rev1.round, 1, 'STATE-006.S1: round 1 reviewer must emit round: 1');
+  assert.match(rev1.report ?? '', /reviews\/\d{4}-\d{2}-\d{2}-verify-reviewer-r1\.md$/);
+  assert.equal(rev1.suite, 'green');
+  assert.ok(rev1.exit_command.includes(rev1.report), 'exit_command must target round 1 reviewer report path');
+
+  assert.equal(sec1.round, 1, 'STATE-006.S1: round 1 security must emit round: 1');
+  assert.match(sec1.report ?? '', /reviews\/\d{4}-\d{2}-\d{2}-verify-security-r1\.md$/);
+  assert.equal(sec1.suite, 'green');
+  assert.ok(sec1.exit_command.includes(sec1.report), 'exit_command must target round 1 security report path');
+
+  const toRootRel = (p) => (p.startsWith('docs/') ? p : `docs/changes/${change}/${p}`);
+  const rev1Rel = toRootRel(rev1.report);
+  const sec1Rel = toRootRel(sec1.report);
+
+  // Record round 1 reports (reviewer failing, security passing)
+  const r1RevBody = verifyReport('fail');
+  const r1SecBody = securityReport('pass');
+  write(root, rev1Rel, r1RevBody);
+  write(root, sec1Rel, r1SecBody);
+  assert.equal(medra(root, 'review', change, '--report', rev1Rel, '--by', 'reviewer').code, 0);
+  assert.equal(medra(root, 'review', change, '--report', sec1Rel, '--by', 'security').code, 0);
+
+  // Fix round initiated via medra verify-fix, modifying only src/auth.js, then green suite
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(medra(root, 'verify-fix', change).code, 0);
+  write(root, 'src/auth.js', 'export const login = () => true;\n');
+  const suite2 = medra(root, 'suite', change);
+  assert.equal(suite2.code, 0, suite2.stderr || suite2.stdout);
+
+  // Round 2 of verify
+  const env2 = compileStep(root, change);
+  assert.equal(env2.stage, 'verify');
+  assert.equal(env2.action, 'dispatch');
+  const rev2 = env2.subagents.find((s) => s.role === 'reviewer');
+  const sec2 = env2.subagents.find((s) => s.role === 'security');
+  assert.ok(rev2 && sec2, 'STATE-006.S1: expected reviewer and security subagents on round 2');
+
+  assert.equal(rev2.round, 2, 'STATE-006.S1: round 2 reviewer must emit round: 2');
+  assert.match(rev2.report ?? '', /reviews\/\d{4}-\d{2}-\d{2}-verify-reviewer-r2\.md$/);
+  assert.notEqual(rev2.report, rev1.report);
+  assert.equal(rev2.previous_report, rev1.report);
+  assert.deepEqual(rev2.changed_since_previous, ['src/auth.js']);
+  assert.equal(rev2.suite, 'green');
+
+  assert.equal(sec2.round, 2, 'STATE-006.S1: round 2 security must emit round: 2');
+  assert.match(sec2.report ?? '', /reviews\/\d{4}-\d{2}-\d{2}-verify-security-r2\.md$/);
+  assert.notEqual(sec2.report, sec1.report);
+  assert.equal(sec2.previous_report, sec1.report);
+  assert.deepEqual(sec2.changed_since_previous, ['src/auth.js']);
+  assert.equal(sec2.suite, 'green');
+
+  // Round 1 report files remain intact on disk
+  assert.equal(read(root, rev1Rel), r1RevBody);
+  assert.equal(read(root, sec1Rel), r1SecBody);
+
+  // Record round 2 reports and verify latestReport / reportFreshness resolve highest round (-r2.md)
+  const rev2Rel = toRootRel(rev2.report);
+  const sec2Rel = toRootRel(sec2.report);
+  write(root, rev2Rel, verifyReport('pass'));
+  write(root, sec2Rel, securityReport('pass'));
+  assert.equal(medra(root, 'review', change, '--report', rev2Rel, '--by', 'reviewer').code, 0);
+  assert.equal(medra(root, 'review', change, '--report', sec2Rel, '--by', 'security').code, 0);
+
+  const stateNow = loadState(root, change);
+  const freshFloor = Date.parse(stateNow.last_fix_round_at);
+
+  const latestRev = latestReport(root, change, 'verify');
+  assert.ok(latestRev);
+  assert.equal(latestRev.round, 2);
+  assert.equal(latestRev.file, path.join(root, rev2Rel));
+  assert.equal(reportFreshness(root, change, stateNow, latestRev, freshFloor).fresh, true);
+
+  const latestSec = latestReport(root, change, 'security');
+  assert.ok(latestSec);
+  assert.equal(latestSec.round, 2);
+  assert.equal(latestSec.file, path.join(root, sec2Rel));
+  assert.equal(reportFreshness(root, change, stateNow, latestSec, freshFloor).fresh, true);
+});
+
+// Covers STATE-006.S2 & M-02: Pre-dispatch suite and merge check gating
+test('STATE-006.S2 & M-02: compileStep returns action gate with verify.suite or verify.merge findings instead of dispatching reviewers', () => {
+  const change = 'verify-pre-dispatch-gate';
+  const root = project({ mode: 'tdd' });
+
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const setSuiteCmd = (command) => {
+    const cfg = YAML.parse(fs.readFileSync(cfgPath, 'utf8'));
+    cfg.testing = { ...cfg.testing, mode: 'tdd', command };
+    fs.writeFileSync(cfgPath, YAML.stringify(cfg));
+  };
+  setSuiteCmd('node -e "process.exit(0)"');
+
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
+  assert.equal(medra(root, 'new', change, '--track', 'fast').code, 0);
+  proposal(root, change, { track: 'fast', caps: [['auth', 'modified', 'AUTH-001']], security: 'relevant' });
+  write(root, `docs/changes/${change}/specs/auth/spec.md`, delta('auth', `## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`));
+  tasks(root, change, [
+    '- [ ] T001 [TEST] [AUTH-001] Test AUTH-001.S1 in `test/auth.test.js` — verify: red',
+    '- [ ] T002 [AUTH-001] after T001 Implement login in `src/auth.js` — verify: green',
+  ]);
+  assert.equal(medra(root, 'gate', change, 'proposal', '--approve').code, 0);
+  write(root, 'test/auth.test.js', '// AUTH-001.S1\n');
+  write(root, 'src/auth.js', 'export const login = () => true;\n');
+  assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1').code, 0);
+  assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').code, 0);
+
+  // 1. Suite never run -> action: "gate" with verify.suite finding (no reviewer/security dispatch)
+  const missingSuiteEnv = compileStep(root, change);
+  assert.equal(missingSuiteEnv.stage, 'verify');
+  assert.equal(missingSuiteEnv.action, 'gate', 'STATE-006.S2: missing suite must return action: "gate"');
+  assert.deepEqual(missingSuiteEnv.subagents, []);
+  assert.ok(
+    (missingSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error'),
+    'STATE-006.S2: missing suite gate must include blocking verify.suite finding',
+  );
+
+  // 2. Failing suite -> action: "gate" with verify.suite finding
+  setSuiteCmd('node -e "process.exit(1)"');
+  const failingSuiteRes = medra(root, 'suite', change);
+  assert.equal(failingSuiteRes.code, 1);
+  const failingSuiteEnv = compileStep(root, change);
+  assert.equal(failingSuiteEnv.stage, 'verify');
+  assert.equal(failingSuiteEnv.action, 'gate', 'STATE-006.S2: failing suite must return action: "gate"');
+  assert.deepEqual(failingSuiteEnv.subagents, []);
+  assert.ok(
+    (failingSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error'),
+    'STATE-006.S2: failing suite gate must include blocking verify.suite finding',
+  );
+
+  // 3. Stale suite (code changed after green suite) -> action: "gate" with verify.suite finding
+  setSuiteCmd('node -e "process.exit(0)"');
+  assert.equal(medra(root, 'suite', change).code, 0);
+  write(root, 'src/auth.js', 'export const login = () => "changed";\n');
+  const staleSuiteEnv = compileStep(root, change);
+  assert.equal(staleSuiteEnv.stage, 'verify');
+  assert.equal(staleSuiteEnv.action, 'gate', 'STATE-006.S2: stale suite must return action: "gate"');
+  assert.deepEqual(staleSuiteEnv.subagents, []);
+  assert.ok(
+    (staleSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error'),
+    'STATE-006.S2: stale suite gate must include blocking verify.suite finding',
+  );
+
+  // 4. Green suite + verify.merge conflict -> action: "gate" with verify.merge finding
+  assert.equal(medra(root, 'suite', change).code, 0);
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-002', 'Other', [['AUTH-002.S1', 'Other']])]);
+  const mergeConflictEnv = compileStep(root, change);
+  assert.equal(mergeConflictEnv.stage, 'verify');
+  assert.equal(mergeConflictEnv.action, 'gate', 'STATE-006.S2 & M-02: merge conflict must return action: "gate"');
+  assert.deepEqual(mergeConflictEnv.subagents, []);
+  assert.ok(
+    (mergeConflictEnv.findings ?? []).some((f) => f.rule === 'verify.merge' && f.severity === 'error'),
+    'STATE-006.S2 & M-02: merge conflict gate must include blocking verify.merge finding',
+  );
+});
+
+// Covers PLUG-006.S1 & CTX-006.S1: Phase-scoped batch apply granularity and deduplicated context compilation
+test('PLUG-006.S1 & CTX-006.S1: compileStep batches same-phase satisfied tasks up to batch_max_tasks with deduplicated REQs and pointers', () => {
+  const root = project({ mode: 'tdd' });
+  livingSpec(root, 'auth', 'AUTH', [
+    req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']]),
+    req('AUTH-002', 'Logout', [['AUTH-002.S1', 'Sign out']]),
+    req('AUTH-003', 'Refresh', [['AUTH-003.S1', 'Renew token']]),
+    req('AUTH-004', 'Audit', [['AUTH-004.S1', 'Log event']]),
+  ]);
+
+  const change = 'batch-apply';
+  assert.equal(medra(root, 'new', change, '--track', 'full').code, 0);
+  proposal(root, change, {
+    track: 'full',
+    caps: [['auth', 'modified', 'AUTH-001, AUTH-002, AUTH-003, AUTH-004']],
+  });
+  write(
+    root,
+    `docs/changes/${change}/specs/auth/spec.md`,
+    delta('auth', [
+      '## MODIFIED Requirements',
+      '',
+      req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']]),
+      req('AUTH-002', 'Logout', [['AUTH-002.S1', 'Sign out']]),
+      req('AUTH-003', 'Refresh', [['AUTH-003.S1', 'Renew token']]),
+      req('AUTH-004', 'Audit', [['AUTH-004.S1', 'Log event']]),
+    ].join('\n')),
+  );
+  write(
+    root,
+    `docs/changes/${change}/plan.md`,
+    `# Plan: ${change}\n\n## Summary\n\nBatch auth.\n\n## Constitution Check\n\n| Article | Gate | Result | Note |\n|---|---|---|---|\n| I | Does every scenario map to a test task ordered before its implementation? | pass | Yes |\n\n## Complexity Tracking\n\nNone.\n\n## Test Strategy\n\n- **Command:** \`npm test\`\n- **Framework:** node:test\n\n| Scenario | Level | Test location |\n|---|---|---|\n| \`AUTH-001.S1\` | unit | \`test/auth.test.js\` |\n\n## Decisions\n\n### D-01: Shared auth helper\n\n**Choice:** Share \`src/auth.js\` for AUTH-001.\n**Alternatives:** Separate files.\n**Rationale:** Reuse.\n`,
+  );
+  write(
+    root,
+    `docs/changes/${change}/tasks.md`,
+    [
+      `# Tasks: ${change}`,
+      '',
+      '## Phase 1: Core Auth',
+      '',
+      '- [ ] T001 [TEST] [AUTH-001] Write test for AUTH-001.S1 in `test/auth.test.js` — verify: red',
+      '- [ ] T002 [AUTH-001] after T001 Implement login in `src/auth.js` using `test/auth.test.js` — verify: green',
+      '- [ ] T003 [AUTH-002] Implement logout in `src/logout.js` — verify: green',
+      '- [ ] T004 [AUTH-001] Implement session check in `src/auth.js` — verify: green',
+      '- [ ] T005 [AUTH-003] Implement refresh in `src/refresh.js` — verify: green',
+      '',
+      '## Phase 2: Audit',
+      '',
+      '- [ ] T006 [AUTH-004] after T001 Implement audit in `src/audit.js` — verify: green',
+      '',
+    ].join('\n'),
+  );
+
+  const env = compileStep(root, change, { stage: 'apply', full: true });
+  assert.equal(env.ok, true);
+  assert.equal(env.action, 'dispatch');
+  assert.equal(env.granularity, 'batch', 'PLUG-006.S1: full-track apply must use batch granularity by default');
+  assert.equal(DEFAULT_CONFIG.apply.granularity, 'batch', 'PLUG-006.S1: DEFAULT_CONFIG.apply.granularity must default to batch');
+  assert.equal(DEFAULT_CONFIG.apply.batch_max_tasks, 4, 'PLUG-006.S1: DEFAULT_CONFIG.apply.batch_max_tasks must default to 4');
+  assert.equal(env.subagents.length, 1);
+
+  const sub = env.subagents[0];
+  assert.deepEqual(
+    sub.task_ids,
+    ['T001', 'T002', 'T003', 'T004'],
+    'PLUG-006.S1: batch must include T001 [TEST], dependent T002, T003, T004 up to batch_max_tasks: 4, excluding T005 and Phase 2 T006',
+  );
+  assert.equal(sub.task_id, 'T001');
+
+  for (const id of ['T001', 'T002', 'T003', 'T004']) {
+    assert.match(sub.prompt, new RegExp(`\\b${id}\\b`), `Batch prompt must include ${id}`);
+  }
+  assert.doesNotMatch(sub.prompt, /\bT005\b/, 'Batch prompt must exclude T005 beyond batch_max_tasks');
+  assert.doesNotMatch(sub.prompt, /\bT006\b/, 'Batch prompt must exclude Phase 2 T006');
+  assert.match(sub.prompt, new RegExp(`medra task done ${change}`), 'Batch prompt must instruct medra task done per task');
+  assert.match(sub.prompt, /needs-decision/, 'Batch prompt must instruct stopping with needs-decision');
+  assert.match(sub.prompt, /task\.test-tampered/, 'Batch prompt must mention stopping on task.test-tampered');
+  assert.match(sub.prompt, /blocked/, 'Batch prompt must mention stopping on blocked');
+
+  // CTX-006.S1: shared REQs, decisions, and code pointers are deduplicated in the compiled prompt
+  assert.equal((sub.prompt.match(/### REQ AUTH-001:/g) ?? []).length, 1, 'CTX-006.S1: AUTH-001 heading must appear once');
+  assert.equal((sub.prompt.match(/### REQ AUTH-002:/g) ?? []).length, 1, 'CTX-006.S1: AUTH-002 heading must appear once');
+  assert.doesNotMatch(sub.prompt, /### REQ AUTH-003:/);
+  assert.doesNotMatch(sub.prompt, /### REQ AUTH-004:/);
+  assert.equal((sub.prompt.match(/### D-01:/g) ?? []).length, 1, 'CTX-006.S1: shared decision D-01 must appear once');
+  assert.equal(sub.pointers.filter((p) => p === 'src/auth.js').length, 1, 'CTX-006.S1: src/auth.js pointer must be deduplicated');
+  assert.equal(sub.pointers.filter((p) => p === 'test/auth.test.js').length, 1, 'CTX-006.S1: test/auth.test.js pointer must be deduplicated');
+  assert.ok(sub.pointers.includes('src/logout.js'));
+  assert.ok(!sub.pointers.includes('src/refresh.js'));
+  assert.ok(!sub.pointers.includes('src/audit.js'));
+  assert.equal((sub.prompt.match(/^- `src\/auth\.js`$/gm) ?? []).length, 1, 'CTX-006.S1: Code Pointers bullet for src/auth.js must appear once');
+  assert.equal((sub.prompt.match(/^- `test\/auth\.test\.js`$/gm) ?? []).length, 1, 'CTX-006.S1: Code Pointers bullet for test/auth.test.js must appear once');
+
+  // Phase boundary even when Phase 1 has fewer tasks than batch_max_tasks
+  const phaseChange = 'batch-phase-boundary';
+  assert.equal(medra(root, 'new', phaseChange, '--track', 'full').code, 0);
+  proposal(root, phaseChange, { track: 'full', caps: [['auth', 'modified', 'AUTH-001, AUTH-002']] });
+  write(
+    root,
+    `docs/changes/${phaseChange}/specs/auth/spec.md`,
+    delta('auth', [
+      '## MODIFIED Requirements',
+      '',
+      req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']]),
+      req('AUTH-002', 'Logout', [['AUTH-002.S1', 'Sign out']]),
+    ].join('\n')),
+  );
+  write(
+    root,
+    `docs/changes/${phaseChange}/tasks.md`,
+    [
+      `# Tasks: ${phaseChange}`,
+      '',
+      '## Phase 1: First',
+      '',
+      '- [ ] T001 [TEST] [AUTH-001] Write test in `test/auth.test.js` — verify: red',
+      '- [ ] T002 [AUTH-001] after T001 Implement in `src/auth.js` — verify: green',
+      '',
+      '## Phase 2: Second',
+      '',
+      '- [ ] T003 [AUTH-002] Implement logout in `src/logout.js` — verify: green',
+      '',
+    ].join('\n'),
+  );
+  const phaseEnv = compileStep(root, phaseChange, { stage: 'apply', full: true });
+  assert.equal(phaseEnv.granularity, 'batch');
+  assert.deepEqual(phaseEnv.subagents[0].task_ids, ['T001', 'T002']);
+  assert.doesNotMatch(phaseEnv.subagents[0].prompt, /\bT003\b/);
+});
+
+// Covers PLUG-006.S2: apply.granularity: 'task' and legacy_fallback preserve single-task dispatch
+test('PLUG-006.S2: compileStep preserves task granularity for apply.granularity: task and 1.x legacy_fallback', () => {
+  const root = project({ mode: 'tdd' });
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
+
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const setApplyCfg = (applyCfg) => {
+    const cfg = YAML.parse(fs.readFileSync(cfgPath, 'utf8'));
+    cfg.apply = { ...cfg.apply, ...applyCfg };
+    fs.writeFileSync(cfgPath, YAML.stringify(cfg));
+  };
+
+  // 1. Explicit apply.granularity: 'task'
+  setApplyCfg({ granularity: 'task', batch_max_tasks: 4 });
+  const taskModeChange = 'task-granularity-override';
+  assert.equal(medra(root, 'new', taskModeChange, '--track', 'full').code, 0);
+  proposal(root, taskModeChange, { track: 'full', caps: [['auth', 'modified', 'AUTH-001']] });
+  write(root, `docs/changes/${taskModeChange}/specs/auth/spec.md`, delta('auth', `## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`));
+  write(
+    root,
+    `docs/changes/${taskModeChange}/tasks.md`,
+    [
+      `# Tasks: ${taskModeChange}`,
+      '',
+      '## Phase 1: Work',
+      '',
+      '- [ ] T001 [TEST] [AUTH-001] Write test in `test/auth.test.js` — verify: red',
+      '- [ ] T002 [AUTH-001] after T001 Implement login in `src/auth.js` — verify: green',
+      '',
+    ].join('\n'),
+  );
+
+  const taskEnv = compileStep(root, taskModeChange, { stage: 'apply', full: true });
+  assert.equal(taskEnv.ok, true);
+  assert.equal(taskEnv.granularity, 'task', 'PLUG-006.S2: apply.granularity: task must dispatch one task at a time');
+  assert.equal(taskEnv.subagents.length, 1);
+  assert.equal(taskEnv.subagents[0].task_id, 'T001');
+  assert.doesNotMatch(taskEnv.subagents[0].prompt, /\bT002\b/);
+
+  // 2. 1.x legacy_fallback forces granularity: 'task' even when apply.granularity is 'batch'
+  setApplyCfg({ granularity: 'batch', batch_max_tasks: 4 });
+  const legacyChange = 'legacy-batch-fallback';
+  assert.equal(medra(root, 'new', legacyChange, '--track', 'full').code, 0);
+  proposal(root, legacyChange, { track: 'full', caps: [['auth', 'modified', 'AUTH-001']] });
+  write(root, `docs/changes/${legacyChange}/specs/auth/spec.md`, delta('auth', `## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`));
+  write(
+    root,
+    `docs/changes/${legacyChange}/tasks.md`,
+    [
+      `# Tasks: ${legacyChange}`,
+      '',
+      '## Phase 1: Work',
+      '',
+      '- [ ] T001 Do the first legacy work — verify: manual check',
+      '- [ ] T002 Do the second legacy work — verify: manual check',
+      '',
+    ].join('\n'),
+  );
+
+  const legacyEnv = compileStep(root, legacyChange, { stage: 'apply', full: true });
+  assert.equal(legacyEnv.ok, true);
+  assert.equal(legacyEnv.legacy_fallback, true);
+  assert.equal(legacyEnv.granularity, 'task', 'PLUG-006.S2: legacy_fallback must force granularity: task even when apply.granularity is batch');
+  assert.equal(legacyEnv.subagents.length, 1);
+  assert.equal(legacyEnv.subagents[0].task_id, 'T001');
+  assert.doesNotMatch(legacyEnv.subagents[0].prompt, /\bT002\b/);
+});
+
+// Covers PLUG-008.S1: deterministic coordinator_steps[] in step envelopes
+test('PLUG-008.S1: compileStep emits coordinator_steps for verify-fix, diff_error, gates, and empty array otherwise', () => {
+  const root = project({ mode: 'none' });
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
+
+  // 1. Normal inline step (propose before proposal.md) -> coordinator_steps: []
+  const change = 'coord-steps-flow';
+  assert.equal(medra(root, 'new', change, '--track', 'full').code, 0);
+  const inlineEnv = compileStep(root, change, { stage: 'propose' });
+  assert.equal(inlineEnv.ok, true);
+  assert.equal(inlineEnv.action, 'inline');
+  assert.deepEqual(inlineEnv.coordinator_steps, [], 'PLUG-008.S1: inline propose step must emit empty coordinator_steps array');
+
+  // 2. Gate step (proposal gate) -> coordinator_steps includes ask_user with gate: 'proposal'
+  proposal(root, change, { track: 'full', caps: [['auth', 'modified', 'AUTH-001']] });
+  write(
+    root,
+    `docs/changes/${change}/specs/auth/spec.md`,
+    delta('auth', `## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`),
+  );
+  const proposalGateEnv = compileStep(root, change, { stage: 'propose' });
+  assert.equal(proposalGateEnv.ok, true);
+  assert.equal(proposalGateEnv.action, 'gate');
+  assert.equal(proposalGateEnv.gate, 'proposal');
+  assert.ok(Array.isArray(proposalGateEnv.coordinator_steps), 'PLUG-008.S1: gate envelope must include coordinator_steps array');
+  const proposalAsk = proposalGateEnv.coordinator_steps.find((s) => s.type === 'ask_user' && s.gate === 'proposal');
+  assert.ok(proposalAsk, 'PLUG-008.S1: proposal gate must emit ask_user step with gate: proposal');
+  assert.equal(typeof proposalAsk.reason, 'string');
+  assert.ok(proposalAsk.reason.length > 0);
+
+  // 3. Normal apply step without diff_error or verify-fix -> coordinator_steps: []
+  assert.equal(medra(root, 'gate', change, 'proposal', '--approve').code, 0);
+  write(
+    root,
+    `docs/changes/${change}/tasks.md`,
+    `# Tasks: ${change}\n\n## Phase 1: AUTH-001\n\n- [ ] T001 [AUTH-001] Implement login in \`src/auth.js\` — verify: ok\n`,
+  );
+  const applyEnv = compileStep(root, change, { stage: 'apply' });
+  assert.equal(applyEnv.ok, true);
+  assert.equal(applyEnv.action, 'dispatch');
+  assert.deepEqual(applyEnv.coordinator_steps, [], 'PLUG-008.S1: normal apply step must emit empty coordinator_steps array');
+
+  // 4. Verify step with diff_error -> coordinator_steps includes ask_user about git diff before subagents[]
+  write(
+    root,
+    `docs/changes/${change}/tasks.md`,
+    `# Tasks: ${change}\n\n## Phase 1: AUTH-001\n\n- [x] T001 [AUTH-001] Implement login in \`src/auth.js\` — verify: ok\n`,
+  );
+  const diffErrEnv = compileStep(root, change, { stage: 'verify', diffBase: 'nonexistent-ref-xyz' });
+  assert.equal(diffErrEnv.ok, true);
+  assert.equal(diffErrEnv.stage, 'verify');
+  assert.equal(diffErrEnv.action, 'dispatch');
+  assert.equal(typeof diffErrEnv.diff_error, 'string');
+  assert.ok(diffErrEnv.diff_error.length > 0);
+  assert.ok(Array.isArray(diffErrEnv.coordinator_steps), 'PLUG-008.S1: verify diff_error envelope must include coordinator_steps array');
+  const diffAsk = diffErrEnv.coordinator_steps.find((s) => s.type === 'ask_user');
+  assert.ok(diffAsk, 'PLUG-008.S1: diff_error must emit ask_user step in coordinator_steps');
+  assert.match(`${diffAsk.reason ?? ''} ${diffAsk.detail ?? ''}`, /diff/i);
+  assert.ok(diffErrEnv.subagents.length > 0);
+
+  // 5. Verify with blocking findings and 0 fix rounds -> coordinator_steps includes medra verify-fix command
+  const fixChange = 'coord-steps-verify-fix';
+  const fixRoot = setupVerifyReadyChange(fixChange, { security: 'not-relevant' });
+  const reportRel = `docs/changes/${fixChange}/reviews/verify-reviewer.md`;
+  touchReport(fixRoot, reportRel, verifyReport('fail'), Date.now() + 5000);
+  const fixEnv = compileStep(fixRoot, fixChange);
+  assert.equal(fixEnv.ok, true);
+  assert.equal(fixEnv.stage, 'verify');
+  assert.equal(fixEnv.action, 'dispatch');
+  assert.equal(fixEnv.subagents[0].role, 'implementer');
+  assert.ok(Array.isArray(fixEnv.coordinator_steps), 'PLUG-008.S1: verify-fix dispatch must include coordinator_steps array');
+  const verifyFixStep = fixEnv.coordinator_steps.find(
+    (s) => s.type === 'command' && s.command === `medra verify-fix ${fixChange} --json`,
+  );
+  assert.ok(verifyFixStep, 'PLUG-008.S1: verify fix implementer dispatch must emit medra verify-fix command step');
+  assert.equal(typeof verifyFixStep.reason, 'string');
+  assert.ok(verifyFixStep.reason.length > 0);
+
+  // 6. Verify gate -> coordinator_steps includes ask_user with gate: 'verify'
+  touchReport(fixRoot, reportRel, verifyReport('pass'), Date.now() + 10000);
+  const verifyGateEnv = compileStep(fixRoot, fixChange);
+  assert.equal(verifyGateEnv.ok, true);
+  assert.equal(verifyGateEnv.stage, 'verify');
+  assert.equal(verifyGateEnv.action, 'gate');
+  assert.equal(verifyGateEnv.gate, 'verify');
+  assert.ok(Array.isArray(verifyGateEnv.coordinator_steps), 'PLUG-008.S1: verify gate must include coordinator_steps array');
+  const verifyGateAsk = verifyGateEnv.coordinator_steps.find((s) => s.type === 'ask_user' && s.gate === 'verify');
+  assert.ok(verifyGateAsk, 'PLUG-008.S1: verify gate must emit ask_user step with gate: verify');
+  assert.equal(typeof verifyGateAsk.reason, 'string');
+  assert.ok(verifyGateAsk.reason.length > 0);
+});
+
+// Covers CTX-007.S1: honest full-stage byte measurement and task vs batch benchmark
+test('CTX-007.S1: measure-envelope.js reports skill_bytes, pipeline_bytes, envelope_bytes, and total_bytes per stage plus task vs batch benchmark', () => {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const scriptPath = path.join(repoRoot, 'cli', 'scripts', 'measure-envelope.js');
+  const res = spawnSync(process.execPath, [scriptPath], { cwd: repoRoot, encoding: 'utf8' });
+  assert.equal(res.status, 0, res.stderr || res.stdout);
+
+  const jsonStart = res.stdout.indexOf('{');
+  assert.ok(jsonStart !== -1, 'measure-envelope.js must output JSON summary');
+  const summary = JSON.parse(res.stdout.slice(jsonStart));
+  assert.ok(Array.isArray(summary.stages) && summary.stages.length > 0, 'summary.stages must be non-empty');
+
+  for (const row of summary.stages) {
+    assert.equal(typeof row.skill_bytes, 'number', `${row.stage}: skill_bytes must be numeric`);
+    assert.equal(typeof row.pipeline_bytes, 'number', `${row.stage}: pipeline_bytes must be numeric`);
+    assert.equal(typeof row.envelope_bytes, 'number', `${row.stage}: envelope_bytes must be numeric`);
+    assert.equal(row.envelope_bytes, row.cli_json_bytes, `${row.stage}: envelope_bytes must equal cli_json_bytes`);
+    assert.equal(
+      row.total_bytes,
+      row.skill_bytes + row.pipeline_bytes + row.envelope_bytes,
+      `${row.stage}: total_bytes must equal skill_bytes + pipeline_bytes + envelope_bytes`,
+    );
+  }
+
+  assert.ok(summary.remodel_benchmark, 'summary.remodel_benchmark must be present');
+  const { task, batch } = summary.remodel_benchmark;
+  assert.ok(task && batch, 'remodel_benchmark must include task and batch metrics');
+  assert.equal(typeof task.dispatches, 'number');
+  assert.equal(typeof batch.dispatches, 'number');
+  assert.equal(typeof task.total_bytes, 'number');
+  assert.equal(typeof batch.total_bytes, 'number');
+  assert.ok(task.dispatches > batch.dispatches, `expected task.dispatches (${task.dispatches}) > batch.dispatches (${batch.dispatches})`);
+  assert.ok(batch.total_bytes < task.total_bytes, `expected batch.total_bytes (${batch.total_bytes}) < task.total_bytes (${task.total_bytes})`);
 });
 

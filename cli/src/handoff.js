@@ -18,7 +18,7 @@ const MAX_CHANGED = 100;
 // .medra.yaml is committed with the project, so a change touching more files than this keeps no
 // snapshot; its rounds are full passes.
 const MAX_SNAPSHOT = 300;
-const ROUND_FILE = /-(verify|security)-agent-r(\d+)\.md$/;
+const ROUND_FILE = /(?:^|-)(verify|security)-(agent|reviewer|security)-r(\d+)\.md$/;
 
 /** Round reports in reviews/, as { kind, round, file }, by file name. */
 function roundReports(root, change) {
@@ -26,30 +26,43 @@ function roundReports(root, change) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).map((name) => {
     const m = ROUND_FILE.exec(name);
-    return m ? { kind: m[1], round: Number(m[2]), file: path.join(dir, name) } : null;
+    if (!m) return null;
+    const kind = m[2] === 'security' ? 'security' : m[2] === 'reviewer' ? 'verify' : m[1];
+    return { kind, round: Number(m[3]), file: path.join(dir, name) };
   }).filter(Boolean);
 }
 
 const changedBetween = (before, after) => [...new Set([...Object.keys(before), ...Object.keys(after)])]
   .filter((f) => before[f] !== after[f]).sort();
 
-function roundPayload(root, change, contract, state, { fixed }) {
+/**
+ * Non-throwing verify round preparation shared between `medra handoff` and `medra step`.
+ * Returns `{ ok: true, findings: [], payload }` or `{ ok: false, findings, payload: null }`.
+ */
+export function prepareVerifyRound(root, change, contract, opts = {}) {
   const spec = CONTRACTS[contract];
+  if (!spec || !spec.kind) throw usageError(`Unknown round handoff "${contract}"; use check or audit`);
+  const state = opts.state ?? loadState(root, change);
+  const forStep = opts.forStep === true;
   const findings = [];
-  const tasks = loadTasks(root, change)?.tasks ?? [];
-  if (!tasks.length || tasks.some((t) => !t.done)) {
-    findings.push(finding('handoff.tasks', 'Every task must be done before the check', { remediation: `Finish the open tasks with /medra:apply ${change}` }));
+
+  if (!forStep) {
+    const tasks = loadTasks(root, change)?.tasks ?? [];
+    if (!tasks.length || tasks.some((t) => !t.done)) {
+      findings.push(finding('handoff.tasks', 'Every task must be done before the check', { remediation: `Finish the open tasks with /medra:apply ${change}` }));
+    }
+    if (contract === 'check') findings.push(...errorsOf(changeFindings(root, change, 'tasks')));
+    if (contract === 'audit' && securityRelevance(root, change) !== 'relevant') {
+      findings.push(finding('handoff.security', 'The proposal does not say **Security:** relevant; this change gets no audit'));
+    }
   }
-  if (contract === 'check') findings.push(...errorsOf(changeFindings(root, change, 'tasks')));
-  if (contract === 'audit' && securityRelevance(root, change) !== 'relevant') {
-    findings.push(finding('handoff.security', 'The proposal does not say **Security:** relevant; this change gets no audit'));
-  }
+
   // A receiver's round is wasted on code whose suite is red or whose deltas no longer merge.
   findings.push(...suiteFindings(root, change, state), ...mergeFindings(root, change));
   const reports = roundReports(root, change);
   const round = Math.max(0, ...reports.map((r) => r.round)) + 1;
   const previous = reports.filter((r) => r.kind === spec.kind).sort((a, b) => a.round - b.round).pop() ?? null;
-  const fixedIds = listOpt(fixed);
+  const fixedIds = forStep ? [] : listOpt(opts.fixed);
   if (fixedIds.length) {
     if (!previous) findings.push(finding('handoff.fixed', '--fixed needs an earlier report of this receiver', { remediation: 'Omit --fixed on the first round' }));
     else {
@@ -61,26 +74,30 @@ function roundPayload(root, change, contract, state, { fixed }) {
       }
     }
   }
-  if (findings.length) throw refused(findings);
+  if (findings.length) return { ok: false, findings, payload: null };
 
   const dir = changeDir(root, change);
-  fs.mkdirSync(path.join(dir, 'reviews'), { recursive: true });
+  if (!forStep) fs.mkdirSync(path.join(dir, 'reviews'), { recursive: true });
+  const reportName = forStep
+    ? `${today()}-verify-${spec.agent}-r${round}.md`
+    : `${today()}-${spec.kind}-agent-r${round}.md`;
+  const diffBase = opts.diffBase ?? state.diff_base ?? 'none';
   const payload = {
     change,
     change_path: rel(root, dir),
-    diff_base: state.diff_base ?? 'none',
-    report_path: rel(root, path.join(dir, 'reviews', `${today()}-${spec.kind}-agent-r${round}.md`)),
+    diff_base: diffBase,
+    report_path: rel(root, path.join(dir, 'reviews', reportName)),
     round,
   };
   if (previous) {
     payload.previous_report = rel(root, previous.file);
-    payload.fixed_findings = fixedIds;
+    if (!forStep) payload.fixed_findings = fixedIds;
   }
   // The snapshot of this round is what the next round is compared against. Rounds older than the
   // previous report are dropped, so the state keeps at most two snapshots per contract.
   const { testing } = loadConfig(root);
   if (testing.mode !== 'none' && testing.command) payload.suite = 'green';
-  const now = snapshot(root, payload.diff_base, { max: MAX_SNAPSHOT });
+  const now = snapshot(root, diffBase, { max: MAX_SNAPSHOT });
   const kept = state.handoff_snapshots?.[contract] ?? {};
   if (previous && now && kept[previous.round]) {
     const changed = changedBetween(kept[previous.round], now);
@@ -89,10 +106,22 @@ function roundPayload(root, change, contract, state, { fixed }) {
   if (now) {
     const next = previous && kept[previous.round] ? { [previous.round]: kept[previous.round] } : {};
     next[round] = now;
-    state.handoff_snapshots = { ...(state.handoff_snapshots ?? {}), [contract]: next };
-    saveState(root, change, state);
+    const prevSaved = state.handoff_snapshots?.[contract];
+    const unchanged = prevSaved
+      && Object.keys(prevSaved).length === Object.keys(next).length
+      && Object.entries(next).every(([k, v]) => JSON.stringify(prevSaved[k]) === JSON.stringify(v));
+    if (!unchanged) {
+      state.handoff_snapshots = { ...(state.handoff_snapshots ?? {}), [contract]: next };
+      saveState(root, change, state);
+    }
   }
-  return payload;
+  return { ok: true, findings: [], payload };
+}
+
+function roundPayload(root, change, contract, state, opts) {
+  const res = prepareVerifyRound(root, change, contract, { ...opts, state, forStep: false });
+  if (!res.ok) throw refused(res.findings);
+  return res.payload;
 }
 
 function threatModelPayload(root, change, state, { focus }) {

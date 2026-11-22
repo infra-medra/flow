@@ -2,6 +2,23 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.0.0-rc.5] — 2026-11-22
+
+### Added
+- **Incremental `verify` handoff & pre-dispatch checks (Item 1).** Reused `prepareVerifyRound` (`cli/src/handoff.js`) in `buildVerifySubagents` (`cli/src/step.js`) to emit per-subagent `round`, round-numbered `report` (`reviews/<date>-verify-<role>-r<N>.md`), `previous_report`, `changed_since_previous` (from round 2+), and `suite` (when `testing.command` is configured); enforced pre-dispatch checks (current green suite and `verify.merge`) returning `action: "gate"` with blocking `findings` on failure; kept `latestReport` / `reportFreshness` accurate across round-numbered files; updated `cli/schemas/envelope.schema.json` and `contracts/step-envelope.schema.json`.
+- **Phase-scoped `batch` `apply` granularity (Item 2).** Added `apply.granularity: "batch"` (default; `"task"` or `legacy_fallback` preserves per-task dispatch) and `apply.batch_max_tasks: 4` in `DEFAULT_CONFIG`, grouping pending same-phase tasks with satisfied dependencies (including `[TEST]` + dependent implementation tasks) into `granularity: "batch"` with deduplicated REQs, decisions, learnings, and pointers, per-task `medra task done` checkpoints, and immediate `needs-decision` stop on `task.test-tampered` or `blocked`.
+  - **`task` vs `batch` benchmark (`2026-11-21-remodel-deterministic-v2-flow`):** `task` granularity required `14` dispatches (`189,545 B` total) vs `batch` granularity with `5` dispatches (`68,113 B` total, `-64.1%`).
+- **Deterministic `coordinator_steps[]` in step envelopes (Item 5).** Emitted explicit ordered `coordinator_steps[]` (e.g., `medra verify-fix` before verify fix `implementer`, `ask_user` on `diff_error` or `action: "gate"`) in `compileStep` / `compileVerifyStep` and updated `envelope.schema.json` and `step-envelope.schema.json`.
+- **CLI-level `MEDRA_SUBAGENT=1` enforcement (Item 6).** Refused `medra verify-fix`, `medra gate <c> <s> --approve`, and `medra gate <c> <s> --request-changes` with exit code `1` when `MEDRA_SUBAGENT=1` is set (covering Antigravity where Claude Code `PreToolUse` hooks do not run), and documented `MEDRA_SUBAGENT=1` propagation and remaining manual file-edit boundaries in `plugins/medra/references/portability.md` and `plugins/medra/references/gate.md`.
+
+### Changed
+- **Honest token & byte measurement (Item 3).** Updated `cli/scripts/measure-envelope.js` to account for coordinator skills + pointed pipelines + compiled envelopes/prompts per stage across 5 stages (`12,849 B` skills + `74,369 B` pipelines + `4,956 B` envelopes = `92,174 B`), correcting the `2.0.0-rc.1` `SKILL.md`-only `-78.9%` (`18,568 B` vs `88,176 B`) comparison that omitted pointed `plugins/medra/pipelines/*.md` files.
+- **Agent-oriented coordinator skills (Item 4).** Rewrote all 9 coordinator skills (`plugins/medra/skills/*/SKILL.md`) to a lean structure (`Purpose`, `Input`, `Preconditions`, `Loop`/`Steps`, `Avoid` with rationale), removing spec IDs and redundant stage-dispatch rules, restoring the user-language rule, and executing `coordinator_steps[]` directly.
+- **Clean `docs/config-flow.yaml` (Item 7).** Set `models.plan: inherit` (eliminating the `inline` stage model-override warning in `medra validate --project specs --json`) and documented `apply.granularity` and `apply.batch_max_tasks`.
+
+### Verified
+- **External-repo `/medra:run` E2E (`propose` -> `archive`).** Executed a full-track `add-greeting` change in an isolated temporary git repository outside `harness` (`init` -> `constitution ratify` -> `install --target antigravity` -> `new --track full` -> `propose` (`inline`) -> `gate proposal` -> `plan` (`inline`) -> `gate plan` -> `tasks` (`inline`) -> `gate tasks` -> `apply` (`batch`, 1 batch for `T001`+`T002`) -> `task done` (`T001` red, `T002` green) -> `suite` -> `verify` (`round: 1`, `report: ...-r1.md`, `suite: "green"`) -> `review` -> `gate verify` -> `archive`), ending with `medra status --json` (`changes: []`) and `medra validate --project specs --json` (`findings: []`).
+
 ## [2.0.0-rc.4] — 2026-11-22
 
 ### Fixed

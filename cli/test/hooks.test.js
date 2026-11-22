@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { write, project, brownfieldChange } from './helpers.js';
+import { write, project, brownfieldChange, BIN, rules } from './helpers.js';
 
 const PLUGIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'plugins', 'medra');
 const GUARD = path.join(PLUGIN, 'hooks', 'guard.mjs');
@@ -158,4 +158,39 @@ test('guard [PLUG-004.S4, PLUG-002.S2, M-01]: medra verify-fix allows coordinato
   const portabilityDoc = fs.readFileSync(path.join(PLUGIN, 'references', 'portability.md'), 'utf8');
   assert.match(portabilityDoc, /verify-fix/, 'references/portability.md must document medra verify-fix subagent boundary');
   assert.match(portabilityDoc, /Antigravity/i, 'references/portability.md must document Antigravity boundary');
+});
+
+test('PLUG-009.S1 & M-01: CLI refuses verify-fix and gate --approve/--request-changes when MEDRA_SUBAGENT=1', () => {
+  const root = project();
+  const change = brownfieldChange(root);
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.MEDRA_SUBAGENT;
+  const subagentEnv = { ...cleanEnv, MEDRA_SUBAGENT: '1' };
+
+  const runCli = (args, env) => {
+    const res = spawnSync(process.execPath, [BIN, ...args], { cwd: root, encoding: 'utf8', env });
+    let json = null;
+    try { json = JSON.parse(res.stdout.trim().split('\n').pop()); } catch { /* non-JSON output */ }
+    return { code: res.status, json, stdout: res.stdout, stderr: res.stderr };
+  };
+
+  const verifyFixRes = runCli(['verify-fix', change, '--json'], subagentEnv);
+  assert.equal(verifyFixRes.code, 1);
+  assert.equal(verifyFixRes.json?.ok, false);
+  assert.ok(rules(verifyFixRes).includes('subagent.forbidden'), `expected subagent.forbidden, got: ${verifyFixRes.stdout}`);
+
+  const approveRes = runCli(['gate', change, 'proposal', '--approve', '--json'], subagentEnv);
+  assert.equal(approveRes.code, 1);
+  assert.equal(approveRes.json?.ok, false);
+  assert.ok(rules(approveRes).includes('subagent.forbidden'), `expected subagent.forbidden, got: ${approveRes.stdout}`);
+
+  const reqChangesRes = runCli(['gate', change, 'proposal', '--request-changes', '--note', 'x', '--json'], subagentEnv);
+  assert.equal(reqChangesRes.code, 1);
+  assert.equal(reqChangesRes.json?.ok, false);
+  assert.ok(rules(reqChangesRes).includes('subagent.forbidden'), `expected subagent.forbidden, got: ${reqChangesRes.stdout}`);
+
+  const coordApproveRes = runCli(['gate', change, 'proposal', '--approve', '--json'], cleanEnv);
+  assert.equal(coordApproveRes.code, 0, coordApproveRes.stdout || coordApproveRes.stderr);
+  assert.equal(coordApproveRes.json?.ok, true);
+  assert.equal(coordApproveRes.json?.status, 'approved');
 });

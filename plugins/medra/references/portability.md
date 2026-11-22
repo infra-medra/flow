@@ -21,8 +21,8 @@ medra runs from the same instructions on Claude Code and on Antigravity, where i
 
 ## Subagent Gate Protection
 
-- **Claude Code:** `PreToolUse` hooks (`hooks/guard.mjs`) enforce gate and fix-round protection automatically by denying `medra gate ... --approve` and `medra verify-fix` when `agent_id` is present or `MEDRA_SUBAGENT=1` is set (`medra verify-fix` is coordinator-only).
-- **Antigravity:** Antigravity lacks native `PreToolUse` hooks, so subagent protection is enforced by role boundary: subagent instructions prohibit calling `medra gate ... --approve` and `medra verify-fix`, and human gates and fix-round recording are handled only by the coordinator.
+- **Claude Code:** `PreToolUse` hooks (`hooks/guard.mjs`) enforce gate and fix-round protection automatically by denying `medra gate ... --approve`, `medra gate ... --request-changes`, and `medra verify-fix` when `agent_id` is present or `MEDRA_SUBAGENT=1` is set (`medra verify-fix` is coordinator-only).
+- **Antigravity:** Antigravity lacks native `PreToolUse` hooks, so dispatched Antigravity subagents receive `MEDRA_SUBAGENT=1` in their environment (matching Claude Code's `PreToolUse` `agent_id` / `MEDRA_SUBAGENT=1` signal). The CLI itself enforces this boundary by refusing `medra verify-fix`, `medra gate ... --approve`, and `medra gate ... --request-changes` whenever `MEDRA_SUBAGENT=1` is set, while human gates and fix-round recording remain coordinator-only and direct file-edit restrictions rely on role boundaries and CLI hash/gate verification.
 
 ## Subagent Model Selection
 

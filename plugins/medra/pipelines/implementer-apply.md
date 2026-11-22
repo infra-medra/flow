@@ -56,10 +56,11 @@ The current task implemented in code and checkpointed by `medra task done`, with
 - **For an implementation task:** write the minimum code that satisfies the requirement, then run `medra task done <change> <T> --run "<focused command>"` as the green run itself: it executes the command, checkpoints on exit `0`, and on a failure records nothing and returns the trimmed failure output (`task.green`). Fix and repeat; run the test command yourself only when that output is not enough to diagnose the failure. When you refactor after a green checkpoint, re-run the focused tests before the next task.
 - **Same-session `[P]` batching:** when `medra context` (`## Parallel batch`) or `medra task done` lists multiple `[P]` tasks from the same phase and kind (`[TEST]` or implementation), write or edit their files in parallel tool calls in the same turn, then checkpoint each task individually with `medra task done <change> <T> ...`.
 - When there is no test command (mode `none`), or the task names no requirement and no mitigation (setup, documentation), perform the task's verify step and record it with `--evidence "<what was checked and observed>" --kind manual`. A task tied to a requirement or an `M-NN` takes only `--run`: the CLI refuses written `red` or `green` evidence (`task.evidence`).
-- When `medra task done` refuses with `task.test-tampered`, stop the task and go to Escalation. Do not retry the command, and do not edit the test file again.
-- When the task cannot proceed (missing access, unclear spec, an external failure), run `medra task block <change> <T> --note "<cause>"` and continue with the next task whose dependencies allow it.
-- Take the following task (`Next task` or `Parallel batch`) directly from `medra task done` or `medra task block` output, then repeat.
-- **Session budget:** when the following task opens a new phase of `tasks.md` and this run has already checkpointed 6 or more tasks, go to Delivery instead of starting it.
+- **Batch-mode execution (`granularity: "batch"`):** when dispatched with multiple `Target Tasks` (`task_ids`) from the same phase, work through each task in order and checkpoint **each** task individually with `medra task done <change> <T-ID> --run "<focused command>"` before starting the next task in the batch. Do not defer checkpoints until the end of the batch.
+- When `medra task done` refuses with `task.test-tampered`, stop the task immediately and go to Escalation (returning `needs-decision` to the coordinator). Do not retry the command, do not edit the test file again, and do not start any remaining tasks in the batch.
+- When a task cannot proceed (missing access, unclear spec, an external failure) (`blocked`), run `medra task block <change> <T> --note "<cause>"`. In `batch` mode, stop immediately and return `needs-decision` without starting remaining tasks in the batch; otherwise continue with the next task whose dependencies allow it.
+- Take the following task (`Next task`, `Parallel batch`, or the next task in your assigned batch) directly from `medra task done` or `medra task block` output, then repeat.
+- **Session budget:** the session budget applies **per batch** (default up to 4 same-phase tasks in `batch` mode — go to Delivery once the assigned batch completes, and never cross into the next `tasks.md` phase; in `inline` or `task` mode, go to Delivery when the following task opens a new phase of `tasks.md` and this run has already checkpointed 6 or more tasks).
 
 **Avoid**
 - Don't weaken, skip, or delete a test to reach green — `medra task done` hashes the test files at `red` and refuses `green` (`task.test-tampered`) if they were modified, and runs `testing.checks` (`task.check`) when configured.
@@ -67,7 +68,7 @@ The current task implemented in code and checkpointed by `medra task done`, with
 - Don't pass `--allow-test-edit` on your own judgment, on a vague reply, or on a reply to a different question — because the override accepts a change to evidence the reviewer relies on, and the user alone decides it.
 - Don't edit `tasks.md` checkboxes or evidence lines by hand — because `medra task done` enforces ordering and evidence; a hand tick is a task with no proof.
 - Don't run the tests to green yourself and then repeat the same command through `medra task done --run` — because the checkpoint already runs it; the second run doubles the test time of every task and proves nothing new.
-- Don't batch several tasks before checkpointing — because a compaction mid-batch loses every unrecorded task.
+- Don't batch several tasks before checkpointing — because a compaction mid-batch loses every unrecorded task; even in `batch` dispatch mode, checkpoint each task with `medra task done` before moving to the next.
 
 **Exit when:**
 - [ ] `medra task done` exited `0` for the task, or `medra task block` recorded its blocker
