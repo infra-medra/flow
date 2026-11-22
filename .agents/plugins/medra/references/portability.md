@@ -6,7 +6,20 @@ medra runs from the same instructions on Claude Code and on Antigravity, where i
 | Need | Claude Code | Antigravity | Any runtime without the tool |
 |---|---|---|---|
 | Invocable command | `/medra:<command>` slash command | `/medra:<command>` slash command | Read `.agents/plugins/medra/skills/<name>/SKILL.md` |
-| Read templates, handoffs, pipelines | Read `.agents/plugins/medra/...` | `read_file` on `.agents/plugins/medra/...` | Read file directly |
+| Read templates, handoffs, pipelines | Read `.agents/plugins/medra/...` | `read_file` on `.agents/plugins/medra/...` (workspace install) or `plugins/medra/...` (source repo) | Read file directly |
 | Ask a structured question | `AskUserQuestion`, at most 4 questions per call | `ask_question` | Numbered options in chat; wait for an explicit reply |
 | Delegate to another agent | `Agent` tool, under the handoff contract the pipeline names | `invoke_subagent` with the agent the handoff names, under the same contract | Run the receiver's pipeline yourself, in a separate section headed with the receiver's name. Apply its constraints for the duration, then return to your own role with only its response fields. When a pipeline dispatches two receivers in parallel, run them one after the other |
 | Command arguments | Given to the command skill | The text the user typed after the command | Same as Antigravity |
+
+## `plugin_pointers` Resolution
+
+`medra step --json` separates project-relative `pointers` (change documents, specs, source files) from plugin-relative `plugin_pointers` (pipelines, templates, references):
+
+- **Claude Code:** Resolve `plugin_pointers` under `.agents/plugins/medra/...`.
+- **Antigravity:** Resolve `plugin_pointers` under `.agents/plugins/medra/...` when the plugin is installed locally in the workspace (`medra install --target antigravity`), or `plugins/medra/...` when working inside the medra source repository.
+- **Project `pointers`:** Always resolve relative to the project root, independent of `plugin_pointers`.
+
+## Subagent Gate Protection
+
+- **Claude Code:** `PreToolUse` hooks (`hooks/guard.mjs`) enforce gate protection automatically by denying `medra gate ... --approve` when `agent_id` is present or `MEDRA_SUBAGENT=1` is set.
+- **Antigravity:** Antigravity lacks native `PreToolUse` hooks, so subagent gate protection is enforced by role boundary: subagent instructions prohibit calling `medra gate ... --approve`, and human gates are presented and approved only by the coordinator interacting with the user.

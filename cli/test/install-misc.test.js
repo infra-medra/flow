@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { medra, medraHuman, write, read, project, req, livingSpec, proposal, delta, tasks, verifyReport, securityReport, rules, brownfieldChange } from './helpers.js';
+import { loadConfig } from '../src/core.js';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CLI_ROOT = path.join(REPO_ROOT, 'cli');
@@ -407,11 +408,11 @@ test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3: coordinator skills handle diff_erro
   }
 });
 
-test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.2', () => {
+test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.3', () => {
   const pkgVersion = JSON.parse(fs.readFileSync(path.join(CLI_ROOT, 'package.json'), 'utf8')).version;
   const pluginVersion = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'plugins', 'medra', '.claude-plugin', 'plugin.json'), 'utf8')).version;
-  assert.equal(pkgVersion, '2.0.0-rc.2');
-  assert.equal(pluginVersion, '2.0.0-rc.2');
+  assert.equal(pkgVersion, '2.0.0-rc.3');
+  assert.equal(pluginVersion, '2.0.0-rc.3');
 
   const checkVer = spawnSync(process.execPath, [path.join(CLI_ROOT, 'scripts', 'check-version.js')], { cwd: REPO_ROOT, encoding: 'utf8' });
   assert.equal(checkVer.status, 0, checkVer.stdout + checkVer.stderr);
@@ -422,14 +423,20 @@ test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.2', () 
   assert.equal(driftRes.status, 0, driftRes.stdout + driftRes.stderr);
 });
 
-test('STATE-005.S1: 2.0.0-rc.2 CLI runs cleanly on 1.x docs layout without models config', () => {
+test('STATE-005.S1: 2.0.0-rc.3 CLI runs cleanly on 1.x docs layout without models or apply config', () => {
   const root = project();
   const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
-  fs.writeFileSync(cfgPath, fs.readFileSync(cfgPath, 'utf8').replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n'));
+  const strippedCfg = fs.readFileSync(cfgPath, 'utf8')
+    .replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n')
+    .replace(/\n?apply:\n(?:[ \t]+.*\n)*/g, '\n');
+  fs.writeFileSync(cfgPath, strippedCfg);
   const change = brownfieldChange(root);
 
   const v = medra(CLI_ROOT, '--version');
-  assert.equal(v.stdout.trim(), '2.0.0-rc.2');
+  assert.equal(v.stdout.trim(), '2.0.0-rc.3');
+
+  const loaded = loadConfig(root);
+  assert.equal(loaded.apply?.inline_max_tasks, 3);
 
   const st = medra(root, 'status');
   assert.equal(st.code, 0);
@@ -441,4 +448,25 @@ test('STATE-005.S1: 2.0.0-rc.2 CLI runs cleanly on 1.x docs layout without model
   assert.equal(stepRes.code, 0);
   assert.equal(stepRes.json.model.tier, 'inherit');
   assert.equal(stepRes.json.model.fallback, 'inherit');
+});
+
+test('PLUG-002.S1 & PLUG-002.S2: Antigravity bundle installs into .agents/plugins/medra/ and portability.md documents plugin_pointers and Antigravity gate boundary', () => {
+  // PLUG-002.S1: bundling for Antigravity workspace into .agents/plugins/medra/
+  const root = project();
+  const inst = medra(root, 'install', '--target', 'antigravity');
+  assert.equal(inst.code, 0, inst.stderr);
+  assert.equal(inst.json.plugin, '.agents/plugins/medra');
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'pipelines', 'implementer-apply.md')));
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'templates', 'proposal', 'template.md')));
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'references', 'portability.md')));
+
+  // PLUG-002.S2: references/portability.md documents plugin_pointers / ${CLAUDE_PLUGIN_ROOT}/ resolution and Antigravity gate boundary
+  const portabilityPath = path.join(REPO_ROOT, 'plugins', 'medra', 'references', 'portability.md');
+  const portability = fs.readFileSync(portabilityPath, 'utf8');
+  assert.match(portability, /plugin_pointers/, 'portability.md must document plugin_pointers');
+  assert.match(portability, /\$\{CLAUDE_PLUGIN_ROOT\}/, 'portability.md must document ${CLAUDE_PLUGIN_ROOT}/ resolution');
+  assert.match(portability, /Claude Code/i);
+  assert.match(portability, /Antigravity/i);
+  assert.match(portability, /gate/i, 'portability.md must document the Antigravity equivalent for subagent gate protection');
+  assert.match(portability, /PreToolUse|hooks/i, 'portability.md must contrast Claude Code PreToolUse hooks with Antigravity');
 });

@@ -106,15 +106,23 @@ test('guard [PLUG-004.S1]: hand-edits to .medra.yaml and docs/changes/archive/ a
   assert.equal(bash(`echo "x" >> docs/changes/archive/INDEX.md`), 'deny');
 });
 
-test('guard [PLUG-004.S2]: medra gate --approve asks in coordinator context and denies when subagent is signaled', () => {
+test('guard [PLUG-004.S2, PLUG-004.S3]: medra gate --approve asks in coordinator context and denies when subagent is signaled', () => {
   const cleanEnv = { ...process.env };
   delete cleanEnv.MEDRA_SUBAGENT;
 
   assert.equal(bash('medra gate add-reset plan --approve', { env: cleanEnv }), 'ask');
   assert.equal(bash('medra gate add-reset plan --approve', { env: { ...cleanEnv, MEDRA_SUBAGENT: '0' } }), 'ask');
+  assert.equal(bash('medra gate add-reset plan --approve', { extra: { agent_id: '' }, env: cleanEnv }), 'ask');
   assert.equal(bash('medra gate add-reset plan --approve', { extra: { agent_id: 'subagent-1' }, env: cleanEnv }), 'deny');
   assert.equal(bash('cd app && medra gate add-reset verify --approve --note "x"', { extra: { agent_id: 'subagent-2' }, env: cleanEnv }), 'deny');
   assert.equal(bash('medra gate add-reset plan --approve', { env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
   assert.equal(bash('node cli/bin/medra.js gate add-reset verify --approve', { env: cleanEnv }), 'ask');
   assert.equal(bash('node cli/bin/medra.js gate add-reset verify --approve', { extra: { agent_id: 'subagent-3' }, env: cleanEnv }), 'deny');
+  assert.equal(bash('node cli/bin/medra.js gate add-reset verify --approve', { env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
+  assert.equal(bash('medra gate add-reset verify --approve', { extra: { agent_id: 'subagent-4' }, env: { ...cleanEnv, MEDRA_SUBAGENT: '1' } }), 'deny');
+
+  const gateDoc = fs.readFileSync(path.join(PLUGIN, 'references', 'gate.md'), 'utf8');
+  assert.match(gateDoc, /agent_id/, 'references/gate.md must document Claude Code PreToolUse agent_id detection');
+  assert.match(gateDoc, /MEDRA_SUBAGENT=1/, 'references/gate.md must document MEDRA_SUBAGENT=1 fallback');
+  assert.match(gateDoc, /Antigravity/i, 'references/gate.md must document platform limitation (e.g. Antigravity)');
 });

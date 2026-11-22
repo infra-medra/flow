@@ -25,6 +25,8 @@ export function loadState(root, change) {
   state.reviews ??= [];
   state.track_history ??= [];
   state.blockers ??= [];
+  state.verify_fix_rounds ??= 0;
+  state.last_fix_round_at ??= null;
   return state;
 }
 

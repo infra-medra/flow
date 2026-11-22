@@ -73,6 +73,7 @@ export function newChange(root, change, { track = 'fast' }) {
   const state = {
     change, created: today(), track, phase: 'proposed', diff_base: git(root, ['rev-parse', '--short', 'HEAD']) ?? 'none',
     gates: Object.fromEntries(GATES.map((g) => [g, { status: 'pending' }])), gate_notes: [], reviews: [], track_history: [], blockers: [],
+    verify_fix_rounds: 0, last_fix_round_at: null,
   };
   saveState(root, change, state);
   return { change, path: rel(root, dir), track, findings: warnings };
@@ -430,6 +431,19 @@ export function suite(root, change) {
   state.suite = { at: nowIso(), exit: 0, commands, fingerprint: fingerprint(root, state) };
   saveState(root, change, state);
   return { ran: commands, exit: 0 };
+}
+
+export function verifyFix(root, change) {
+  const state = loadState(root, change);
+  state.verify_fix_rounds = Number(state.verify_fix_rounds || 0) + 1;
+  state.last_fix_round_at = new Date().toISOString();
+  saveState(root, change, state);
+  return {
+    ok: true,
+    change,
+    verify_fix_rounds: state.verify_fix_rounds,
+    last_fix_round_at: state.last_fix_round_at,
+  };
 }
 
 export function taskBlock(root, change, id, { note }, unblock = false) {

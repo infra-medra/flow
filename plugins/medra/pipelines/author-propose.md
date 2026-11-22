@@ -161,7 +161,7 @@ A bounded summary for the coordinator with the exit validation command run.
 - Don't run `medra gate` — because the coordinator presents the proposal gate to the user.
 
 **Exit when:**
-- [ ] The summary counts match `medra context <change> --stage propose --json`
+- [ ] The summary counts match `medra status <change> --json` and the delta files on disk
 - [ ] The `exit_command` has been executed
 
 ## Knowledge

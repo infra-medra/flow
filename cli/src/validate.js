@@ -244,7 +244,7 @@ function tasksFindings(root, change) {
   return out;
 }
 
-function verifyFindings(root, change, state) {
+export function verifyFindings(root, change, state = loadState(root, change)) {
   const out = [];
   const parsed = loadTasks(root, change);
   const file = rel(root, path.join(changeDir(root, change), 'tasks.md'));
@@ -258,17 +258,19 @@ function verifyFindings(root, change, state) {
   }
   out.push(...suiteFindings(root, change, state), ...mergeFindings(root, change));
   const report = latestReport(root, change, 'verify');
-  const lastDone = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
+  const lastDoneMs = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
+  const lastFixMs = state.last_fix_round_at ? Date.parse(state.last_fix_round_at) : 0;
+  const freshFloor = Math.max(lastDoneMs || 0, lastFixMs || 0);
   if (!report) out.push(finding('verify.report', 'No verify review report in reviews/', { remediation: 'Run reviewer verification via /medra:verify to produce a review report' }));
   else {
-    if (report.mtime < lastDone) out.push(finding('verify.report', 'The verify report is older than the last task done; re-run the check', { file: rel(root, report.file), remediation: 'Re-run /medra:verify check because tasks were completed after the last report' }));
+    if (report.mtime < freshFloor) out.push(finding('verify.report', 'The verify report is older than the last task done or fix round; re-run the check', { file: rel(root, report.file), remediation: 'Re-run /medra:verify check because tasks or fix rounds were completed after the last report' }));
     if (!['pass', 'pass-with-findings'].includes(report.verdict)) out.push(finding('verify.report', `Verify verdict is ${report.verdict}`, { file: rel(root, report.file), remediation: 'Address reported findings and re-run /medra:verify until verdict is pass or pass-with-findings' }));
   }
   // verify.security-report: presence only. Its verdict informs the gate and never blocks it.
   if (securityRelevance(root, change) === 'relevant') {
     const sec = latestReport(root, change, 'security');
     if (!sec) out.push(finding('verify.security-report', 'No security report in reviews/; the proposal says **Security:** relevant', { remediation: 'Run security audit via /medra:verify to generate a security report in reviews/' }));
-    else if (sec.mtime < lastDone) out.push(finding('verify.security-report', 'The security report is older than the last task done; re-run the audit', { file: rel(root, sec.file), remediation: 'Re-run security audit (/medra:verify) because tasks were completed after the last audit' }));
+    else if (sec.mtime < freshFloor) out.push(finding('verify.security-report', 'The security report is older than the last task done or fix round; re-run the audit', { file: rel(root, sec.file), remediation: 'Re-run security audit (/medra:verify) because tasks or fix rounds were completed after the last audit' }));
   }
   return out;
 }

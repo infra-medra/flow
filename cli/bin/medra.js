@@ -95,11 +95,18 @@ j(program.command('context <change>').description('Bounded context pack for one 
   });
 
 j(program.command('step <change>').description('Compile deterministic next-step prompt and handoff envelope')
-  .option('--stage <stage>').option('--diff-base <ref>').option('--md', 'Markdown output'))
+  .option('--stage <stage>').option('--diff-base <ref>').option('--role <role>').option('--task <id>').option('--full').option('--md', 'Markdown output'))
   .action((change, o) => {
-    const env = compileStep(root(), change, { stage: o.stage, diffBase: o.diffBase });
-    if (o.md && !jsonMode) process.stdout.write(stepMarkdown(env));
-    else emit(env, jsonMode ? undefined : stepMarkdown(env));
+    const needsFull = Boolean(o.full || (o.md && !jsonMode) || !jsonMode);
+    const env = compileStep(root(), change, {
+      stage: o.stage,
+      diffBase: o.diffBase,
+      role: o.role,
+      task: o.task,
+      full: needsFull,
+    });
+    if (o.md && !jsonMode) process.stdout.write(stepMarkdown(env, { role: o.role, task: o.task }));
+    else emit(env, jsonMode ? undefined : stepMarkdown(env, { role: o.role, task: o.task }));
   });
 
 j(program.command('gate <change> <gate>').description('Record a gate decision')
@@ -120,6 +127,8 @@ j(program.command('handoff <change> <contract>').description('Dispatch payload f
   });
 
 j(program.command('suite <change>').description('Run the whole test suite and the static checks, and record the result')).action(run((change) => cmd.suite(root(), change)));
+
+j(program.command('verify-fix <change>').description('Record a verify fix round')).action(run((change) => cmd.verifyFix(root(), change)));
 
 j(program.command('coverage [change]').description('Map scenario IDs to tests').option('--all'))
   .action(run((change, o) => cmd.coverageCmd(root(), change, o)));

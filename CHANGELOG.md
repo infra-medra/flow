@@ -2,6 +2,19 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.0.0-rc.3] — 2026-11-22
+
+### Fixed
+- **Stage mapping for `propose` (A1).** Mapped flow stage `propose` to validation stage `proposal` in `compileStep` `exit_command` and completion criteria without altering `medra validate`’s stage vocabulary.
+- **Verify state transitions and fix-round tracking (A2).** Aligned `resolveStage` and `compileStep` with `verifyFindings` and CLI-tracked fix-round state so `verify` transitions deterministically between `dispatch` (fix implementer) and `gate` (pass or escalated blockers), and updated `run`/`verify` skills to follow envelope `action`.
+- **Unambiguous plugin pointers across runtimes (A3).** Separated plugin-relative pointers from project-relative pointers across Claude Code and Antigravity without preferring `.agents/plugins/medra/` over `plugins/medra/`.
+- **Subagent gate-bypass detection (A4).** Verified and documented `agent_id` / `MEDRA_SUBAGENT=1` subagent detection in `plugins/medra/hooks/guard.mjs` and `plugins/medra/references/gate.md`.
+
+### Changed
+- **Top-level `embedded` deduplication (B1).** Stored pre-fenced `diff` and `contracts/*` once in top-level `embedded` with `embedded_keys` references on `verify` subagents.
+- **Compact default `--json` envelope and `--role ... --md` fetch (B2).** Omitted `prompt` and `embedded` from default `medra step --json` output (adding `fetch_command` while preserving `--full`), added `medra step --role <role> [--task <T-ID>] --md`, updated coordinator skills to pass `fetch_command`, and removed empty persona headers in `apply/SKILL.md`.
+- **Inline execution for authoring stages and small fast-track `apply` (B3, B4).** Added `apply.inline_max_tasks` (default `3`) in `DEFAULT_CONFIG` for `action: "inline"` on small `fast`-track `apply` changes, and enabled `action: "inline"` for `propose`, `plan`, and `tasks`.
+
 ## [2.0.0-rc.2] — 2026-11-21
 
 ### Fixed
