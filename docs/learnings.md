@@ -18,6 +18,14 @@
 **Occurrences:** 1
 **Last seen:** 6
 
+### L-003 [lesson] Assert multi-part requirements individually without regex OR
+
+**Statement:** Assert each required keyword, severity, or clause individually in tests instead of combining them with '|' regex alternations. Also build valid schema fixtures in tests rather than omitting required keys.
+**Scope:** paths: cli/test/** · stages: tasks, apply, verify
+**Evidence:** 2026-11-22-restore-pipeline-guardrails-rc8
+**Occurrences:** 1
+**Last seen:** 9
+
 ## Promoted
 
 ## Retired

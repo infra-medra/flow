@@ -11,16 +11,6 @@ When `changed_since_previous` is present:
 - Carry all untouched requirements forward from `previous_report` with their status and evidence marked `carried from r<N>`.
 - An empty `changed_since_previous` list means no code changed: re-check only open findings. Without the field, inspect everything.
 
-### Verdict Rules & Critical Findings
-
-| Verdict | When |
-|---|---|
-| `fail` | Any critical finding, or any requirement `unmet` or `unverified` |
-| `pass-with-findings` | No critical finding, every requirement `met`, and >= 1 major or minor finding |
-| `pass` | No finding of any severity, and every requirement `met` |
-
-Critical findings include: unimplemented requirement, test weakened/skipped to reach green, missing `red` evidence in `tdd`, constitution article violated without `Complexity Tracking` justification, or non-green suite.
-
 ### Invalid Dispatch & `needs-decision`
 
 On failed dispatch validation, skip Inspection and go straight to Response with `invalid-dispatch`. When an ambiguous requirement or CLI environment failure blocks verification, mark affected requirements `unverified` and return `status: needs-decision` naming affected fields or REQ IDs in `question`.

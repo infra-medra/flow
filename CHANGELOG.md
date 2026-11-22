@@ -2,15 +2,20 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
-## [Unreleased]
+## [2.0.0-rc.8] — 2026-11-22
 
 ### Changed
 - **Lean core pipelines and on-demand references (`PLUG-013`).** Refactored all 9 `plugins/medra/pipelines/*.md` workflows into compact core procedures and moved verbose edge-case, checklist, and recovery guidance into `plugins/medra/references/apply-recovery.md`, `plugins/medra/references/author-edge-cases.md`, and `plugins/medra/references/verify-checklists.md`, syncing `cli/plugin/` and `.agents/plugins/medra/`.
 - **Self-contained `medra step --md` task pack (`CTX-008`) and scoped `--run` test hints (`PLUG-014`).** Enriched `medra step <change> --role <role> [--task <T-ID>] --md` in `cli/src/step.js` with compact ratified `constitution.md` summaries, referenced `REQ`/scenario blocks, matching `tasks.md` lines, and targeted `--run` test guidance while keeping default `medra step --json` envelopes unchanged; updated `plugins/medra/pipelines/implementer-apply.md` and `author-tasks.md` to reserve full-suite runs for `medra suite`.
 - **Cross-phase `apply` batching (`PLUG-006`) and non-verify `compileStep` fast path (`STATE-008`).** Added `apply.batch_scope: phase | cross-phase` (default `cross-phase`) in `cli/src/core.js`, `cli/src/step.js`, and `docs/config-flow.yaml` so `batch` groups satisfied tasks across phases up to `apply.batch_max_tasks`, and scoped `compileStep` so non-verify stages skip `safeGitDiff`, `suiteFindings`, and `prepareVerifyRound`.
 
+### Fixed
+- **Scenario-matched `red` failure requirement (`VAL-007`).** Restored the rule in `plugins/medra/pipelines/implementer-apply.md` and compiled `batch` / `fast`-track `inline` `apply` prompts (`cli/src/step.js`) requiring `[TEST]` `red` runs in `tdd` to fail for the missing behavior predicted by the scenario (fixing import, syntax, fixture, or environment errors first) with a one-sentence rationale.
+- **Inline verdict & critical-findings rules (`PLUG-015`).** Restored the verdict table (`fail` / `pass-with-findings` / `pass`) and critical-findings list inline in `plugins/medra/pipelines/reviewer-check.md`, restricted `references/verify-checklists.md` §1 to conditional `changed_since_previous` and `invalid-dispatch`/`needs-decision` rules, and ensured `plugins/medra/pipelines/security-audit.md` states its verdict/counts contract inline.
+- **One-sentence rule rationales (`PLUG-016`) and inline session budget (`PLUG-017`).** Added concise one-sentence rationales to core guardrails across `implementer-apply.md`, `reviewer-check.md`, `security-audit.md`, and `<untrusted_data>` fences in all pipelines, defined the `batch` vs `task`/`inline` session budget directly in `implementer-apply.md`, and removed the duplicate from `references/apply-recovery.md` §4.
+
 ### Verified
-- **Envelope & benchmark measurements (`measure-envelope.js`, `check-bundle-drift.js`).** Measured `total_pipeline_bytes` reduction from `74,369 B` to `35,189 B` across the 5 core stages (`53,175 B` total stage bytes) and `remodel_benchmark.batch` reduction from `54,695 B` to `24,539 B` (`4` dispatches vs `14` task dispatches at `84,475 B`).
+- **Envelope & benchmark measurements (`measure-envelope.js`, `check-bundle-drift.js`).** Measured `total_pipeline_bytes` at `36,575 B` (`24,872 B` raw across `plugins/medra/pipelines/*.md`) compared to `74,369 B` pre-optimization and `35,189 B` in `20d0e22`, with `remodel_benchmark.batch` at `26,039 B` (`4` dispatches vs `14` task dispatches at `89,725 B`).
 
 ## [2.0.0-rc.7] — 2026-11-22
 

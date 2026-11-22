@@ -1,6 +1,6 @@
 # Reference: Apply Recovery & Edge Cases
 
-Read this reference on demand when `implementer-apply.md` encounters `task.test-tampered`, scope growth, `blocked` tasks, `legacy_fallback` / mode `none` checkpoints, or `[P]` / session-budget edge cases.
+Read this reference on demand when `implementer-apply.md` encounters `task.test-tampered`, scope growth, `blocked` tasks, `legacy_fallback` / mode `none` checkpoints, or `[P]` batching edge cases.
 
 ## 1. `task.test-tampered` Recovery (Escalation)
 
@@ -24,7 +24,6 @@ When a task requires work outside approved delta specs or `plan.md` (new capabil
 - **Mode `none` or non-requirement/non-mitigation tasks (setup, docs):** Run the verify check and record `--evidence "<what was checked and observed>" --kind manual`. Tasks tied to a `REQ` or `M-NN` accept only `--run` (`task.evidence` refuses written `red`/`green` text).
 - **`legacy_fallback` (1.x `tasks.md` without `REQ`/path pointers):** Dispatch/execute one task at a time (`granularity: "task"`), inspecting the full requirements slice in the compiled prompt.
 
-## 4. `[P]` Batching & Session Budget
+## 4. `[P]` Batching
 
 - **Same-session `[P]`:** When `medra context` (`## Parallel batch`) or `medra task done` lists multiple `[P]` tasks from the same phase and kind (`[TEST]` or implementation), edit their files in parallel tool calls, then checkpoint each task individually with `medra task done`.
-- **Session budget:** In `batch` mode, complete at most the assigned batch (default up to 4 tasks) and proceed to Delivery without crossing into unbatched phases. In `inline` or `task` mode, go to Delivery when the next task opens a new phase and this run has already checkpointed 6+ tasks.

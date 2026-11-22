@@ -292,6 +292,10 @@ function buildApplySubagents(root, change, state, tasks, config) {
   const pluginPointers = applyPtr ? [applyPtr] : [];
   const constitutionLines = constitutionSummary(root);
   const scopedTests = scopedTestGuidance(config);
+  const tddRedRule = (config.testing?.mode ?? 'tdd') === 'tdd'
+    ? ['- For `[TEST]` tasks in `tdd`, confirm `red` fails for the missing behavior the scenario predicts (fixing import, syntax, fixture, or environment errors first) before `--kind red`, because a wrong-reason `red` invalidates the subsequent `green`.']
+    : [];
+  const execRules = [...tddRedRule, ...scopedTests];
 
   if (state.track === 'fast') {
     const inlineMax = Number(config.apply?.inline_max_tasks ?? 3);
@@ -317,7 +321,7 @@ function buildApplySubagents(root, change, state, tasks, config) {
       '',
       ...(blocks.length ? ['## Requirements', ...blocks, ''] : []),
       ...(scopedLearnings.length ? ['## Learnings', ...scopedLearnings.map((l) => `- ${l.id}: ${l.statement}`), ''] : []),
-      ...(scopedTests.length ? ['## Execution Rules', ...scopedTests, ''] : []),
+      ...(execRules.length ? ['## Execution Rules', ...execRules, ''] : []),
       `Exit command per task: \`medra task done ${change} <T-ID> --run "<focused test cmd>"\``,
     ].join('\n');
     return {
@@ -360,7 +364,7 @@ function buildApplySubagents(root, change, state, tasks, config) {
         ...(taskPtrs.length ? ['## Code Pointers', ...taskPtrs.map((p) => `- \`${p}\``), ''] : []),
         '## Execution Rules',
         `- Checkpoint each task individually in order with \`medra task done ${change} <T-ID> --run "<focused test cmd>"\`.`,
-        ...scopedTests,
+        ...execRules,
         '- If any task hits `task.test-tampered` or `blocked`, stop immediately and return `needs-decision` without starting remaining tasks in the batch.',
         '',
         `Exit command: \`${exitCmd}\``,
@@ -400,7 +404,7 @@ function buildApplySubagents(root, change, state, tasks, config) {
     ...(decisions.length ? ['## Decisions', ...decisions, ''] : []),
     ...(scopedLearnings.length ? ['## Learnings', ...scopedLearnings.map((l) => `- ${l.id}: ${l.statement}`), ''] : []),
     ...(taskPtrs.length ? ['## Code Pointers', ...taskPtrs.map((p) => `- \`${p}\``), ''] : []),
-    ...(scopedTests.length ? ['## Execution Rules', ...scopedTests, ''] : []),
+    ...(execRules.length ? ['## Execution Rules', ...execRules, ''] : []),
     `Exit command: \`${exitCmd}\``,
   ].join('\n');
   return {

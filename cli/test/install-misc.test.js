@@ -408,11 +408,11 @@ test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3: coordinator skills handle diff_erro
   }
 });
 
-test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.7', () => {
+test('PLUG-003.S1: bundle drift check passes and versions match 2.0.0-rc.8', () => {
   const pkgVersion = JSON.parse(fs.readFileSync(path.join(CLI_ROOT, 'package.json'), 'utf8')).version;
   const pluginVersion = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'plugins', 'medra', '.claude-plugin', 'plugin.json'), 'utf8')).version;
-  assert.equal(pkgVersion, '2.0.0-rc.7');
-  assert.equal(pluginVersion, '2.0.0-rc.7');
+  assert.equal(pkgVersion, '2.0.0-rc.8');
+  assert.equal(pluginVersion, '2.0.0-rc.8');
 
   const checkVer = spawnSync(process.execPath, [path.join(CLI_ROOT, 'scripts', 'check-version.js')], { cwd: REPO_ROOT, encoding: 'utf8' });
   assert.equal(checkVer.status, 0, checkVer.stdout + checkVer.stderr);
@@ -433,7 +433,7 @@ test('STATE-005.S1: 2.0.0-rc.5 CLI runs cleanly on 1.x docs layout without model
   const change = brownfieldChange(root);
 
   const v = medra(CLI_ROOT, '--version');
-  assert.equal(v.stdout.trim(), '2.0.0-rc.7');
+  assert.equal(v.stdout.trim(), '2.0.0-rc.8');
 
   const loaded = loadConfig(root);
   assert.equal(loaded.apply?.inline_max_tasks, 3);
