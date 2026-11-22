@@ -2,6 +2,16 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.0.0-rc.6] — 2026-11-22
+
+### Fixed
+- **Pre-verify `medra suite` dispatch instead of blocking gate (Item 1).** Tagged `verify.suite` findings in `suiteFindings` (`cli/src/change.js`) with a structured `data.reason` (`not-run` | `stale` | `failed`) passed through `prepareVerifyRound` (`cli/src/handoff.js`); updated `compileVerifyStep` (`cli/src/step.js`) so `not-run`/`stale`-only pre-dispatch checks return `action: "dispatch"`, `coordinator_steps: [{ type: "command", command: "medra suite <change> --json" }]`, and `subagents: []` without writing round snapshots, while `failed` suites (`exit != 0`) and `verify.merge` conflicts remain `action: "gate"`. Updated `plugins/medra/skills/run/SKILL.md` and `plugins/medra/skills/verify/SKILL.md` to explicitly loop back to Step 1 after `coordinator_steps[]` when `subagents[]` is empty.
+- **Actual `MEDRA_SUBAGENT=1` delivery to subagents and guard alignment (Item 2).** Centralized `MEDRA_SUBAGENT=1 ` prefixing in `compileStep`'s `envelope()` (`cli/src/step.js`) for every non-`inline` subagent `fetch_command` and `exit_command` (including fix `implementer`'s `medra suite` and reviewer's `medra review`) plus a short prefix rule in compiled `--md` / `--full` subagent prompts, leaving `coordinator_steps[]` and `inline` `exit_command` unprefixed. Updated `plugins/medra/hooks/guard.mjs` to detect `MEDRA_SUBAGENT=1` in Bash command segments as well as `agent_id` / `process.env.MEDRA_SUBAGENT`, and updated `plugins/medra/references/portability.md` and `plugins/medra/references/gate.md` to document the envelope-imposed convention and remaining Antigravity omission/manual-edit limits.
+- **Envelope-only `done` archive dispatch in `/medra:run` (Item 3).** Removed the direct `medra archive` coordinator shortcut from Step 6 (`action === "done"`) of `plugins/medra/skills/run/SKILL.md` so `/medra:run` always dispatches `subagents[]` (`author-archive.md` with `MEDRA_SUBAGENT=1 medra archive <change> --json`), keeping `plugins/medra/skills/archive/SKILL.md` consistent.
+
+### Verified
+- **External-repo `/medra:run` E2E (`propose` -> `archive`) without manual `medra suite`.** Executed `add-sub` in an isolated temporary git repository (`/tmp/medra-e2e-rc6-mVd23N`) with `testing.mode: tdd` and `testing.command: "npm test"` following `medra step` strictly: after `T001` (`red`) and `T002` (`green`), the first `verify` step emitted `coordinator_steps: [{ type: "command", command: "medra suite add-sub --json" }]` with `subagents: []`; after running it, the next `medra step` dispatched `reviewer` (`round: 1`, `suite: "green"`, `MEDRA_SUBAGENT=1` on `fetch_command` and `exit_command`), followed by `gate verify --approve` and `action: "done"` dispatching `author-archive.md` (`exit_command: "MEDRA_SUBAGENT=1 medra archive add-sub --json"`), ending with `changes: []`.
+
 ## [2.0.0-rc.5] — 2026-11-22
 
 ### Added

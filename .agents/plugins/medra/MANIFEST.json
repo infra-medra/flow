@@ -1,16 +1,16 @@
 {
-  "version": "2.0.0-rc.5",
+  "version": "2.0.0-rc.6",
   "files": {
-    "plugin.json": "32c630e67e4573a981ef01f360fbfef37352490d44c1547f9a0e5aab1dd88604",
+    "plugin.json": "715acebbe09f76d3c0496bc6bafea4ecf53c4a64eb46653eb5c7abca17fb7a60",
     "skills/apply/SKILL.md": "66146088b70e0d0913c92ec909f6eb3ce3a95e6f06c9a434e52ccffa9ef9f659",
-    "skills/archive/SKILL.md": "6a46ddf2ec158347d7942fe86b60b500763af74227961044b93eb01dac7d25a7",
+    "skills/archive/SKILL.md": "606209a4a06bfc7d2af02c426fec133cba30a464dba91e0e2daa0e8810673058",
     "skills/init/SKILL.md": "9fcb9bc92e2a2dd4c07c5252938a6fa698182f6eefd10329f6ba3a71a7929912",
     "skills/plan/SKILL.md": "3861bdacb28a181f0b10b012813ea34f4c9a48617eda4a164d888be8e69e5066",
     "skills/propose/SKILL.md": "27a35c8160de02ace45d9936fab2ea05dedaae2656635d6241a37facf6a0e498",
     "skills/review/SKILL.md": "65aa780531455702bf8d5c6357e303b08c142baa05f03742f93993a4509af21c",
-    "skills/run/SKILL.md": "524ddcbdfde94db550214b4c231b484eca8df2f2b9f2db17d8fdcf7d070876c2",
+    "skills/run/SKILL.md": "5a3b05655926cf055045d889040196fa709865c1c48b32a5100809e8ae4aac37",
     "skills/tasks/SKILL.md": "ac0a13dd6cff34d576b4e17954923157761edca5d830e169f8870971b9f1d5e0",
-    "skills/verify/SKILL.md": "30001bef43dd06e6f31cd5a0ee1752a91ab8616cdb2cab708784dcccd6e01890",
+    "skills/verify/SKILL.md": "4d65f394fd38ed782116830f1fc45125372685205e294fdc9dc326936d916f70",
     "pipelines/author-archive.md": "61780d089b55a7b930ce3bd10829ecf847f63331786e0fd1f84509252246c2c4",
     "pipelines/author-init.md": "e665233f1822c500a5acc6aa8205b1e1cf785d10f7861bd02b51d929154ad5af",
     "pipelines/author-plan.md": "751a71fac316e2a4354a9101fd7b6dff0ee837ee889b77988b9215c6c893b25c",
@@ -44,8 +44,8 @@
     "handoffs/implementer-reviewer.md": "c5b77ae16505ed0aa11e36100a387f07a3ab5261079e9a083fbc22397304f415",
     "handoffs/implementer-security.md": "5eaf83c337a0f912fb16d4b1ce173d082d51b209f9add75c334e53f28fd631b6",
     "references/conventions.md": "9a26042466cd4509fa7ff8fc1abede55862ea3d1e4074aa251610388c989fbff",
-    "references/gate.md": "40d437c9458096d87e8f7a449ab53138dd28215347362f3a7a65321e135cfcb4",
-    "references/portability.md": "3c92466c10698983ca1d2d4d0ad59d6fa027d841300cb37548dd9ceccb035a43",
+    "references/gate.md": "cff2fc9bf7e9227c754ce9ae4870008160da3def77172e2c0cd7e2a3ee34c0b8",
+    "references/portability.md": "3a0edf8edece11ba5c7fd3b809b1f5281ae4c095fdbc31db0bc8e99f7226b699",
     "agents/reviewer.md": "726edaed4af2f729bf962ce698c9aa5c48e6d5b6510399486a47c50dc04d7e5a",
     "agents/security.md": "af710db2b9d5e5da8cc2312117569db194f84991bff1866d7526bc95f46237e6"
   }

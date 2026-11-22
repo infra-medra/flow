@@ -299,8 +299,8 @@ test('CTX-005.S6: verify subagents never invoke medra gate and neutralize all cl
   assert.match(rev.plugin_pointers[0], /reviewer-check\.md$/);
   assert.match(sec.plugin_pointers[0], /security-audit\.md$/);
   assert.match(sec.prompt, /security-audit\.md/);
-  assert.match(rev.exit_command, /^medra review sec-verify --report .*verify-reviewer-r\d+\.md/);
-  assert.match(sec.exit_command, /^medra review sec-verify --report .*verify-security-r\d+\.md/);
+  assert.match(rev.exit_command, /^MEDRA_SUBAGENT=1 medra review sec-verify --report .*verify-reviewer-r\d+\.md/);
+  assert.match(sec.exit_command, /^MEDRA_SUBAGENT=1 medra review sec-verify --report .*verify-security-r\d+\.md/);
 
   // Exactly one opening and one closing <untrusted_data> tag in diff and contracts
   for (const fenced of [env.embedded.diff, env.embedded['contracts/api.json']]) {
@@ -427,7 +427,7 @@ test('CTX-005.S7 & PLUG-001.S2: compileStep emits executable exit_command for ev
 
   function runExitCommand(exitCommand) {
     const concrete = exitCommand
-      .replace(/^medra\s+/, `${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} `)
+      .replace(/^(?:MEDRA_SUBAGENT=1\s+)?medra\s+/, `${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} `)
       .replace(/<T-ID>/g, 'T001')
       .replace(/<focused test cmd>|<cmd>/g, 'true')
       .replace(/<summary>/g, 'summary');
@@ -534,7 +534,7 @@ test('CTX-005.S8: verify failure dispatches fix implementer, verify-fix records 
   assert.equal(fixEnv.action, 'dispatch');
   assert.equal(fixEnv.subagents.length, 1);
   assert.equal(fixEnv.subagents[0].role, 'implementer');
-  assert.equal(fixEnv.subagents[0].exit_command, `medra suite ${change} --json`);
+  assert.equal(fixEnv.subagents[0].exit_command, `MEDRA_SUBAGENT=1 medra suite ${change} --json`);
   assert.doesNotMatch(fixEnv.subagents[0].exit_command, /\bmedra\s+verify-fix\b/);
   assert.ok(Array.isArray(fixEnv.subagents[0].findings) && fixEnv.subagents[0].findings.length > 0);
 
@@ -894,7 +894,7 @@ test('CTX-005.S15 & M-02: compileStep is idempotent without verify-fix, never de
   assert.equal(firstEnv.action, 'dispatch');
   assert.equal(firstEnv.subagents.length, 1);
   assert.equal(firstEnv.subagents[0].role, 'implementer');
-  assert.equal(firstEnv.subagents[0].exit_command, `medra suite ${change} --json`);
+  assert.equal(firstEnv.subagents[0].exit_command, `MEDRA_SUBAGENT=1 medra suite ${change} --json`);
   for (const sub of firstEnv.subagents) {
     assert.doesNotMatch(sub.exit_command, /\bmedra\s+verify-fix\b/, 'CTX-005.S15: no subagent exit_command may contain verify-fix');
   }
@@ -978,7 +978,7 @@ test('STATE-005.S2: medra gate verify --request-changes resets verify_fix_rounds
   assert.equal(nextFixEnv.action, 'dispatch');
   assert.equal(nextFixEnv.subagents.length, 1);
   assert.equal(nextFixEnv.subagents[0].role, 'implementer');
-  assert.equal(nextFixEnv.subagents[0].exit_command, `medra suite ${change} --json`);
+  assert.equal(nextFixEnv.subagents[0].exit_command, `MEDRA_SUBAGENT=1 medra suite ${change} --json`);
 });
 
 // Covers CTX-005.S16, PLUG-005.S2, M-04: per-subagent model resolution precedence and inline override warnings
@@ -1285,7 +1285,7 @@ test('STATE-006.S1: verify emits round 1 and round 2 incremental handoff metadat
 });
 
 // Covers STATE-006.S2 & M-02: Pre-dispatch suite and merge check gating
-test('STATE-006.S2 & M-02: compileStep returns action gate with verify.suite or verify.merge findings instead of dispatching reviewers', () => {
+test('STATE-006.S2 & M-02: compileStep routes not-run/stale suite to coordinator_steps and gates on failed suite or verify.merge', () => {
   const change = 'verify-pre-dispatch-gate';
   const root = project({ mode: 'tdd' });
 
@@ -1311,17 +1311,21 @@ test('STATE-006.S2 & M-02: compileStep returns action gate with verify.suite or 
   assert.equal(medra(root, 'task', 'done', change, 'T001', '--run', 'exit 1').code, 0);
   assert.equal(medra(root, 'task', 'done', change, 'T002', '--run', 'exit 0').code, 0);
 
-  // 1. Suite never run -> action: "gate" with verify.suite finding (no reviewer/security dispatch)
+  // 1. Suite never run -> action: "dispatch" with coordinator_steps running medra suite and reason: "not-run"
   const missingSuiteEnv = compileStep(root, change);
   assert.equal(missingSuiteEnv.stage, 'verify');
-  assert.equal(missingSuiteEnv.action, 'gate', 'STATE-006.S2: missing suite must return action: "gate"');
+  assert.equal(missingSuiteEnv.action, 'dispatch', 'PLUG-008.S2: missing suite must dispatch medra suite coordinator step');
   assert.deepEqual(missingSuiteEnv.subagents, []);
   assert.ok(
-    (missingSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error'),
-    'STATE-006.S2: missing suite gate must include blocking verify.suite finding',
+    (missingSuiteEnv.coordinator_steps ?? []).some((s) => s.type === 'command' && s.command === `medra suite ${change} --json`),
+    'PLUG-008.S2: missing suite must emit medra suite coordinator step',
+  );
+  assert.ok(
+    (missingSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error' && f.reason === 'not-run'),
+    'STATE-006.S2: missing suite finding must include reason: "not-run"',
   );
 
-  // 2. Failing suite -> action: "gate" with verify.suite finding
+  // 2. Failing suite -> action: "gate" with verify.suite finding (reason: "failed")
   setSuiteCmd('node -e "process.exit(1)"');
   const failingSuiteRes = medra(root, 'suite', change);
   assert.equal(failingSuiteRes.code, 1);
@@ -1330,21 +1334,25 @@ test('STATE-006.S2 & M-02: compileStep returns action gate with verify.suite or 
   assert.equal(failingSuiteEnv.action, 'gate', 'STATE-006.S2: failing suite must return action: "gate"');
   assert.deepEqual(failingSuiteEnv.subagents, []);
   assert.ok(
-    (failingSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error'),
-    'STATE-006.S2: failing suite gate must include blocking verify.suite finding',
+    (failingSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error' && f.reason === 'failed'),
+    'STATE-006.S2: failing suite gate must include blocking verify.suite finding with reason: "failed"',
   );
 
-  // 3. Stale suite (code changed after green suite) -> action: "gate" with verify.suite finding
+  // 3. Stale suite (code changed after green suite) -> action: "dispatch" with coordinator_steps running medra suite and reason: "stale"
   setSuiteCmd('node -e "process.exit(0)"');
   assert.equal(medra(root, 'suite', change).code, 0);
   write(root, 'src/auth.js', 'export const login = () => "changed";\n');
   const staleSuiteEnv = compileStep(root, change);
   assert.equal(staleSuiteEnv.stage, 'verify');
-  assert.equal(staleSuiteEnv.action, 'gate', 'STATE-006.S2: stale suite must return action: "gate"');
+  assert.equal(staleSuiteEnv.action, 'dispatch', 'PLUG-008.S2: stale suite must dispatch medra suite coordinator step');
   assert.deepEqual(staleSuiteEnv.subagents, []);
   assert.ok(
-    (staleSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error'),
-    'STATE-006.S2: stale suite gate must include blocking verify.suite finding',
+    (staleSuiteEnv.coordinator_steps ?? []).some((s) => s.type === 'command' && s.command === `medra suite ${change} --json`),
+    'PLUG-008.S2: stale suite must emit medra suite coordinator step',
+  );
+  assert.ok(
+    (staleSuiteEnv.findings ?? []).some((f) => f.rule === 'verify.suite' && f.severity === 'error' && f.reason === 'stale'),
+    'STATE-006.S2: stale suite finding must include reason: "stale"',
   );
 
   // 4. Green suite + verify.merge conflict -> action: "gate" with verify.merge finding

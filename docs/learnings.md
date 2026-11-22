@@ -10,6 +10,14 @@
 **Occurrences:** 1
 **Last seen:** 4
 
+### L-002 [lesson] Strip quoted literals before Bash segment matching in hooks
+
+**Statement:** Strip single- and double-quoted strings before matching Bash command segments in hook guards, and match exported and quoted env-var assignments. Otherwise ';', '|', or '&' inside '--note' or '--run' arguments bypasses gate and subagent checks.
+**Scope:** paths: plugins/medra/hooks/** · stages: plan, apply, verify
+**Evidence:** 2026-11-22-close-v2-gaps-rc6
+**Occurrences:** 1
+**Last seen:** 6
+
 ## Promoted
 
 ## Retired

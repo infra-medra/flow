@@ -238,11 +238,11 @@ export function suiteFindings(root, change, state) {
   if (testing.mode === 'none' || !testing.command) return [];
   const remediation = `Run "medra suite ${change}"`;
   const s = state.suite;
-  if (!s) return [finding('verify.suite', 'The full test suite has not been run for this change', { ref: change, remediation })];
-  if (s.exit !== 0) return [finding('verify.suite', `The last full-suite run failed: "${s.command}" exited ${s.exit}`, { ref: change, remediation: `Fix the failure, then run "medra suite ${change}"` })];
+  if (!s) return [finding('verify.suite', 'The full test suite has not been run for this change', { ref: change, remediation, data: { reason: 'not-run' } })];
+  if (s.exit !== 0) return [finding('verify.suite', `The last full-suite run failed: "${s.command}" exited ${s.exit}`, { ref: change, remediation: `Fix the failure, then run "medra suite ${change}"`, data: { reason: 'failed' } })];
   const now = fingerprint(root, state);
   const stale = s.fingerprint && now ? s.fingerprint !== now : Date.parse(s.at) < Date.parse(state.last_task_done_at ?? s.at);
-  return stale ? [finding('verify.suite', 'Code changed after the last full-suite run', { ref: change, remediation })] : [];
+  return stale ? [finding('verify.suite', 'Code changed after the last full-suite run', { ref: change, remediation, data: { reason: 'stale' } })] : [];
 }
 
 const MERGE_FIX = {

@@ -65,7 +65,7 @@ The system SHALL ship the 2.0 workflow on branch `v2` at version `2.0.0-rc.5` ac
 
 ### REQ STATE-006: Incremental verify handoff metadata and pre-dispatch checks
 
-The system SHALL reuse `cli/src/handoff.js` inside `buildVerifySubagents` (`cli/src/step.js`) to emit per-subagent `round`, round-numbered `report` (`reviews/<date>-verify-<role>-r<N>.md`), `previous_report`, `changed_since_previous` (from round 2 onward), and `suite` (when `testing.command` is configured), while gating dispatch on handoff readiness checks (`verify.suite`, `verify.merge`) and keeping `latestReport` / `reportFreshness` accurate across round-numbered report filenames.
+The system SHALL reuse `cli/src/handoff.js` inside `buildVerifySubagents` (`cli/src/step.js`) to emit per-subagent `round`, round-numbered `report` (`reviews/<date>-verify-<role>-r<N>.md`), `previous_report`, `changed_since_previous` (from round 2 onward), and `suite` (when `testing.command` is configured), tagging `verify.suite` findings with a structured `reason` (`not-run`, `stale`, or `failed`) so `compileVerifyStep` gates only on `failed` suites or `verify.merge` findings while routing `not-run`/`stale` suite findings to `coordinator_steps[]`, and keeping `latestReport` / `reportFreshness` accurate across round-numbered report filenames.
 
 #### Scenario STATE-006.S1: Incremental second-round diff and non-overwriting report paths
 
@@ -75,7 +75,7 @@ The system SHALL reuse `cli/src/handoff.js` inside `buildVerifySubagents` (`cli/
 
 #### Scenario STATE-006.S2: Pre-dispatch suite and merge check gating
 
-- **Given** a change at `verify` with a configured `testing.command` whose `suite` is stale or failing (or `verify.merge` fails)
+- **Given** a change at `verify` with a configured `testing.command` whose `suite` failed (`reason: "failed"`) or where `verify.merge` fails
 - **When** `compileStep` compiles the `verify` step
 - **Then** it returns `action: "gate"` with the blocking finding instead of dispatching `reviewer` or `security` subagents
 

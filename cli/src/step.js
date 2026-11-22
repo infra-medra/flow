@@ -38,6 +38,7 @@ const FLOW_TO_VALIDATE_STAGE = {
 };
 
 const PLUGIN_POINTER_NOTE = 'Plugin pointers (`plugin_pointers` / `${CLAUDE_PLUGIN_ROOT}/...`) are relative to the plugin root, not the project root.';
+const SUBAGENT_PREFIX_NOTE = 'Run every `medra` command with the `MEDRA_SUBAGENT=1` prefix (e.g. `MEDRA_SUBAGENT=1 medra ...`).';
 
 /** Resolve a plugin-relative path to `plugins/medra/`, `.agents/plugins/medra/`, or `${CLAUDE_PLUGIN_ROOT}/...` (D-03, M-04). */
 function pluginPointer(root, relPath) {
@@ -461,6 +462,22 @@ function compileVerifyStep(root, change, state, opts, envelope) {
   if (missingOrStale) {
     const verify = buildVerifySubagents(root, change, state, opts);
     if (verify.blocked) {
+      const suitePreRunOnly = verify.findings.length > 0
+        && verify.findings.every((f) => f.rule === 'verify.suite' && (f.reason === 'not-run' || f.reason === 'stale'));
+      if (suitePreRunOnly) {
+        return envelope({
+          stage: 'verify',
+          granularity: 'round',
+          action: 'dispatch',
+          findings: verify.findings,
+          coordinator_steps: [{
+            type: 'command',
+            command: `medra suite ${change} --json`,
+            reason: verify.findings[0].message,
+          }],
+          subagents: [],
+        });
+      }
       return envelope({ stage: 'verify', granularity: 'round', action: 'gate', gate: 'verify', findings: verify.findings, subagents: [] });
     }
     const coordinator_steps = verify.diff_error
@@ -537,6 +554,12 @@ export function compileStep(root, change, opts = {}) {
 
   const envelope = (overrides = {}) => {
     const targetStage = overrides.stage ?? stage;
+    const resolvedAction = overrides.action ?? 'dispatch';
+    const isSubagent = resolvedAction !== 'inline';
+    const prefixCmd = (cmd) => (isSubagent && cmd && !cmd.startsWith('MEDRA_SUBAGENT=1 ') ? `MEDRA_SUBAGENT=1 ${cmd}` : cmd);
+    const withSubagentPrompt = (prompt) => (isSubagent && prompt && !prompt.includes(SUBAGENT_PREFIX_NOTE)
+      ? `${prompt}\n${SUBAGENT_PREFIX_NOTE}`
+      : prompt);
     const envModel = modelFor(config, null, targetStage);
     const rawSubagents = overrides.subagents ?? [];
     let subagents = rawSubagents.map((s) => {
@@ -547,8 +570,8 @@ export function compileStep(root, change, opts = {}) {
         plugin_pointers: s.plugin_pointers ?? [],
         pointers: s.pointers ?? [],
         embedded_keys: s.embedded_keys ?? [],
-        exit_command: s.exit_command,
-        fetch_command: buildFetchCommand(change, s, opts),
+        exit_command: prefixCmd(s.exit_command),
+        fetch_command: prefixCmd(buildFetchCommand(change, s, opts)),
       };
       if (s.task_ids !== undefined) base.task_ids = s.task_ids;
       if (s.round !== undefined) base.round = s.round;
@@ -557,7 +580,7 @@ export function compileStep(root, change, opts = {}) {
       if (s.changed_since_previous !== undefined) base.changed_since_previous = s.changed_since_previous;
       if (s.suite !== undefined) base.suite = s.suite;
       if (s.findings !== undefined) base.findings = s.findings;
-      if (full && s.prompt !== undefined) base.prompt = s.prompt;
+      if (full && s.prompt !== undefined) base.prompt = withSubagentPrompt(s.prompt);
       return base;
     });
 
@@ -580,7 +603,6 @@ export function compileStep(root, change, opts = {}) {
       }
     }
 
-    const resolvedAction = overrides.action ?? 'dispatch';
     const resolvedGate = overrides.gate ?? null;
     const defaultCoordinatorSteps = resolvedAction === 'gate'
       ? [{ type: 'ask_user', gate: resolvedGate, reason: `Human gate confirmation for ${resolvedGate ?? targetStage}` }]
