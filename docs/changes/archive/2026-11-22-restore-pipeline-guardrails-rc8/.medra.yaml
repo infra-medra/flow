@@ -1,0 +1,95 @@
+change: restore-pipeline-guardrails-rc8
+created: 2026-11-22
+track: fast
+phase: archived
+diff_base: 20d0e22
+gates:
+  proposal:
+    status: approved
+    by: Tiago Cavalli
+    at: 2026-11-22T18:39:18Z
+    hash: 0ce96fe8d84ec474683add741fb4170805a5e2cded3f4425c1160e22e86dbed7
+    note: null
+  plan:
+    status: pending
+  tasks:
+    status: pending
+  verify:
+    status: approved
+    by: Tiago Cavalli
+    at: 2026-11-22T19:15:23Z
+    hash: 3ae3bc6f75eda17eec32d8b15ce6d6fa7521668c932397697a459b4316b739ae
+    note: null
+gate_notes: []
+reviews:
+  - stage: verify
+    by: reviewer
+    at: 2026-11-22T18:57:58Z
+    recorded_at: 2026-11-22T18:57:58.432Z
+    hash: 21524145dafb37362794b161dda66cc07070f6e5c53916db86874b96dcfa6a2f
+    verdict: fail
+    report: reviews/2026-11-22-verify-reviewer-r1.md
+  - stage: verify
+    by: reviewer
+    at: 2026-11-22T19:12:59Z
+    recorded_at: 2026-11-22T19:12:59.979Z
+    hash: b0155d878847c9d8716696bb01f8d1a140ea551e7b1ff766d4aa80e49699397a
+    verdict: pass
+    report: reviews/2026-11-22-verify-reviewer-r2.md
+track_history: []
+blockers: []
+verify_fix_rounds: 1
+last_fix_round_at: 2026-11-22T18:58:26.712Z
+test_hashes:
+  T001:
+    cli/test/restore-pipeline-guardrails.test.js: 3069750c39dc60a86ca605653f9b01b3545a871fd63bcfb58e8bbe627cfabaab
+test_snapshots:
+  3069750c39dc60a86ca605653f9b01b3545a871fd63bcfb58e8bbe627cfabaab: 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
+last_task_done_at: 2026-11-22T18:46:28.733Z
+suite:
+  at: 2026-11-22T19:09:13Z
+  exit: 0
+  commands:
+    - npm --prefix cli test
+  fingerprint: 25d04145a448f6d34bddbb2bdb953af3299c68653290c5dbb2d4b23c4c72f823
+handoff_snapshots:
+  check:
+    "1":
+      CHANGELOG.md: 1b47671e5a8fd0972d4fb1f5282382e2c4854b7f9ba1a6fe2977042a0b5a68b4
+      cli/package.json: 17fa0215a71c02005efd90e18678921912e45972773f94374fb1a52259a6fc1f
+      cli/src/step.js: dbf5814610e32d98cd4aacc0b5f18513fa365b5a3f04a9387700fbdfc38d8e11
+      cli/test/install-misc.test.js: f152ca2c172011fed0cbf276ae3a19927b2795fdc49b32b066d36f9abf7bcbf1
+      cli/test/restore-pipeline-guardrails.test.js: 3069750c39dc60a86ca605653f9b01b3545a871fd63bcfb58e8bbe627cfabaab
+      plugins/medra/.claude-plugin/plugin.json: e1cb5ae93c1b895ca546559370c29a01d4189df9710c5247607da5b9a0b332e0
+      plugins/medra/pipelines/author-archive.md: f016c4396b73df00e642ee4c49b3440b9359e3d8e187503f1ab72e75d137948b
+      plugins/medra/pipelines/author-init.md: 3dcb61226b16b9e2748d1d2602c68e8c9f8fbc0819e7a22b422aec1d69861e27
+      plugins/medra/pipelines/author-plan.md: cd788ae92461ca408731dad9c937e6df95600fe668ed596759207c5e8f476f0d
+      plugins/medra/pipelines/author-propose.md: 31c5554e0666dab8ef5b51e631406ddb4ae0cec3fbee50920b71710e8a4978ea
+      plugins/medra/pipelines/author-tasks.md: 5d31e91351880cf0d0e7f56066c25c2ee606698950eb3aedae12d63b3aceaae5
+      plugins/medra/pipelines/implementer-apply.md: e9a1071e8562333813c25cb69c93f293019446277444ae7ccae5fbb69dc1b10e
+      plugins/medra/pipelines/reviewer-check.md: 9e6c256ae393c12e066c0222d3f59b129971f45cd330a7787c2340d841362f1e
+      plugins/medra/pipelines/security-audit.md: e4750b8d786f60f8e596ddbd72aecaad901b6b4a14b2401539cabc9026481db8
+      plugins/medra/pipelines/security-threat-model.md: ef1598378929cd7ea540d5aa2c0046f3ff53a48bc8825f44c11815ee38df7a72
+      plugins/medra/references/apply-recovery.md: d1115f8a870bf8a73fae637c4cf18f4106ab0def9e935e2b806ab19fb9857672
+      plugins/medra/references/verify-checklists.md: 47e132ced43e70f6ed94a3e0b039e3807c32d0c1c7563b22728d96eb37bb59c1
+    "2":
+      CHANGELOG.md: 23882dd40815fd91e51e99a27e48ec10afcf97e02af589fd8b35d7bf39e8e0da
+      cli/package.json: 17fa0215a71c02005efd90e18678921912e45972773f94374fb1a52259a6fc1f
+      cli/src/step.js: dbf5814610e32d98cd4aacc0b5f18513fa365b5a3f04a9387700fbdfc38d8e11
+      cli/test/install-misc.test.js: f152ca2c172011fed0cbf276ae3a19927b2795fdc49b32b066d36f9abf7bcbf1
+      cli/test/restore-pipeline-guardrails.test.js: 478586186f8ec960b032354be4ea8dc548294edff73a0bb9f1097949d07677cd
+      plugins/medra/.claude-plugin/plugin.json: e1cb5ae93c1b895ca546559370c29a01d4189df9710c5247607da5b9a0b332e0
+      plugins/medra/pipelines/author-archive.md: f016c4396b73df00e642ee4c49b3440b9359e3d8e187503f1ab72e75d137948b
+      plugins/medra/pipelines/author-init.md: 3dcb61226b16b9e2748d1d2602c68e8c9f8fbc0819e7a22b422aec1d69861e27
+      plugins/medra/pipelines/author-plan.md: cd788ae92461ca408731dad9c937e6df95600fe668ed596759207c5e8f476f0d
+      plugins/medra/pipelines/author-propose.md: 31c5554e0666dab8ef5b51e631406ddb4ae0cec3fbee50920b71710e8a4978ea
+      plugins/medra/pipelines/author-tasks.md: 5d31e91351880cf0d0e7f56066c25c2ee606698950eb3aedae12d63b3aceaae5
+      plugins/medra/pipelines/implementer-apply.md: 5eeb6b6029a74f3f79f84cb2d23d17a6767c57547b1f422453dcd0805ff80140
+      plugins/medra/pipelines/reviewer-check.md: 9e6c256ae393c12e066c0222d3f59b129971f45cd330a7787c2340d841362f1e
+      plugins/medra/pipelines/security-audit.md: 2a76fcb59fc920ee97cf3a230b4d4f981703b914f0f3adc23d887e31c05b0056
+      plugins/medra/pipelines/security-threat-model.md: ef1598378929cd7ea540d5aa2c0046f3ff53a48bc8825f44c11815ee38df7a72
+      plugins/medra/references/apply-recovery.md: 52a0647395c84a500f14b7021c5fc201abc1fd096f14beaca1a628cabea5cedd
+      plugins/medra/references/verify-checklists.md: 47e132ced43e70f6ed94a3e0b039e3807c32d0c1c7563b22728d96eb37bb59c1
+archived:
+  at: 2026-11-22
+  sequence: 9

@@ -1,0 +1,36 @@
+version: 1
+language: en
+integrations:
+  - claude
+  - antigravity
+testing:
+  mode: tdd
+  command: npm --prefix cli test
+  checks: []
+  allow-additive-test-edits: false
+  paths:
+    - test/**
+    - "**/*.test.*"
+    - "**/*_test.*"
+    - tests/**
+learning:
+  max_active: 40
+  promote_after: 3
+  stale_after: 10
+  context_max: 10
+apply:
+  # full-track apply dispatch granularity: batch | task
+  granularity: batch
+  batch_max_tasks: 4
+  batch_scope: cross-phase
+  inline_max_tasks: 3
+models:
+  default: inherit
+  init: flash
+  propose: inherit
+  plan: inherit
+  tasks: inherit
+  apply: flash
+  verify: pro
+  review: pro
+  archive: flash

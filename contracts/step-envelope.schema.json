@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medra.dev/schemas/step-envelope.schema.json",
+  "title": "medra step --json output envelope",
+  "type": "object",
+  "required": ["ok", "change", "track", "phase", "stage", "action", "granularity", "model", "gate", "legacy_fallback", "subagents"],
+  "properties": {
+    "ok": { "const": true },
+    "change": { "type": "string" },
+    "track": { "enum": ["fast", "full"] },
+    "phase": { "type": "string" },
+    "stage": { "enum": ["propose", "plan", "tasks", "apply", "verify", "archive"] },
+    "action": { "enum": ["dispatch", "gate", "inline", "done"] },
+    "granularity": { "enum": ["stage", "task", "batch", "round"] },
+    "model": {
+      "type": "object",
+      "required": ["tier", "fallback"],
+      "properties": {
+        "tier": { "type": "string" },
+        "fallback": { "type": "string" }
+      }
+    },
+    "gate": { "type": ["string", "null"] },
+    "legacy_fallback": { "type": "boolean" },
+    "diff_error": { "type": ["string", "null"] },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "severity", "message"],
+        "properties": {
+          "rule": { "type": "string" },
+          "severity": { "enum": ["error", "warning"] },
+          "file": { "type": ["string", "null"] },
+          "line": { "type": ["integer", "null"] },
+          "message": { "type": "string" },
+          "ref": { "type": ["string", "null"] },
+          "remediation": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "embedded": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "coordinator_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "enum": ["command", "ask_user"] },
+          "command": { "type": "string" },
+          "gate": { "type": ["string", "null"] },
+          "reason": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "subagents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "task_id", "pointers", "exit_command"],
+        "properties": {
+          "role": { "enum": ["author", "implementer", "reviewer", "security"] },
+          "task_id": { "type": ["string", "null"] },
+          "task_ids": { "type": "array", "items": { "type": "string" } },
+          "model": {
+            "type": "object",
+            "description": "Resolved model tier for this subagent (precedence: models[runtime][role] -> models[runtime][stage] -> models[runtime].default -> models[role] -> models[stage] -> models.default -> inherit), with fallback.",
+            "required": ["tier", "fallback"],
+            "properties": {
+              "tier": { "type": "string" },
+              "fallback": { "type": "string" }
+            }
+          },
+          "prompt": { "type": "string" },
+          "fetch_command": { "type": "string" },
+          "pointers": { "type": "array", "items": { "type": "string" } },
+          "plugin_pointers": { "type": "array", "items": { "type": "string" } },
+          "embedded_keys": { "type": "array", "items": { "type": "string" } },
+          "round": { "type": "integer", "minimum": 1 },
+          "report": { "type": "string" },
+          "previous_report": { "type": "string" },
+          "changed_since_previous": { "type": "array", "items": { "type": "string" } },
+          "suite": { "type": "string" },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["rule", "severity", "message"],
+              "properties": {
+                "rule": { "type": "string" },
+                "severity": { "enum": ["error", "warning"] },
+                "file": { "type": ["string", "null"] },
+                "line": { "type": ["integer", "null"] },
+                "message": { "type": "string" },
+                "ref": { "type": ["string", "null"] },
+                "remediation": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "exit_command": { "type": "string" }
+        }
+      }
+    }
+  }
+}

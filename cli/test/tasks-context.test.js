@@ -341,3 +341,18 @@ test('task done guard: testing.allow-additive-test-edits accepts only additive e
   write(root, 'test/a.test.js', ADDITIVE);
   assert.equal(medra(root, 'task', 'done', change, 'T003', '--run', 'exit 0').code, 0, 'the accepted edit was re-locked');
 });
+
+// Covers VAL-005.S1: Refusing untraceable tasks at tasks gate
+test('VAL-005.S1: validate --stage tasks refuses a task lacking REQ reference and target path', () => {
+  const root = project({ mode: 'none' });
+  livingSpec(root, 'auth', 'AUTH', [req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])]);
+  medra(root, 'new', 'untraceable-task', '--track', 'full');
+  proposal(root, 'untraceable-task', { track: 'full', caps: [['auth', 'modified', 'AUTH-001']] });
+  write(root, 'docs/changes/untraceable-task/specs/auth/spec.md', `# Delta: auth\n\n**Capability:** \`auth\`\n\n## MODIFIED Requirements\n\n${req('AUTH-001', 'Login', [['AUTH-001.S1', 'Valid login']])}`);
+  write(root, 'docs/changes/untraceable-task/plan.md', `# Plan: untraceable-task\n\n## Summary\n\nPlan.\n\n## Constitution Check\n\n| Article | Gate | Result | Note |\n|---|---|---|---|\n| I | Does every scenario map to a test task ordered before its implementation? | pass | Yes |\n\n## Complexity Tracking\n\nNone.\n\n## Test Strategy\n\n- **Command:** \`npm test\`\n- **Framework:** node:test\n\n| Scenario | Level | Test location |\n|---|---|---|\n| \`AUTH-001.S1\` | unit | \`test/a.test.js\` |\n\n## Decisions\n\n### D-01: Choice\n\n**Choice:** X.\n**Alternatives:** Y.\n**Rationale:** Z.\n`);
+  write(root, 'docs/changes/untraceable-task/tasks.md', '# Tasks: untraceable-task\n\n## Phase 1: AUTH-001 Login\n\n- [ ] T001 [AUTH-001] Implement login in `src/auth.js` — verify: ok\n- [ ] T002 Do vague work — verify: ok\n');
+
+  const res = medra(root, 'validate', 'untraceable-task', '--stage', 'tasks');
+  assert.equal(res.code, 1);
+  assert.ok(res.json.findings.some((f) => f.rule === 'tasks.traceability' && f.ref === 'T002'));
+});

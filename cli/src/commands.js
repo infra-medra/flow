@@ -5,14 +5,14 @@ import { spawnSync } from 'node:child_process';
 import YAML from 'yaml';
 import { classifyTestChange, summarizeChange, packSnapshot, unpackSnapshot } from './testdiff.js';
 import {
-  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, git, sha256,
+  refused, envError, usageError, finding, errorsOf, readIf, readText, writeAtomic, rel, resolveSafePath, git, childEnv, sha256,
   identity, today, nowIso, loadConfig, configWarnings, DEFAULT_CONFIG, CHANGE_NAME, ROMAN, listOpt, docsPath, docsRel, CONFIG_FILE,
 } from './core.js';
 import { parseConstitution, ratifyConstitution, parseTasks, tickTask, parseReport, parseArchiveIndex, ARCHIVE_INDEX_HEADER } from './documents.js';
 import { loadLivingSpecs, loadDeltas } from './specs.js';
 import { loadLearnings, saveLearnings, nextLearningId, learningsPath, renderLearnings, STAGES as LEARN_STAGES } from './learnings.js';
 import { changeDir, loadState, saveState, activeChanges, gateStatus, isApproved, stageHash, GATES, loadTasks, nextTask, specDrift, coverage, changeScenarios, latestReport, securityRelevance, fingerprint } from './change.js';
-import { changeFindings, projectFindings, STAGES } from './validate.js';
+import { changeFindings, projectFindings, verifyFindings, reportFreshness, STAGES } from './validate.js';
 import { archiveIndexPath, nextTaskPayload, taskContext } from './context.js';
 import { install } from './install.js';
 import { fixChange } from './fix.js';
@@ -73,6 +73,7 @@ export function newChange(root, change, { track = 'fast' }) {
   const state = {
     change, created: today(), track, phase: 'proposed', diff_base: git(root, ['rev-parse', '--short', 'HEAD']) ?? 'none',
     gates: Object.fromEntries(GATES.map((g) => [g, { status: 'pending' }])), gate_notes: [], reviews: [], track_history: [], blockers: [],
+    verify_fix_rounds: 0, last_fix_round_at: null,
   };
   saveState(root, change, state);
   return { change, path: rel(root, dir), track, findings: warnings };
@@ -149,7 +150,14 @@ export function validate(root, change, { stage, project }) {
 
 const GATE_PHASE = { plan: 'planned', tasks: 'tasked', verify: 'verified' };
 
+function requireCoordinator(command) {
+  if (process.env.MEDRA_SUBAGENT === '1') {
+    throw refused([finding('subagent.forbidden', `medra ${command} cannot be run by a subagent (MEDRA_SUBAGENT=1)`, { remediation: 'Return to the coordinator to run this command' })]);
+  }
+}
+
 export function gate(root, change, name, { approve, requestChanges, note, by }) {
+  requireCoordinator('gate');
   if (!GATES.includes(name)) throw usageError(`Gate must be one of ${GATES.join(', ')}`);
   if (!!approve === !!requestChanges) throw usageError('Pass exactly one of --approve or --request-changes');
   const state = loadState(root, change);
@@ -159,6 +167,10 @@ export function gate(root, change, name, { approve, requestChanges, note, by }) 
     const prev = state.gates[name] ?? {};
     state.gates[name] = { status: 'changes-requested', by: who, at: nowIso(), last_approved_at: prev.status === 'approved' ? prev.at : prev.last_approved_at ?? null };
     state.gate_notes.push({ gate: name, by: who, at: nowIso(), note });
+    if (name === 'verify') {
+      state.verify_fix_rounds = 0;
+      state.last_fix_round_at = null;
+    }
     saveState(root, change, state);
     return { gate: name, status: 'changes-requested', phase: state.phase };
   }
@@ -181,19 +193,35 @@ export function gate(root, change, name, { approve, requestChanges, note, by }) 
 }
 
 export function review(root, change, { report, by }) {
-  const file = path.resolve(root, report);
+  let file;
+  try {
+    file = resolveSafePath(root, report);
+  } catch {
+    throw usageError('report path must stay within project root');
+  }
+  if (!file) throw usageError('report path must stay within project root');
   const text = readIf(file);
   if (text === null) throw envError(`Report ${report} not found`);
   const r = parseReport(text);
   const verdicts = ['approve', 'request-changes', 'comment', 'pass', 'pass-with-findings', 'fail'];
   const f = [];
-  if (!['proposal', 'plan', 'tasks', 'verify'].includes(r.stage)) f.push(finding('review.report', '**Stage:** must be proposal, plan, tasks or verify', { file: report }));
+  if (!['proposal', 'plan', 'tasks', 'verify', 'security'].includes(r.stage)) f.push(finding('review.report', '**Stage:** must be proposal, plan, tasks, verify or security', { file: report }));
   if (!verdicts.includes(r.verdict)) f.push(finding('review.report', `**Verdict:** must be one of ${verdicts.join(', ')}`, { file: report }));
-  if (!r.counts) f.push(finding('review.report', '**Counts:** must read "critical <n> · major <n> · minor <n>"', { file: report }));
+  if (!r.counts) f.push(finding('review.report', r.stage === 'security' ? '**Counts:** must read "critical <n> · high <n> · medium <n> · low <n> · info <n>"' : '**Counts:** must read "critical <n> · major <n> · minor <n>"', { file: report }));
   if (f.length) throw refused(f);
   const state = loadState(root, change);
   const who = identity(root, by);
-  state.reviews.push({ stage: r.stage, by: who, at: nowIso(), verdict: r.verdict, report: rel(changeDir(root, change), file) });
+  const recordedAt = new Date().toISOString();
+  const hash = sha256(text);
+  state.reviews.push({
+    stage: r.stage,
+    by: who,
+    at: nowIso(),
+    recorded_at: recordedAt,
+    hash,
+    verdict: r.verdict,
+    report: rel(changeDir(root, change), file),
+  });
   if (r.verdict === 'request-changes') state.gate_notes.push({ gate: r.stage, by: who, at: nowIso(), report: rel(changeDir(root, change), file) });
   saveState(root, change, state);
   return { stage: r.stage, verdict: r.verdict };
@@ -334,7 +362,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit,
   }
   let detail;
   if (run) {
-    const res = spawnSync(run, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
+    const res = spawnSync(run, { cwd: root, shell: true, env: childEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
     if (res.error && res.error.code === 'ETIMEDOUT') throw envError(`Command timed out after 10 minutes: ${run}`);
     const code = res.status ?? 1;
     if (code === 127) throw envError(`Command not found: ${run}`);
@@ -345,7 +373,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit,
       const checks = config.testing.checks ?? [];
       for (const chk of Array.isArray(checks) ? checks : [checks]) {
         if (!chk) continue;
-        const cres = spawnSync(chk, { cwd: root, shell: true, encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
+        const cres = spawnSync(chk, { cwd: root, shell: true, env: childEnv(), encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: RUN_BUFFER });
         if (cres.error && cres.error.code === 'ETIMEDOUT') throw envError(`Check timed out after 10 minutes: ${chk}`);
         const ccode = cres.status ?? 1;
         if (ccode !== 127 && ccode !== 0) {
@@ -391,7 +419,7 @@ export function taskDone(root, change, id, { run, evidence, kind, allowTestEdit,
   }
   writeAtomic([[file, tickTask(text, id, `- evidence ${k} ${today()}: ${detail}`)]]);
   if (['tasked', 'proposed'].includes(state.phase)) state.phase = 'implementing';
-  state.last_task_done_at = nowIso();
+  state.last_task_done_at = new Date().toISOString();
   saveState(root, change, state);
   const { next_task, parallel_batch, remaining } = nextTaskPayload(root, change, state);
   return { task: id, kind: k, remaining, next: next_task ? next_task.id : null, next_task, ...(parallel_batch ? { parallel_batch } : {}), ...(warnings.length ? { warnings } : {}) };
@@ -411,7 +439,7 @@ export function suite(root, change) {
   const commands = [testing.mode !== 'none' ? testing.command : null, ...checks].filter(Boolean);
   if (!commands.length) return { ran: [], skipped: true };
   for (const command of commands) {
-    const res = spawnSync(command, { cwd: root, shell: true, encoding: 'utf8', timeout: 30 * 60 * 1000, maxBuffer: RUN_BUFFER });
+    const res = spawnSync(command, { cwd: root, shell: true, env: childEnv(), encoding: 'utf8', timeout: 30 * 60 * 1000, maxBuffer: RUN_BUFFER });
     if (res.error && res.error.code === 'ETIMEDOUT') throw envError(`Command timed out after 30 minutes: ${command}`);
     const code = res.status ?? 1;
     if (code === 127) throw envError(`Command not found: ${command}`);
@@ -424,6 +452,50 @@ export function suite(root, change) {
   state.suite = { at: nowIso(), exit: 0, commands, fingerprint: fingerprint(root, state) };
   saveState(root, change, state);
   return { ran: commands, exit: 0 };
+}
+
+function isReportNewerThanFix(root, change, state, report, lastFixMs) {
+  if (!report) return false;
+  const freshness = reportFreshness(root, change, state, report, lastFixMs);
+  return !freshness.hashMismatch && freshness.timestampMs > lastFixMs;
+}
+
+export function verifyFix(root, change) {
+  requireCoordinator('verify-fix');
+  const state = loadState(root, change);
+  const lastDoneMs = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
+  const lastFixMs = state.last_fix_round_at ? Date.parse(state.last_fix_round_at) : 0;
+  const report = latestReport(root, change, 'verify');
+  const secRelevant = securityRelevance(root, change) === 'relevant';
+  const sec = secRelevant ? latestReport(root, change, 'security') : null;
+
+  if (lastFixMs && (!isReportNewerThanFix(root, change, state, report, lastFixMs) || (secRelevant && !isReportNewerThanFix(root, change, state, sec, lastFixMs)))) {
+    throw refused([finding('verify.fix-open', 'An open verify fix round is already awaiting re-verification', { ref: change, remediation: 'Re-run reviewer/security verification before starting another fix round' })]);
+  }
+
+  if (Number(state.verify_fix_rounds || 0) >= 1) {
+    throw refused([finding('verify.fix-limit', 'Maximum verify fix rounds (1) already used', { ref: change, remediation: 'Proceed to the verify gate or request changes via `medra gate <change> verify --request-changes --note "..."`' })]);
+  }
+
+  const freshFloor = Math.max(lastDoneMs || 0, lastFixMs || 0);
+  if (!report || !reportFreshness(root, change, state, report, freshFloor).fresh || (secRelevant && (!sec || !reportFreshness(root, change, state, sec, freshFloor).fresh))) {
+    throw refused([finding('verify.report', 'No current verify review report with blocking findings', { ref: change, remediation: 'Run /medra:verify review before recording a fix round' })]);
+  }
+
+  const blocking = errorsOf(verifyFindings(root, change, state));
+  if (blocking.length === 0) {
+    throw refused([finding('verify.no-blockers', 'No blocking verify findings require a fix round', { ref: change, remediation: 'Proceed to the verify gate instead of running verify-fix' })]);
+  }
+
+  state.verify_fix_rounds = Number(state.verify_fix_rounds || 0) + 1;
+  state.last_fix_round_at = new Date().toISOString();
+  saveState(root, change, state);
+  return {
+    ok: true,
+    change,
+    verify_fix_rounds: state.verify_fix_rounds,
+    last_fix_round_at: state.last_fix_round_at,
+  };
 }
 
 export function taskBlock(root, change, id, { note }, unblock = false) {

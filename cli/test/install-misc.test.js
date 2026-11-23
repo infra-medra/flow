@@ -4,11 +4,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { medra, medraHuman, write, read, project, req, livingSpec, proposal, delta, tasks, verifyReport, securityReport, rules, brownfieldChange } from './helpers.js';
+import { loadConfig } from '../src/core.js';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const CLI_ROOT = path.join(REPO_ROOT, 'cli');
 
 test('version prints bare semver', () => {
   const r = medra(process.cwd(), '--version');
-  assert.match(r.stdout.trim(), /^1\.\d+\.\d+$/);
+  assert.match(r.stdout.trim(), /^2\.\d+\.\d+(?:-rc\.\d+)?$/);
 });
 
 test('outside a project, commands exit 4', () => {
@@ -40,21 +45,21 @@ test('install --target antigravity: plugin rewrite table, manifest, idempotent, 
   const cmd = read(root, `${P}/skills/propose/SKILL.md`);
   assert.match(cmd, /^---\nname: propose\ndescription: [^\n]+\n---\n/);
   assert.doesNotMatch(cmd, /disable-model-invocation|argument-hint|\$ARGUMENTS|\$\{CLAUDE_/);
-  assert.match(cmd, /\.agents\/plugins\/medra\/references\/conventions\.md/);
-  assert.match(cmd, /\.agents\/plugins\/medra\/references\/gate\.md/);
+  assert.match(cmd, /references\/conventions\.md/);
+  assert.match(cmd, /references\/gate\.md/);
   assert.doesNotMatch(cmd, /agents\/author\.md|pipelines\/author-propose\.md/, 'a command skill is its own single source');
-  assert.match(cmd, /## Operating Persona \(Author\)/);
-  assert.match(cmd, /### Phase 1 — Intake/);
+  assert.match(cmd, /## Steps/);
+  assert.match(cmd, /## Avoid/);
   const applyCmd = read(root, `${P}/skills/apply/SKILL.md`);
-  assert.match(applyCmd, /## Operating Persona \(Implementer\)/);
-  assert.match(applyCmd, /### Phase 1 — Resume/);
-  assert.equal(fs.readdirSync(path.join(root, P, 'skills')).length, 8, 'only 8 user commands installed as skills');
+  assert.match(applyCmd, /## Steps/);
+  assert.match(applyCmd, /## Avoid/);
+  assert.equal(fs.readdirSync(path.join(root, P, 'skills')).length, 9, 'only 9 user commands installed as skills');
   assert.match(read(root, `${P}/templates/spec/guide.md`), /`\.agents\/plugins\/medra\/templates\/spec\/template\.md`/);
   const reviewer = read(root, `${P}/agents/reviewer.md`);
   assert.match(reviewer, /^---\nname: medra-reviewer\ndescription: [^\n]+\ntools: \[read_file, write_file, run_command, ask_question\]\nmainAgent: true\nsubagent: true\n---\n/);
   assert.deepEqual(fs.readdirSync(path.join(root, P, 'agents')).sort(), ['reviewer.md', 'security.md'], 'only dispatched agents ship');
-  assert.deepEqual(fs.readdirSync(path.join(root, P, 'pipelines')).sort(), ['reviewer-check.md', 'security-audit.md', 'security-threat-model.md'], 'only subagent pipelines ship');
-  assert.deepEqual(fs.readdirSync(path.join(root, P, 'references')).sort(), ['conventions.md', 'gate.md', 'portability.md']);
+  assert.deepEqual(fs.readdirSync(path.join(root, P, 'pipelines')).sort(), ['author-archive.md', 'author-init.md', 'author-plan.md', 'author-propose.md', 'author-tasks.md', 'implementer-apply.md', 'reviewer-check.md', 'security-audit.md', 'security-threat-model.md'], 'all subagent pipelines ship');
+  assert.deepEqual(fs.readdirSync(path.join(root, P, 'references')).sort(), ['apply-recovery.md', 'author-edge-cases.md', 'conventions.md', 'gate.md', 'portability.md', 'verify-checklists.md']);
   assert.match(read(root, `${P}/handoffs/implementer-reviewer.md`), /subagent_type: medra-reviewer/);
   assert.match(read(root, `${P}/agents/security.md`), /tools: \[read_file, write_file, run_command, search_web\]\nmainAgent: true\nsubagent: true\n---/, 'a dispatched agent is a subagent');
   assert.equal(read(root, `${P}/VERSION`).trim(), version);
@@ -283,4 +288,320 @@ test('medra fix: deterministically auto-remediates proposal.md and plan.md valid
   const after = medra(root, 'validate', change, '--stage', 'plan');
   assert.equal(after.code, 1);
   assert.deepEqual([...new Set(after.json.findings.filter((x) => x.severity === 'error').map((x) => x.rule))].sort(), ['plan.constitution', 'plan.markers']);
+});
+
+test('PLUG-005.S1 & M-07: models config accepts valid overrides, defaults to inherit, and warns on invalid entries', () => {
+  const root = project();
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const baseCfg = fs.readFileSync(cfgPath, 'utf8').replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n');
+
+  // Valid models override should not trigger config.unknown-key
+  fs.writeFileSync(cfgPath, `${baseCfg.trimEnd()}\nmodels:\n  default: inherit\n  implementer: sonnet\n  reviewer: inherit\n`);
+  const okVal = medra(root, 'validate', '--project', 'constitution');
+  assert.equal(okVal.code, 0);
+  const warningsOk = okVal.json.findings ?? [];
+  assert.equal(warningsOk.some((f) => f.rule === 'config.unknown-key' && /models/.test(f.message)), false);
+
+  // Invalid models key/value triggers a warning (M-07) without breaking validate
+  fs.writeFileSync(cfgPath, `${baseCfg.trimEnd()}\nmodels:\n  bogus_role: sonnet\n  implementer: ""\n`);
+  const warnVal = medra(root, 'validate', '--project', 'constitution');
+  assert.equal(warnVal.code, 0);
+  const warnings = warnVal.json.findings ?? [];
+  assert.ok(warnings.some((f) => f.rule === 'config.models' && f.severity === 'warning'), 'expected config.models warning for unknown role or empty tier');
+});
+
+test('STATE-005.S1: 2.0.0-rc.1 CLI runs cleanly on 1.x docs layout without models config', () => {
+  const root = project();
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  fs.writeFileSync(cfgPath, fs.readFileSync(cfgPath, 'utf8').replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n'));
+  const change = brownfieldChange(root);
+  const v = medra(process.cwd(), '--version');
+  assert.match(v.stdout.trim(), /^2\.\d+\.\d+(?:-rc\.\d+)?$/);
+
+  const st = medra(root, 'status');
+  assert.equal(st.code, 0);
+
+  const ctx = medra(root, 'context', change, '--stage', 'propose');
+  assert.equal(ctx.code, 0);
+
+  const stepRes = medra(root, 'step', change, '--stage', 'propose');
+  assert.equal(stepRes.code, 0);
+  assert.equal(stepRes.json.model.tier, 'inherit');
+  assert.equal(stepRes.json.model.fallback, 'inherit');
+});
+
+test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3 & M-03/M-06: thin coordinator skills, /medra:run continuous loop and gate-pause contract, hooks guard, and Antigravity bundle parity', () => {
+  const repoRoot = path.resolve(process.cwd(), '..');
+  const skills = ['init', 'propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review', 'run'];
+
+  for (const name of skills) {
+    const srcSkill = path.join(repoRoot, 'plugins', 'medra', 'skills', name, 'SKILL.md');
+    const bundledSkill = path.join(repoRoot, 'cli', 'plugin', 'skills', name, 'SKILL.md');
+    assert.ok(fs.existsSync(srcSkill), `missing skill ${srcSkill}`);
+    assert.ok(fs.existsSync(bundledSkill), `missing bundled skill ${bundledSkill}`);
+    assert.equal(fs.readFileSync(srcSkill, 'utf8'), fs.readFileSync(bundledSkill, 'utf8'), `bundle mismatch for ${name}`);
+  }
+
+  const runSkill = fs.readFileSync(path.join(repoRoot, 'plugins', 'medra', 'skills', 'run', 'SKILL.md'), 'utf8');
+  assert.match(runSkill, /medra step\b.*--json/);
+  assert.match(runSkill, /inherit/);
+  assert.match(runSkill, /gate|human/i);
+  assert.match(runSkill, /Repeat until/i);
+  assert.match(runSkill, /pauses? only/i);
+  assert.match(runSkill, /loop back to Step 1/i);
+
+  for (const name of ['propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review']) {
+    const text = fs.readFileSync(path.join(repoRoot, 'plugins', 'medra', 'skills', name, 'SKILL.md'), 'utf8');
+    assert.match(text, /medra step\b.*--json/, `${name} skill must compile handoff via medra step --json`);
+    assert.match(text, /inherit/, `${name} skill must document inherit fallback`);
+  }
+
+  const hooksPath = path.join(repoRoot, 'plugins', 'medra', 'hooks', 'hooks.json');
+  const bundledHooksPath = path.join(repoRoot, 'cli', 'plugin', 'hooks', 'hooks.json');
+  assert.ok(fs.existsSync(hooksPath), 'hooks.json must exist');
+  assert.equal(fs.readFileSync(hooksPath, 'utf8'), fs.readFileSync(bundledHooksPath, 'utf8'));
+  assert.match(fs.readFileSync(hooksPath, 'utf8'), /PreToolUse/);
+
+  const root = project();
+  const inst = medra(root, 'install', '--target', 'antigravity');
+  assert.equal(inst.code, 0);
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'skills', 'run', 'SKILL.md')));
+});
+
+test('PLUG-001.S1, PLUG-001.S2, PLUG-001.S3: coordinator skills handle diff_error, drop empty persona headers, use medra review --report, standardize <untrusted_data>, and ship 1.x authoring pipelines', () => {
+  const skillsDir = path.join(REPO_ROOT, 'plugins', 'medra', 'skills');
+  const pipelinesDir = path.join(REPO_ROOT, 'plugins', 'medra', 'pipelines');
+
+  const verifySkill = fs.readFileSync(path.join(skillsDir, 'verify', 'SKILL.md'), 'utf8');
+  assert.match(verifySkill, /diff_error/, 'verify/SKILL.md must check step.diff_error');
+  assert.match(verifySkill, /warn|pause/i, 'verify/SKILL.md must warn/pause on diff_error');
+
+  const runSkill = fs.readFileSync(path.join(skillsDir, 'run', 'SKILL.md'), 'utf8');
+  assert.match(runSkill, /diff_error/, 'run/SKILL.md must check step.diff_error');
+  assert.match(runSkill, /warn|pause/i, 'run/SKILL.md must warn/pause on diff_error');
+
+  const applySkill = fs.readFileSync(path.join(skillsDir, 'apply', 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(applySkill, /## Operating Persona/, 'apply/SKILL.md must not contain an empty Operating Persona header');
+
+  const reviewSkill = fs.readFileSync(path.join(skillsDir, 'review', 'SKILL.md'), 'utf8');
+  assert.match(reviewSkill, /medra review <change> --report/, 'review/SKILL.md must use medra review --report');
+  assert.doesNotMatch(reviewSkill, /--stage\b.*--verdict\b/, 'review/SKILL.md must not use invalid --stage/--verdict flags');
+
+  for (const name of ['init', 'propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review', 'run']) {
+    const text = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(text, /<\/?untrusted-data/i, `${name}/SKILL.md must standardize on <untrusted_data>`);
+  }
+
+  const expectedPipelines = [
+    'author-init.md',
+    'author-propose.md',
+    'author-plan.md',
+    'author-tasks.md',
+    'implementer-apply.md',
+    'author-archive.md',
+    'reviewer-check.md',
+    'security-audit.md',
+    'security-threat-model.md',
+  ];
+  for (const file of expectedPipelines) {
+    assert.ok(fs.existsSync(path.join(pipelinesDir, file)), `missing pipeline ${file}`);
+  }
+});
+
+test('PLUG-003.S1: bundle drift check passes and versions match 2.1.0', () => {
+  const pkgVersion = JSON.parse(fs.readFileSync(path.join(CLI_ROOT, 'package.json'), 'utf8')).version;
+  const pluginVersion = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'plugins', 'medra', '.claude-plugin', 'plugin.json'), 'utf8')).version;
+  assert.equal(pkgVersion, '2.1.0');
+  assert.equal(pluginVersion, '2.1.0');
+
+  const checkVer = spawnSync(process.execPath, [path.join(CLI_ROOT, 'scripts', 'check-version.js')], { cwd: REPO_ROOT, encoding: 'utf8' });
+  assert.equal(checkVer.status, 0, checkVer.stdout + checkVer.stderr);
+
+  const driftScript = path.join(CLI_ROOT, 'scripts', 'check-bundle-drift.js');
+  assert.ok(fs.existsSync(driftScript), 'cli/scripts/check-bundle-drift.js must exist');
+  const driftRes = spawnSync(process.execPath, [driftScript], { cwd: REPO_ROOT, encoding: 'utf8' });
+  assert.equal(driftRes.status, 0, driftRes.stdout + driftRes.stderr);
+});
+
+test('STATE-005.S1: 2.0.0-rc.5 CLI runs cleanly on 1.x docs layout without models or apply config', () => {
+  const root = project();
+  const cfgPath = path.join(root, 'docs', 'config-flow.yaml');
+  const strippedCfg = fs.readFileSync(cfgPath, 'utf8')
+    .replace(/\n?models:\n(?:[ \t]+.*\n)*/g, '\n')
+    .replace(/\n?apply:\n(?:[ \t]+.*\n)*/g, '\n');
+  fs.writeFileSync(cfgPath, strippedCfg);
+  const change = brownfieldChange(root);
+
+  const v = medra(CLI_ROOT, '--version');
+  assert.equal(v.stdout.trim(), '2.1.0');
+
+  const loaded = loadConfig(root);
+  assert.equal(loaded.apply?.inline_max_tasks, 3);
+  assert.equal(loaded.apply?.granularity, 'batch');
+  assert.equal(loaded.apply?.batch_max_tasks, 4);
+
+  const st = medra(root, 'status');
+  assert.equal(st.code, 0);
+
+  const ctx = medra(root, 'context', change, '--stage', 'propose');
+  assert.equal(ctx.code, 0);
+
+  const stepRes = medra(root, 'step', change, '--stage', 'propose');
+  assert.equal(stepRes.code, 0);
+  assert.equal(stepRes.json.model.tier, 'inherit');
+  assert.equal(stepRes.json.model.fallback, 'inherit');
+});
+
+test('PLUG-002.S1 & PLUG-002.S2: Antigravity bundle installs into .agents/plugins/medra/ and portability.md documents plugin_pointers and Antigravity gate boundary', () => {
+  // PLUG-002.S1: bundling for Antigravity workspace into .agents/plugins/medra/
+  const root = project();
+  const inst = medra(root, 'install', '--target', 'antigravity');
+  assert.equal(inst.code, 0, inst.stderr);
+  assert.equal(inst.json.plugin, '.agents/plugins/medra');
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'pipelines', 'implementer-apply.md')));
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'templates', 'proposal', 'template.md')));
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'plugins', 'medra', 'references', 'portability.md')));
+
+  // PLUG-002.S2: references/portability.md documents plugin_pointers / ${CLAUDE_PLUGIN_ROOT}/ resolution and Antigravity gate boundary
+  const portabilityPath = path.join(REPO_ROOT, 'plugins', 'medra', 'references', 'portability.md');
+  const portability = fs.readFileSync(portabilityPath, 'utf8');
+  assert.match(portability, /plugin_pointers/, 'portability.md must document plugin_pointers');
+  assert.match(portability, /\$\{CLAUDE_PLUGIN_ROOT\}/, 'portability.md must document ${CLAUDE_PLUGIN_ROOT}/ resolution');
+  assert.match(portability, /Claude Code/i);
+  assert.match(portability, /Antigravity/i);
+  assert.match(portability, /gate/i, 'portability.md must document the Antigravity equivalent for subagent gate protection');
+  assert.match(portability, /PreToolUse|hooks/i, 'portability.md must contrast Claude Code PreToolUse hooks with Antigravity');
+
+  // PLUG-002.S2 & PLUG-005.S2: Antigravity subagent model selection conditional on invoke_subagent support + inline stages use session model
+  assert.match(
+    portability,
+    /invoke_subagent[\s\S]*model|model[\s\S]*invoke_subagent/i,
+    'portability.md must document that Antigravity subagent model tier applies only if invoke_subagent supports model selection',
+  );
+  assert.match(
+    portability,
+    /inherit/i,
+    'portability.md must document inheriting the conversation/session model when model selection is unsupported',
+  );
+  assert.match(
+    portability,
+    /inline[\s\S]*session model/i,
+    'portability.md must document that inline stages use the session model',
+  );
+});
+
+test('PLUG-001.S4: no skill states that propose, plan, or tasks are dispatched to a subagent', () => {
+  const skillsDir = path.join(REPO_ROOT, 'plugins', 'medra', 'skills');
+  const skillNames = fs.readdirSync(skillsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(path.join(skillsDir, d.name, 'SKILL.md')))
+    .map((d) => d.name)
+    .sort();
+
+  assert.ok(skillNames.includes('run'), 'run/SKILL.md must exist');
+
+  for (const name of skillNames) {
+    const text = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(
+      text,
+      /Other stages \(`?propose`?,\s*`?plan`?,\s*`?tasks`?\):\s*dispatch/i,
+      `${name}/SKILL.md must not contain stage-based dispatch override for propose/plan/tasks`,
+    );
+    assert.doesNotMatch(
+      text,
+      /(?:propose|plan|tasks)[^\n.]*\bdispatch(?:es|ed)?\b[^\n.]*\bauthor\b[^\n.]*\bsubagent|\bdispatch(?:es|ed)?\b[^\n.]*\bauthor\b[^\n.]*\bsubagent[^\n.]*(?:propose|plan|tasks)/i,
+      `${name}/SKILL.md must not claim propose, plan, or tasks are dispatched to an author subagent`,
+    );
+    if (name === 'propose' || name === 'plan' || name === 'tasks') {
+      assert.doesNotMatch(
+        text,
+        /\b(?:dispatch(?:es|ed)?|spawn)\b[^\n]*\bauthor\b[^\n]*\bsubagent/i,
+        `${name}/SKILL.md must not claim ${name} dispatches to a clean-context author subagent`,
+      );
+    }
+  }
+
+  const runSkill = fs.readFileSync(path.join(skillsDir, 'run', 'SKILL.md'), 'utf8');
+  assert.match(
+    runSkill,
+    /follow(?:s)?\s+only\s+[^.\n]*`?action`?[^.\n]*(?:inline|dispatch|gate)/i,
+    'run/SKILL.md must explicitly state that the coordinator follows only action (inline / dispatch / gate)',
+  );
+  assert.match(
+    runSkill,
+    /(?:without|never)\s+infer(?:ring)?\s+dispatch\s+from\s+stage\s+names/i,
+    'run/SKILL.md must state not to infer dispatch from stage names',
+  );
+});
+
+test('PLUG-007.S1: all 9 skills follow lean agent-oriented structure, omit spec IDs and stage-dispatch boilerplate, include user-language rule and structured gate prompts, and stay <= 110% of 2.0.0-rc.4 bytes', () => {
+  const skillsDir = path.join(REPO_ROOT, 'plugins', 'medra', 'skills');
+  const expectedSkills = ['init', 'propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review', 'run'];
+  const gateSkills = new Set(['propose', 'plan', 'tasks', 'verify', 'run']);
+  const rc4TotalBytes = 23470;
+  const maxTotalBytes = Math.floor(rc4TotalBytes * 1.10);
+
+  let totalBytes = 0;
+
+  for (const name of expectedSkills) {
+    const filePath = path.join(skillsDir, name, 'SKILL.md');
+    assert.ok(fs.existsSync(filePath), `${name}/SKILL.md must exist`);
+    const buf = fs.readFileSync(filePath);
+    const text = buf.toString('utf8');
+    totalBytes += buf.length;
+
+    assert.match(text, /^## Purpose\b/m, `${name}/SKILL.md must have ## Purpose`);
+    assert.match(text, /^## Input\b/m, `${name}/SKILL.md must have ## Input`);
+    assert.match(text, /^## Preconditions\b/m, `${name}/SKILL.md must have ## Preconditions`);
+    assert.match(text, /^## (?:Coordinator )?(?:Loop|Steps)\b/m, `${name}/SKILL.md must have ## Loop or ## Steps`);
+    assert.match(text, /^## Avoid\b/m, `${name}/SKILL.md must have ## Avoid`);
+
+    const avoidMatch = text.match(/^## Avoid\b[^\n]*\n([\s\S]*?)(?=\n## |\s*$)/m);
+    assert.ok(avoidMatch && avoidMatch[1].trim().length > 0, `${name}/SKILL.md ## Avoid section must not be empty`);
+    assert.match(
+      avoidMatch[1],
+      /\b(?:because|so\s+(?:that|you|it|the|no|prior|progress)|to\s+(?:avoid|prevent|keep|ensure)|since|otherwise)\b/i,
+      `${name}/SKILL.md ## Avoid rules must include rationale`,
+    );
+
+    assert.doesNotMatch(
+      text,
+      /\b(?:REQ|PLUG|CTX|STATE|VAL|LEARN|TM)-\d{2,}\b/,
+      `${name}/SKILL.md must not contain spec IDs`,
+    );
+    assert.doesNotMatch(
+      text,
+      /\bM-\d{2}\b/,
+      `${name}/SKILL.md must not contain mitigation IDs`,
+    );
+    assert.doesNotMatch(
+      text,
+      /without inferring dispatch from stage names/i,
+      `${name}/SKILL.md must not repeat "without inferring dispatch from stage names" boilerplate`,
+    );
+    assert.match(
+      text,
+      /user['’]?s language|same language (?:the )?user|idioma do usu/i,
+      `${name}/SKILL.md must include the user-language rule`,
+    );
+
+    if (gateSkills.has(name)) {
+      assert.match(
+        text,
+        /(?:gate|approve)[\s\S]{0,300}(?:AskUserQuestion|ask_question)|(?:AskUserQuestion|ask_question)[\s\S]{0,300}(?:gate|approve)/i,
+        `${name}/SKILL.md must require structured gate prompts (AskUserQuestion / ask_question)`,
+      );
+    }
+  }
+
+  assert.ok(
+    totalBytes <= maxTotalBytes,
+    `Total SKILL.md bytes (${totalBytes}) must be <= ${maxTotalBytes} (110% of 2.0.0-rc.4 ${rc4TotalBytes} bytes)`,
+  );
+});
+
+test('STATE-007.S1: medra validate --project specs --json exits 0 with zero warnings', () => {
+  const res = medra(REPO_ROOT, 'validate', '--project', 'specs');
+  assert.equal(res.code, 0, res.stderr || res.stdout);
+  assert.equal(res.json?.ok, true, res.stdout);
+  assert.deepEqual(res.json?.findings, [], `Expected 0 validate findings, got: ${JSON.stringify(res.json?.findings)}`);
 });

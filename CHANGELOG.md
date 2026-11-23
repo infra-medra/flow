@@ -2,6 +2,131 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.1.0] — 2026-11-22
+
+### Added
+- **Per-runtime model configuration (`PLUG-005`).** Added `models.claude` and `models.antigravity` nested mappings in `docs/config-flow.yaml` (`cli/src/core.js`, `cli/src/validate.js`), resolving subagent tiers in precedence `models[runtime][role] -> models[runtime][stage] -> models[runtime].default -> models[role] -> models[stage] -> models.default -> inherit` while preserving flat `models:` configs.
+- **Runtime detection & CLI flag (`cli/src/step.js`, `cli/bin/medra.js`, `cli/src/install.js`).** Added `--runtime <claude|antigravity>` to `medra step`, `MEDRA_RUNTIME` and environment auto-detection (`CLAUDECODE` / `CLAUDE_CODE_ENTRYPOINT` vs `ANTIGRAVITY_AGENT`), and automatic `--runtime antigravity` rewriting in installed `.agents/plugins/medra/skills/*/SKILL.md`.
+
+### Documentation
+- **v2 Value-Driven `README.md`.** Rewrote `README.md` to highlight v2 architecture, token/cost savings, and full CLI/configuration reference including `models.claude` and `models.antigravity`.
+
+## [2.0.1] — 2026-11-22
+
+### Documentation
+- **Bundled `README.md` `2.0.0` changelog & metrics.** Updated `README.md` (`## Changelog` and Progressive Resource Disclosure metrics) and republished the bundled `cli/README.md` package documentation for npm.
+
+## [2.0.0] — 2026-11-22
+
+### Released
+- **Medra v2.0.0 GA (`2.0.0-rc.1` through `2.0.0-rc.8`).** Stabilizes the deterministic `medra step` compiler, lean coordinator skills, `coordinator_steps[]` (auto-running `medra suite` before `verify`), incremental `verify` handoffs (`round`, `previous_report`, `changed_since_previous`), `cross-phase` `batch` `apply` granularity, `MEDRA_SUBAGENT=1` CLI guard with `childEnv()` subprocess isolation, compact `medra step --md` task packs, and lean core pipelines (`24,872 B` raw / `36,575 B` measured in `measure-envelope.js` vs `74,369 B` baseline) with restored guardrails and rule rationales.
+
+## [2.0.0-rc.8] — 2026-11-22
+
+### Changed
+- **Lean core pipelines and on-demand references (`PLUG-013`).** Refactored all 9 `plugins/medra/pipelines/*.md` workflows into compact core procedures and moved verbose edge-case, checklist, and recovery guidance into `plugins/medra/references/apply-recovery.md`, `plugins/medra/references/author-edge-cases.md`, and `plugins/medra/references/verify-checklists.md`, syncing `cli/plugin/` and `.agents/plugins/medra/`.
+- **Self-contained `medra step --md` task pack (`CTX-008`) and scoped `--run` test hints (`PLUG-014`).** Enriched `medra step <change> --role <role> [--task <T-ID>] --md` in `cli/src/step.js` with compact ratified `constitution.md` summaries, referenced `REQ`/scenario blocks, matching `tasks.md` lines, and targeted `--run` test guidance while keeping default `medra step --json` envelopes unchanged; updated `plugins/medra/pipelines/implementer-apply.md` and `author-tasks.md` to reserve full-suite runs for `medra suite`.
+- **Cross-phase `apply` batching (`PLUG-006`) and non-verify `compileStep` fast path (`STATE-008`).** Added `apply.batch_scope: phase | cross-phase` (default `cross-phase`) in `cli/src/core.js`, `cli/src/step.js`, and `docs/config-flow.yaml` so `batch` groups satisfied tasks across phases up to `apply.batch_max_tasks`, and scoped `compileStep` so non-verify stages skip `safeGitDiff`, `suiteFindings`, and `prepareVerifyRound`.
+
+### Fixed
+- **Scenario-matched `red` failure requirement (`VAL-007`).** Restored the rule in `plugins/medra/pipelines/implementer-apply.md` and compiled `batch` / `fast`-track `inline` `apply` prompts (`cli/src/step.js`) requiring `[TEST]` `red` runs in `tdd` to fail for the missing behavior predicted by the scenario (fixing import, syntax, fixture, or environment errors first) with a one-sentence rationale.
+- **Inline verdict & critical-findings rules (`PLUG-015`).** Restored the verdict table (`fail` / `pass-with-findings` / `pass`) and critical-findings list inline in `plugins/medra/pipelines/reviewer-check.md`, restricted `references/verify-checklists.md` §1 to conditional `changed_since_previous` and `invalid-dispatch`/`needs-decision` rules, and ensured `plugins/medra/pipelines/security-audit.md` states its verdict/counts contract inline.
+- **One-sentence rule rationales (`PLUG-016`) and inline session budget (`PLUG-017`).** Added concise one-sentence rationales to core guardrails across `implementer-apply.md`, `reviewer-check.md`, `security-audit.md`, and `<untrusted_data>` fences in all pipelines, defined the `batch` vs `task`/`inline` session budget directly in `implementer-apply.md`, and removed the duplicate from `references/apply-recovery.md` §4.
+
+### Verified
+- **Envelope & benchmark measurements (`measure-envelope.js`, `check-bundle-drift.js`).** Measured `total_pipeline_bytes` at `36,575 B` (`24,872 B` raw across `plugins/medra/pipelines/*.md`) compared to `74,369 B` pre-optimization and `35,189 B` in `20d0e22`, with `remodel_benchmark.batch` at `26,039 B` (`4` dispatches vs `14` task dispatches at `89,725 B`).
+
+## [2.0.0-rc.7] — 2026-11-22
+
+### Fixed
+- **Child test and check process isolation from `MEDRA_SUBAGENT` (`VAL-006`).** Added `childEnv()` in `cli/src/core.js` to return a copy of `process.env` with `MEDRA_SUBAGENT` removed and passed `env: childEnv()` to all three `spawnSync(..., { shell: true })` child-command invocations in `cli/src/commands.js` (`medra task done --run`, `testing.checks`, and `medra suite`), while keeping `requireCoordinator` reading `process.env.MEDRA_SUBAGENT` directly for direct CLI calls.
+- **Test harness isolation under `MEDRA_SUBAGENT=1` (`PLUG-011`).** Stripped `MEDRA_SUBAGENT` from the default child environment in `medra()` and `medraHuman()` (`cli/test/helpers.js`), `guard()` (`cli/test/hooks.test.js`), and `medra()` (`cli/scripts/measure-envelope.js`), so the full test suite passes when invoked directly or from a subagent shell with `MEDRA_SUBAGENT=1`, while explicit `MEDRA_SUBAGENT: '1'` refusal tests remain intact.
+
+### Changed
+- **Documented `MEDRA_SUBAGENT=1` command scope (`PLUG-012`).** Updated `plugins/medra/references/gate.md` and `plugins/medra/references/portability.md` to clarify that `MEDRA_SUBAGENT=1` applies only to the `medra` command invoked by the subagent and that the CLI strips it from the environment of child test and check commands it executes.
+
+### Verified
+- **Subagent-shell execution of `MEDRA_SUBAGENT=1 medra suite`.** Executed `MEDRA_SUBAGENT=1 node cli/bin/medra.js suite isolate-subagent-env-rc7 --json` inside an isolated subagent (`{"ok":true,"ran":["npm --prefix cli test"],"exit":0}`) and `MEDRA_SUBAGENT=1 npm --prefix cli test` (`102/102` tests passing, `0` failed, `0` skipped).
+
+## [2.0.0-rc.6] — 2026-11-22
+
+### Fixed
+- **Pre-verify `medra suite` dispatch instead of blocking gate (Item 1).** Tagged `verify.suite` findings in `suiteFindings` (`cli/src/change.js`) with a structured `data.reason` (`not-run` | `stale` | `failed`) passed through `prepareVerifyRound` (`cli/src/handoff.js`); updated `compileVerifyStep` (`cli/src/step.js`) so `not-run`/`stale`-only pre-dispatch checks return `action: "dispatch"`, `coordinator_steps: [{ type: "command", command: "medra suite <change> --json" }]`, and `subagents: []` without writing round snapshots, while `failed` suites (`exit != 0`) and `verify.merge` conflicts remain `action: "gate"`. Updated `plugins/medra/skills/run/SKILL.md` and `plugins/medra/skills/verify/SKILL.md` to explicitly loop back to Step 1 after `coordinator_steps[]` when `subagents[]` is empty.
+- **Actual `MEDRA_SUBAGENT=1` delivery to subagents and guard alignment (Item 2).** Centralized `MEDRA_SUBAGENT=1 ` prefixing in `compileStep`'s `envelope()` (`cli/src/step.js`) for every non-`inline` subagent `fetch_command` and `exit_command` (including fix `implementer`'s `medra suite` and reviewer's `medra review`) plus a short prefix rule in compiled `--md` / `--full` subagent prompts, leaving `coordinator_steps[]` and `inline` `exit_command` unprefixed. Updated `plugins/medra/hooks/guard.mjs` to detect `MEDRA_SUBAGENT=1` in Bash command segments as well as `agent_id` / `process.env.MEDRA_SUBAGENT`, and updated `plugins/medra/references/portability.md` and `plugins/medra/references/gate.md` to document the envelope-imposed convention and remaining Antigravity omission/manual-edit limits.
+- **Envelope-only `done` archive dispatch in `/medra:run` (Item 3).** Removed the direct `medra archive` coordinator shortcut from Step 6 (`action === "done"`) of `plugins/medra/skills/run/SKILL.md` so `/medra:run` always dispatches `subagents[]` (`author-archive.md` with `MEDRA_SUBAGENT=1 medra archive <change> --json`), keeping `plugins/medra/skills/archive/SKILL.md` consistent.
+
+### Verified
+- **External-repo `/medra:run` E2E (`propose` -> `archive`) without manual `medra suite`.** Executed `add-sub` in an isolated temporary git repository (`/tmp/medra-e2e-rc6-mVd23N`) with `testing.mode: tdd` and `testing.command: "npm test"` following `medra step` strictly: after `T001` (`red`) and `T002` (`green`), the first `verify` step emitted `coordinator_steps: [{ type: "command", command: "medra suite add-sub --json" }]` with `subagents: []`; after running it, the next `medra step` dispatched `reviewer` (`round: 1`, `suite: "green"`, `MEDRA_SUBAGENT=1` on `fetch_command` and `exit_command`), followed by `gate verify --approve` and `action: "done"` dispatching `author-archive.md` (`exit_command: "MEDRA_SUBAGENT=1 medra archive add-sub --json"`), ending with `changes: []`.
+
+## [2.0.0-rc.5] — 2026-11-22
+
+### Added
+- **Incremental `verify` handoff & pre-dispatch checks (Item 1).** Reused `prepareVerifyRound` (`cli/src/handoff.js`) in `buildVerifySubagents` (`cli/src/step.js`) to emit per-subagent `round`, round-numbered `report` (`reviews/<date>-verify-<role>-r<N>.md`), `previous_report`, `changed_since_previous` (from round 2+), and `suite` (when `testing.command` is configured); enforced pre-dispatch checks (current green suite and `verify.merge`) returning `action: "gate"` with blocking `findings` on failure; kept `latestReport` / `reportFreshness` accurate across round-numbered files; updated `cli/schemas/envelope.schema.json` and `contracts/step-envelope.schema.json`.
+- **Phase-scoped `batch` `apply` granularity (Item 2).** Added `apply.granularity: "batch"` (default; `"task"` or `legacy_fallback` preserves per-task dispatch) and `apply.batch_max_tasks: 4` in `DEFAULT_CONFIG`, grouping pending same-phase tasks with satisfied dependencies (including `[TEST]` + dependent implementation tasks) into `granularity: "batch"` with deduplicated REQs, decisions, learnings, and pointers, per-task `medra task done` checkpoints, and immediate `needs-decision` stop on `task.test-tampered` or `blocked`.
+  - **`task` vs `batch` benchmark (`2026-11-21-remodel-deterministic-v2-flow`):** `task` granularity required `14` dispatches (`189,545 B` total) vs `batch` granularity with `5` dispatches (`68,113 B` total, `-64.1%`).
+- **Deterministic `coordinator_steps[]` in step envelopes (Item 5).** Emitted explicit ordered `coordinator_steps[]` (e.g., `medra verify-fix` before verify fix `implementer`, `ask_user` on `diff_error` or `action: "gate"`) in `compileStep` / `compileVerifyStep` and updated `envelope.schema.json` and `step-envelope.schema.json`.
+- **CLI-level `MEDRA_SUBAGENT=1` enforcement (Item 6).** Refused `medra verify-fix`, `medra gate <c> <s> --approve`, and `medra gate <c> <s> --request-changes` with exit code `1` when `MEDRA_SUBAGENT=1` is set (covering Antigravity where Claude Code `PreToolUse` hooks do not run), and documented `MEDRA_SUBAGENT=1` propagation and remaining manual file-edit boundaries in `plugins/medra/references/portability.md` and `plugins/medra/references/gate.md`.
+
+### Changed
+- **Honest token & byte measurement (Item 3).** Updated `cli/scripts/measure-envelope.js` to account for coordinator skills + pointed pipelines + compiled envelopes/prompts per stage across 5 stages (`12,849 B` skills + `74,369 B` pipelines + `4,956 B` envelopes = `92,174 B`), correcting the `2.0.0-rc.1` `SKILL.md`-only `-78.9%` (`18,568 B` vs `88,176 B`) comparison that omitted pointed `plugins/medra/pipelines/*.md` files.
+- **Agent-oriented coordinator skills (Item 4).** Rewrote all 9 coordinator skills (`plugins/medra/skills/*/SKILL.md`) to a lean structure (`Purpose`, `Input`, `Preconditions`, `Loop`/`Steps`, `Avoid` with rationale), removing spec IDs and redundant stage-dispatch rules, restoring the user-language rule, and executing `coordinator_steps[]` directly.
+- **Clean `docs/config-flow.yaml` (Item 7).** Set `models.plan: inherit` (eliminating the `inline` stage model-override warning in `medra validate --project specs --json`) and documented `apply.granularity` and `apply.batch_max_tasks`.
+
+### Verified
+- **External-repo `/medra:run` E2E (`propose` -> `archive`).** Executed a full-track `add-greeting` change in an isolated temporary git repository outside `harness` (`init` -> `constitution ratify` -> `install --target antigravity` -> `new --track full` -> `propose` (`inline`) -> `gate proposal` -> `plan` (`inline`) -> `gate plan` -> `tasks` (`inline`) -> `gate tasks` -> `apply` (`batch`, 1 batch for `T001`+`T002`) -> `task done` (`T001` red, `T002` green) -> `suite` -> `verify` (`round: 1`, `report: ...-r1.md`, `suite: "green"`) -> `review` -> `gate verify` -> `archive`), ending with `medra status --json` (`changes: []`) and `medra validate --project specs --json` (`findings: []`).
+
+## [2.0.0-rc.4] — 2026-11-22
+
+### Fixed
+- **Coordinator-owned `medra verify-fix` & hook protection (Item 1).** Moved `medra verify-fix` out of the fix `implementer`'s `exit_command` (now `medra suite <change> --json`) into coordinator skills (`run/SKILL.md`, `verify/SKILL.md`), added refusal guards in `verifyFix` when no blockers exist or a fix round is still unreviewed, kept `compileStep` idempotent, denied `medra verify-fix` for subagents in `plugins/medra/hooks/guard.mjs`, and documented the Antigravity boundary in `references/gate.md` and `references/portability.md`.
+- **Reset `verify_fix_rounds` on `--request-changes` (Item 2).** Reset `verify_fix_rounds` and `last_fix_round_at` in `medra gate <change> verify --request-changes` so returning to `verify` after reopened work permits a new automatic fix round.
+- **Skill & pipeline `inline` consistency (Item 4).** Removed the contradictory `propose`/`plan`/`tasks` subagent-dispatch line in `plugins/medra/skills/run/SKILL.md` and aligned coordinator skills and pipelines to follow envelope `action` strictly without inferring dispatch from stage names.
+- **Recorded timestamp & SHA-256 report freshness (Item 5).** Recorded `reviews[].recorded_at` and file SHA-256 `hash` in `medra review`, evaluating freshness in `latestReport` / `verifyFindings` via `recorded_at` + hash verification (with `mtime` fallback only for legacy 1.x states without `recorded_at`).
+
+### Changed
+- **Per-subagent model resolution & schema updates (Item 3).** Resolved each `subagents[]` entry's `model` in `compileStep` in `role -> stage -> default -> inherit` order while keeping top-level `model` at the stage tier, added validation warnings when `models.propose/plan/tasks/author` override `inherit` on `inline` stages, and updated `cli/schemas/envelope.schema.json`, `contracts/step-envelope.schema.json`, and `plugins/medra/references/portability.md`.
+
+## [2.0.0-rc.3] — 2026-11-22
+
+### Fixed
+- **Stage mapping for `propose` (A1).** Mapped flow stage `propose` to validation stage `proposal` in `compileStep` `exit_command` and completion criteria without altering `medra validate`’s stage vocabulary.
+- **Verify state transitions and fix-round tracking (A2).** Aligned `resolveStage` and `compileStep` with `verifyFindings` and CLI-tracked fix-round state so `verify` transitions deterministically between `dispatch` (fix implementer) and `gate` (pass or escalated blockers), and updated `run`/`verify` skills to follow envelope `action`.
+- **Unambiguous plugin pointers across runtimes (A3).** Separated plugin-relative pointers from project-relative pointers across Claude Code and Antigravity without preferring `.agents/plugins/medra/` over `plugins/medra/`.
+- **Subagent gate-bypass detection (A4).** Verified and documented `agent_id` / `MEDRA_SUBAGENT=1` subagent detection in `plugins/medra/hooks/guard.mjs` and `plugins/medra/references/gate.md`.
+
+### Changed
+- **Top-level `embedded` deduplication (B1).** Stored pre-fenced `diff` and `contracts/*` once in top-level `embedded` with `embedded_keys` references on `verify` subagents.
+- **Compact default `--json` envelope and `--role ... --md` fetch (B2).** Omitted `prompt` and `embedded` from default `medra step --json` output (adding `fetch_command` while preserving `--full`), added `medra step --role <role> [--task <T-ID>] --md`, updated coordinator skills to pass `fetch_command`, and removed empty persona headers in `apply/SKILL.md`.
+- **Inline execution for authoring stages and small fast-track `apply` (B3, B4).** Added `apply.inline_max_tasks` (default `3`) in `DEFAULT_CONFIG` for `action: "inline"` on small `fast`-track `apply` changes, and enabled `action: "inline"` for `propose`, `plan`, and `tasks`.
+
+## [2.0.0-rc.2] — 2026-11-21
+
+### Fixed
+- **Verify git diff embedding and failure surfacing (P1, P2).** Unified `safeGitDiff` to return `{ diff, truncated }` and distinguish empty diffs from git command failures, surfacing `diff_error` in the compiled step envelope and `cli/schemas/envelope.schema.json` so `/medra:run` and `/medra:verify` abort instead of reviewing a blind empty diff.
+- **Subagent authoring and implementation pipelines (P3).** Restored 1.x authoring rules, personas, phases, and exit criteria into `plugins/medra/pipelines/` (`author-init`, `author-propose`, `author-plan`, `author-tasks`, `author-archive`, `implementer-apply`), wired them into `compileStep` pointers and instructions, and removed empty headers in `apply/SKILL.md`.
+- **Security subagent exit command and gate approval guard (P4).** Replaced `security` verify `exit_command` with `medra review` instead of `medra gate`, and enforced blocking `medra gate ... --approve` calls in `plugins/medra/hooks/guard.mjs`.
+- **Standardized `<untrusted_data>` fencing (P5).** Unified untrusted-data tags on `<untrusted_data>` across `cli/src/step.js`, skills, and pipelines while neutralizing both hyphen/underscore and whitespace/case closing-tag variants.
+
+### Changed
+- **Bundle drift verification (P6).** Added `cli/scripts/check-bundle-drift.js` and CI enforcement to keep `cli/plugin/` and `.agents/plugins/medra/` in lockstep with `plugins/medra/`.
+- **`compileStep` envelope helper (P7).** Extracted the `envelope(base, overrides)` helper in `cli/src/step.js` for consistent step-envelope construction.
+
+## [2.0.0-rc.1] — 2026-11-21
+
+### Added
+- **Deterministic step compiler (`medra step <change> [--stage <stage>] [--json]`).** Compiles minimal, self-contained handoff envelopes (`action`, `granularity`, `model`, `subagents[]`, `gate`, `legacy_fallback`) from on-disk change state (`cli/src/step.js`). Uses hybrid code references: path `pointers` for `plan`/`apply` and `<untrusted_data>`-fenced `contracts/*` + `git diff` for `verify`.
+- **New `/medra:run` coordinator skill.** Loops deterministically through `medra step --json`, dispatches isolated clean-context subagents, and pauses only at human gates or open `[NEEDS CLARIFICATION]` prompts.
+- **Optional `models:` config with `inherit` fallback.** `docs/config-flow.yaml` supports optional `models:` per-stage/per-role overrides while defaulting to `inherit` and falling back to `inherit` if a runtime rejects a configured tier (`configWarnings` validates unknown keys/tiers).
+- **Task traceability validation (`tasks.traceability`).** At `--stage tasks`, `medra validate` requires tasks to cite target `REQ-NNN`/scenario IDs and backticked file paths, enabling deterministic per-task prompt slicing (`legacy_fallback: true` preserved for 1.x tasks).
+- **Path-safe pointer filtering (`resolveSafePath`).** Task `pointers` extracted from `tasks.md` are validated against workspace boundaries to reject traversal (`../`) and absolute paths.
+
+### Changed
+- **Thin coordinator command skills & adaptive granularity.** All 9 command skills (`init`, `propose`, `plan`, `tasks`, `apply`, `verify`, `archive`, `review`, `run`) delegate execution to `medra step --json` and isolated subagents (`task` granularity on `full` track, `stage` on `fast` track, parallel `reviewer` + `security` `round` on `verify`).
+- **Measured token & payload reduction vs `1.x` (`main`):**
+  - **Coordinator `SKILL.md` overhead (`-78.9%`):** `88,176 B` (~`22,044` tokens across 8 skills in `1.x`) reduced to `18,568 B` (~`4,642` tokens across 9 skills in `2.0.0-rc.1`).
+  - **Initial `apply` context per task (`-96.4%`):** On the `remodel-deterministic-v2-flow` benchmark (`T001`), `1.x` `medra context --stage apply` references `30,477 B` (~`7,620` tokens) of stage docs loaded cumulatively in one session, whereas `2.0.0-rc.1` `medra step --stage apply --json` compiles `648 B` of task prompt (`1,103 B` full JSON envelope; ~`162` / `276` tokens) for an isolated clean-context subagent — eliminating cross-task context accumulation across 14 tasks.
+  - **`verify` isolation:** Embeds `contracts/*` and `git diff` (`15,592 B` / ~`3,898` tokens in the compiled envelope) only at verification inside parallel `reviewer` and `security` subagents.
+
 ## [1.10.0] — 2026-11-20
 
 ### Added

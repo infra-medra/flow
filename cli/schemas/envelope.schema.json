@@ -2,11 +2,96 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://medra.dev/schemas/envelope.schema.json",
   "title": "medra --json output envelope",
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["rule", "severity", "message"],
+      "properties": {
+        "rule": { "type": "string" },
+        "severity": { "enum": ["error", "warning"] },
+        "file": { "type": ["string", "null"] },
+        "line": { "type": ["integer", "null"] },
+        "message": { "type": "string" },
+        "ref": { "type": ["string", "null"] },
+        "remediation": { "type": ["string", "null"] }
+      }
+    }
+  },
   "oneOf": [
     {
       "type": "object",
       "required": ["ok"],
-      "properties": { "ok": { "const": true } }
+      "properties": {
+        "ok": { "const": true },
+        "action": { "enum": ["dispatch", "gate", "inline", "done"] },
+        "granularity": { "enum": ["stage", "task", "batch", "round"] },
+        "diff_error": {
+          "type": ["string", "null"],
+          "description": "Optional error message when computing the git diff for a verify step envelope fails; null when diff computation succeeds."
+        },
+        "findings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/finding" }
+        },
+        "embedded": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "verify_fix_rounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coordinator_steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": { "enum": ["command", "ask_user"] },
+              "command": { "type": "string" },
+              "gate": { "type": ["string", "null"] },
+              "reason": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          }
+        },
+        "subagents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["role", "task_id", "pointers", "exit_command"],
+            "properties": {
+              "role": { "enum": ["author", "implementer", "reviewer", "security"] },
+              "task_id": { "type": ["string", "null"] },
+              "task_ids": { "type": "array", "items": { "type": "string" } },
+              "model": {
+                "type": "object",
+                "description": "Resolved model tier for this subagent (precedence: models[runtime][role] -> models[runtime][stage] -> models[runtime].default -> models[role] -> models[stage] -> models.default -> inherit), with fallback.",
+                "required": ["tier", "fallback"],
+                "properties": {
+                  "tier": { "type": "string" },
+                  "fallback": { "type": "string" }
+                }
+              },
+              "prompt": { "type": "string" },
+              "fetch_command": { "type": "string" },
+              "pointers": { "type": "array", "items": { "type": "string" } },
+              "plugin_pointers": { "type": "array", "items": { "type": "string" } },
+              "embedded_keys": { "type": "array", "items": { "type": "string" } },
+              "round": { "type": "integer", "minimum": 1 },
+              "report": { "type": "string" },
+              "previous_report": { "type": "string" },
+              "changed_since_previous": { "type": "array", "items": { "type": "string" } },
+              "suite": { "type": "string" },
+              "findings": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/finding" }
+              },
+              "exit_command": { "type": "string" }
+            }
+          }
+        }
+      }
     },
     {
       "type": "object",
@@ -17,19 +102,7 @@
         "message": { "type": "string" },
         "findings": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["rule", "severity", "message"],
-            "properties": {
-              "rule": { "type": "string" },
-              "severity": { "enum": ["error", "warning"] },
-              "file": { "type": ["string", "null"] },
-              "line": { "type": ["integer", "null"] },
-              "message": { "type": "string" },
-              "ref": { "type": ["string", "null"] },
-              "remediation": { "type": ["string", "null"] }
-            }
-          }
+          "items": { "$ref": "#/$defs/finding" }
         },
         "conflicts": {
           "type": "array",

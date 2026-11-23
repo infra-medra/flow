@@ -1,49 +1,74 @@
-# medra — spec-driven development for Claude Code and Antigravity
+# medra — Spec-Driven AI Engineering for Claude Code & Antigravity
 
-medra takes one change at a time from intent to approved specification, technical plan, test-first tasks, implementation, verification, and finally archives it into **living specs** that always describe how the system behaves today. Each archived change also leaves behind **lessons** that make the next change cheaper. The workflow combines ideas from [OpenSpec](https://github.com/Fission-AI/OpenSpec) (living specs, deltas, archive) and [GitHub Spec Kit](https://github.com/github/spec-kit) (constitution, plan gates, clarification markers, traceable tasks).
+**Stop babysitting coding agents that forget constraints, weaken failing tests, and burn tokens re-reading your repo.**
 
-The `medra` CLI handles every deterministic step: validation, gate records, task checkpoints, delta merge, context packing, test coverage and the learnings store. The agents handle judgment and writing.
+`medra` is a deterministic spec-driven development harness for **Claude Code** and **Google Antigravity**. It turns one feature or bugfix at a time into an approved specification, technical plan, test-first task list, isolated implementation, independent spec + security verification, and finally merges it into **living specs** that always match your running code.
+
+> **Why teams switch to `medra` v2:**
+> - **Deterministic CLI, not prompt luck:** The `medra` CLI owns state transitions, SHA-256 gate hashes, TDD red/green locks, delta merges, and `medra step` prompt compilation. Agents never hand-edit state or checklists.
+> - **71% lower `apply` overhead & cheaper model routing:** `medra step` compiles minimal, clean-context batches (`apply.batch_scope: cross-phase`, cutting a 14-task benchmark from `89,725 B` to `26,039 B`) and lets you route `apply` to `flash` / `haiku` while keeping `verify` on `pro` / `opus`.
+> - **Autonomous end-to-end loop (`/medra:run`):** One command drives `propose → plan → tasks → apply → verify → archive`, pausing only at human approval gates or real ambiguity.
+> - **Zero greenwashing, zero self-grading:** Tests are SHA-256 locked at `red`, and independent `reviewer` + `security` (Sentinel) subagents audit every change in fresh contexts.
+
+---
 
 ## Why Use This Workflow?
 
-Coding agents are fast at generating code, but in real-world projects (especially brownfield codebases and team environments) unstructured prompting — and even basic spec templates — quickly break down:
-- **Context Drift & Hallucinated Scope:** Agents forget earlier architectural constraints, silently alter existing behavior, or invent unrequested features halfway through implementation.
-- **Weakened Tests ("Greenwashing"):** When a test fails, agents routinely modify or delete the assertion in the test rather than fixing the bug in the implementation.
-- **Dead Documentation:** Per-feature spec files (`specs/001-feature.md`) go stale the moment the next PR touches the same module, leaving the team with no single source of truth.
-- **Token Explosion:** As a project grows, agents burn thousands of tokens globbing old specs, re-reading unchanged files, or repeating the same mistakes across sessions.
-- **Rubber-Stamp Reviews:** When the same agent that wrote the code also "reviews" it in the same context window, it grades its own homework and misses critical flaws and security risks.
+Coding agents are fast at emitting code, but in real-world brownfield codebases and team repositories, unstructured prompting — and even static spec templates — break down fast:
 
-**`medra` solves this by separating deterministic enforcement (the `medra` CLI) from reasoning (specialized agents) around a single living source of truth:**
+- **Context Drift & Hallucinated Scope:** Agents forget architectural rules mid-session, silently alter unrelated behavior, or invent unrequested features.
+- **Weakened Tests ("Greenwashing"):** When a test fails, agents routinely delete assertions, add `.skip`, or mock out the behavior under test just to make the run green.
+- **Dead Documentation:** Per-PR spec files (`specs/001-feature.md`) rot the moment the next PR touches the same module.
+- **Token & Latency Explosion:** Long single-session runs accumulate 30–100+ KB of dead tool output, forcing compactions and repeated full-repo reads.
+- **Rubber-Stamp Reviews:** An agent reviewing its own code in the same context window grades its own homework and misses security flaws.
 
-| Without `medra` (Ad-hoc AI Coding) | With `medra` (Spec-Driven Harness) |
+### Without `medra` vs. With `medra` v2
+
+| Without `medra` (Ad-hoc AI Coding) | With `medra` v2 (Spec-Driven Harness) |
 |---|---|
-| Loose prompts; requirements live only in chat history | Explicit `ADDED`/`MODIFIED`/`REMOVED` deltas approved at a human gate before code is written |
-| Specs rot in per-PR folders | Deltas merge into **Living Specs** (`docs/specs/<capability>/spec.md`) + `medra drift` detects out-of-band code edits |
-| Agents skip red tests or weaken assertions to pass | CLI enforces `[TEST]` (`red`) before implementation (`green`) and SHA-256 locks test files (`task.test-tampered`) |
-| Agents hand-edit checklists and hallucinate progress | Only `medra task done --run` can tick a task, recording command exit codes and running `testing.checks` |
-| Token cost grows with repository history | `medra index` and `medra context --md` pack only touched requirements, collapsing unchanged scenarios |
-| Same agent writes and reviews its own code | Isolated `reviewer` and `security` (Sentinel) subagents audit against specs, constitution, OWASP, NVD, and CISA KEV |
-| Mistakes are repeated in every new session | `medra archive` harvests mistakes into a bounded `docs/learnings.md` store and promotes recurring rules to the Constitution |
+| Loose prompts; requirements vanish into chat history | Explicit `ADDED`/`MODIFIED`/`REMOVED` deltas approved at a SHA-256 human gate before coding |
+| Docs rot in per-feature folders | Deltas merge byte-for-byte into **Living Specs** (`docs/specs/<cap>/spec.md`) + `medra drift` catches out-of-band edits |
+| Agents skip red tests or weaken assertions to pass | CLI enforces `[TEST]` (`red` for the scenario's predicted reason) before `green` and SHA-256 locks test files (`task.test-tampered`) |
+| Agents hand-edit checklists and hallucinate progress | Only `medra task done --run` can tick a task, recording exit codes and running `testing.checks` |
+| One bloated context grows across 10+ tasks | `medra step` dispatches clean-context `batch` subagents with compact `--md` task packs and routes `apply` to `flash` |
+| Same agent writes and approves its own code | Isolated `reviewer` + `security` (Sentinel) subagents audit against specs, constitution, OWASP, NVD, and CISA KEV |
+| Mistakes repeat in every new session | `medra archive` distills review/gate/blocker lessons into bounded `docs/learnings.md` and promotes recurring rules to the Constitution |
+
+---
+
+## How `medra` v2 Works
+
+```text
+/medra:run "add password reset"
+   │
+   ├─► propose  (inline)   ──► [Human Gate: proposal]
+   ├─► plan     (inline)   ──► [Human Gate: plan]        (+ Sentinel threat model if security-relevant)
+   ├─► tasks    (inline)   ──► [Human Gate: tasks]       (traceable REQ + file pointers)
+   ├─► apply    (batch)    ──► clean-context subagents   (flash, cross-phase batches, red→green locks)
+   ├─► verify   (round)    ──► medra suite → parallel reviewer + security (incremental on r2+) ──► [Human Gate: verify]
+   └─► archive  (done)     ──► merges deltas into docs/specs/ + harvests learnings into docs/learnings.md
+```
 
 ## Key Benefits in Detail
 
-- **Living Specifications that Never Go Stale:** Instead of per-feature spec folders that rot after merge, `docs/specs/<capability>/spec.md` always holds the current behavior of the system. Changes are proposed as reviewable deltas (`ADDED`, `MODIFIED`, `REMOVED`) keyed by stable IDs (`AUTH-004`) and merged byte-for-byte into living specs by `medra archive`. Capabilities can declare `**Paths:**` globs so `medra drift` and `medra status` detect when production code is modified outside an active change.
-- **Deterministic CLI Harness vs. Agent Judgment:** LLMs never hand-edit `.medra.yaml` state, task checkboxes, evidence lines, archive indices, or living specs. The `medra` CLI enforces 25+ structural and cross-document validation rules, atomic file writes, and exit codes — eliminating hallucinated state and broken merges.
-- **SHA-256 Cryptographic Human Gates & Constitution Governance:** `docs/constitution.md` defines non-negotiable project principles, each with a yes/no Gate question answered by every technical plan. Human approvals at `proposal`, `plan`, `tasks`, and `verify` record a SHA-256 hash over the stage's documents; any post-approval edit automatically marks the gate `stale`.
+- **Living Specifications that Never Go Stale:** `docs/specs/<capability>/spec.md` always describes how the system behaves today. Changes are authored as reviewable deltas keyed by stable IDs (`AUTH-004`) and merged atomically by `medra archive`. Capabilities can declare `**Paths:**` globs so `medra drift` and `medra status` flag code modified outside an active change.
+- **Deterministic CLI Harness (`medra step`) vs. Agent Judgment:** LLMs never hand-edit `.medra.yaml`, task checkboxes, evidence lines, archive indices, or living specs. The CLI enforces 25+ structural and cross-document rules, atomic writes, `MEDRA_SUBAGENT=1` role isolation (refusing `gate` and `verify-fix` from subagents while stripping the env var from child test processes via `childEnv()`), and deterministic exit codes.
+- **SHA-256 Cryptographic Human Gates & Constitution Governance:** `docs/constitution.md` defines non-negotiable project principles, each with a yes/no Gate question answered by every technical plan. Human approvals at `proposal`, `plan`, `tasks`, and `verify` hash the stage's documents; any post-approval edit automatically marks the gate `stale`.
 - **Enforced TDD, Anti-Tampering & Static Guardrails:**
-  - **Scenario-to-Test Traceability:** Every Gherkin scenario (`Given`/`When`/`Then`) gets a stable ID (`AUTH-004.S1`). Automated tests cite those IDs, and `medra coverage` deterministically verifies that every added or modified scenario is covered before `verify` can pass.
-  - **Red/Green Evidence & Test-Tampering Lock:** In `tdd` mode, `medra task done --run` requires `[TEST]` tasks to fail (`red`) before implementation tasks can run (`green`), hashes the test files at `red`, and blocks `green` (`task.test-tampered`) if an agent weakens, skips, or deletes a locked test during implementation. The finding classifies the change (`additive`, `weakening`, `other`) and summarizes the diff; only the user can authorize it, with `--allow-test-edit --reason "<why>"`, which is recorded in the task evidence and re-locks the file.
-  - **Continuous Static Checks:** Configured `testing.checks` (such as `lint` and `typecheck`) run automatically on every `green` implementation checkpoint (`task.check`).
-- **Token-Engineered Context & Same-Session `[P]` Batching:**
-  - **Read Cost Scales with the Change, Not Repo History:** Agents never glob `docs/specs/` or browse `docs/changes/archive/`. They read compact Markdown packs from `medra index` and `medra context --stage <stage> --md`.
-  - **Zero Redundant Context Reloads:** `MODIFIED` requirements collapse unchanged scenarios to one-line markers, `medra task done` returns `next_task` directly so `/medra:apply` never reloads context between tasks, and archived decisions are read only via `last_changed_by` pointers when modifying or removing a requirement.
-  - **Zero-Overhead `[P]` Batching:** Independent `[P]` tasks in the same phase are grouped into a `parallel_batch` (up to 3 tasks) so the agent can edit their files in parallel tool calls within the same warm session — saving LLM round-trips without paying the 2x–3x token boot cost of spawning subagents.
-  - **Zero Prompt Pollution via Progressive Resource Disclosure:** Only the 8 user commands (`init`, `propose`, `plan`, `tasks`, `apply`, `verify`, `archive`, `review`) are registered as system skills. Supporting templates, handoffs, and pipeline specs are maintained as on-demand resources, saving ~1,650 tokens of static prompt overhead on every turn.
+  - **Scenario-to-Test Traceability:** Every Gherkin scenario (`Given`/`When`/`Then`) has a stable ID (`AUTH-004.S1`). Automated tests cite those IDs, and `medra coverage` verifies 100% scenario coverage before `verify` can pass.
+  - **Scenario-Matched Red & Test-Tampering Lock:** In `tdd` mode, `[TEST]` tasks must fail for the missing behavior the scenario predicts (not import/syntax/fixture errors) before `--kind red`. The CLI SHA-256 hashes locked test files at `red` and blocks `green` (`task.test-tampered`) on `additive`, `weakening`, or `other` edits unless the user explicitly authorizes `--allow-test-edit --reason "<why>"`.
+  - **Scoped Per-Task Runs + Full `medra suite`:** During `apply`, tasks run focused test files (`--run "<targeted cmd>"`); before `verify`, `coordinator_steps[]` automatically runs `medra suite` (full `testing.command` + `testing.checks`) and records a code fingerprint.
+- **Token-Engineered Context & Cross-Phase Batching:**
+  - **Compact `--json` + Self-Contained `--md` Task Packs:** `medra step --json` stays ~800 B for the coordinator while `medra step --role ... --md` packs only the ratified constitution summary, referenced `REQ` excerpts, task lines, and code pointers.
+  - **Cross-Phase `batch` Execution & Model Routing:** On `full`-track changes, `apply` groups satisfied tasks across phases (`apply.batch_scope: cross-phase`, `batch_max_tasks: 4`) — cutting a 14-task benchmark from `89,725 B` (14 dispatches) down to **`26,039 B` (4 dispatches, -71.0%)**. Configure `models.claude` (`haiku`/`opus`) and `models.antigravity` (`flash`/`pro`) to pay frontier-model cost only where reasoning matters.
+  - **Lean Core Pipelines with On-Demand References:** All 9 subagent pipelines fit in `24,872 B` raw (`36,575 B` measured across 5 stages in `measure-envelope.js`, down from `74,369 B`), loading edge-case and recovery references only when triggered.
 - **Adversarial Verification & Dedicated Security Agent (Sentinel):**
-  - **Independent `reviewer`:** Audits the implementation against the deltas, plan, and constitution in an isolated context, never editing code.
-  - **Security Specialist (`security` / Sentinel):** On changes marked `**Security:** relevant`, runs STRIDE threat modeling (`threat-model.md`) during `plan` and a parallel code/config/dependency audit during `verify`, verifying claims against OWASP, ASVS, NVD, GitHub Advisory Database, and CISA KEV over the network.
-- **Self-Improving Project Memory (`docs/learnings.md`):** At `archive`, findings from review/verify/security rounds, gate change requests, and apply blockers are distilled into scoped lessons and preferences (`capabilities`, `paths`, `stages`). The CLI enforces an active budget (`max_active`), retires stale entries, and proposes constitution amendments when a lesson recurs (`promote_after`).
-- **Fast & Full Tracks Across Runtimes:** Bugfixes and small changes take the **fast track** (proposal + deltas + regression-first tasks approved at a single gate); architectural changes take the **full track** (adding `plan`, `threat-model`, and `tasks` gates). The exact same `/medra:*` commands run natively on **Claude Code** and **Google Antigravity**.
+  - **Independent `reviewer`:** Audits code and tests against deltas, plan, and constitution in an isolated context, never editing code. On round 2+, `changed_since_previous` limits re-inspection to changed files and open findings.
+  - **Security Specialist (`security` / Sentinel):** On `**Security:** relevant` changes, runs STRIDE threat modeling (`threat-model.md`) during `plan` and a parallel code/config/dependency audit during `verify`, verifying claims against OWASP, ASVS, NVD, GitHub Advisory Database, and CISA KEV.
+- **Self-Improving Project Memory (`docs/learnings.md`):** At `archive`, review findings, gate change requests, and apply blockers are distilled into scoped lessons (`capabilities`, `paths`, `stages`) with an active budget (`max_active`), staleness retirement, and automatic constitution amendment proposals (`promote_after`).
+- **Fast & Full Tracks Across Runtimes:** Bugfixes and small changes take the **fast track** (single `proposal` gate + inline `apply` up to `inline_max_tasks`); architectural changes take the **full track** (`proposal`, `plan`, `threat-model`, `tasks`, `verify`). Identical `/medra:*` commands run natively on **Claude Code** and **Google Antigravity**.
+
+---
 
 ## Install
 
@@ -51,7 +76,7 @@ Coding agents are fast at generating code, but in real-world projects (especiall
 
 ```bash
 npm install -g @medra.dev/flow
-medra --version   # 1.x
+medra --version   # 2.1.0
 ```
 
 ### 2a. Claude Code
@@ -79,6 +104,12 @@ Upgrading from 1.1 or earlier: the next install removes the old loose skills in 
 
 ```
 /medra:init                                  # config, constitution, optional specs from existing code
+/medra:run "let locked-out users reset their password"   # runs propose → plan → tasks → apply → verify → archive
+```
+
+Or run each stage manually:
+
+```
 /medra:propose "let locked-out users reset their password"
 /medra:apply                                 # fast track; on the full track: /medra:plan, then /medra:tasks
 /medra:verify
@@ -92,11 +123,12 @@ The commands are the same on Claude Code and Antigravity.
 | Command | What it does | Gate |
 |---|---|---|
 | `/medra:init` | Scaffolds `docs/`, sets the language and testing mode, writes the constitution, and can bootstrap specs from existing code | constitution · bootstrap specs |
+| `/medra:run` | Runs the deterministic v2 workflow loop via `medra step --json`, dispatching clean-context subagents and pausing only at human gates or open clarifications | all stage gates |
 | `/medra:propose` | Writes the proposal and delta specs (`ADDED/MODIFIED/REMOVED`), picks the fast or full track, and marks whether the change is security-relevant. On the fast track it also writes the tasks | proposal (+ tasks) |
 | `/medra:plan` | Full track: writes the design, the Constitution Check, the test strategy and the decisions. On a security-relevant change, the security agent threat-models the design first | plan |
 | `/medra:tasks` | Full track: writes a traceable, test-first task list | tasks |
-| `/medra:apply` | Implements tasks one at a time, with red/green evidence, test-tampering protection, and static checks. Resumable | — |
-| `/medra:verify` | Runs an independent reviewer check against the specs (plus a parallel security audit on a security-relevant change), then a fix loop | verify |
+| `/medra:apply` | Implements tasks in `batch`, `task`, or `inline` mode with red/green evidence, test-tampering protection, and static checks. Resumable | — |
+| `/medra:verify` | Runs `medra suite` if needed, dispatches an independent reviewer check against the specs (plus a parallel security audit on a security-relevant change), and runs incremental fix rounds | verify |
 | `/medra:review` | Lets anyone review a change's documents and record a verdict | reviewer's verdict |
 | `/medra:archive` | Merges deltas into living specs, harvests lessons, compacts them, and proposes constitution amendments | amendment |
 
@@ -112,24 +144,28 @@ medra status [<change>] [--json]
 medra drift [--json]
 medra track <change> fast|full --reason "<text>"
 
-# Token-bounded context packs for agents
+# Deterministic step compiler & token-bounded context packs (v2)
+medra step <change> [--stage propose|plan|tasks|apply|verify|archive] [--role <role>] [--task <T-ID>] [--runtime claude|antigravity] [--md|--json|--full]
 medra index [--learnings <capability,…>] [--md|--json]
 medra context <change> --stage propose|plan|tasks|apply|verify|review|archive [--md|--json]
+medra task context <change> [<T-ID>] [--md|--json]
 
 # Validation, gates, and reviews
 medra validate <change> --stage proposal|plan|tasks|verify [--json]
 medra validate --project constitution|specs|learnings [--json]
+medra fix [<change>] [--json]
 medra gate <change> proposal|plan|tasks|verify --approve [--note "<text>"] [--by <name>]
 medra gate <change> proposal|plan|tasks|verify --request-changes --note "<text>" [--by <name>]
 medra review <change> --report <path> [--by <name>]
-medra handoff <change> check|audit|threat-model [--fixed <ids>] [--focus "<text>"]   # dispatch payload for a subagent
+medra verify-fix <change> [--json]
+medra handoff <change> check|audit|threat-model [--fixed <ids>] [--focus "<text>"]
 
 # Task execution, red/green checkpoints & test-tampering guard
 medra task done <change> <T-NNN> (--run "<command>" | --evidence "<text>") [--kind red|green|manual] [--allow-test-edit --reason "<text>"]
 medra task block <change> <T-NNN> --note "<text>"
 medra task unblock <change> <T-NNN>
 medra coverage <change> | --all [--json]
-medra suite <change>                         # whole test suite + testing.checks, recorded for the verify gate
+medra suite <change> [--json]                # whole test suite + testing.checks, recorded for verify
 
 # Archive, constitution & learnings
 medra archive <change> [--dry-run] [--json]
@@ -159,10 +195,25 @@ language: pt-BR                 # BCP-47 tag for document prose (headings/keywor
 integrations: [claude, antigravity]
 testing:
   mode: tdd                     # tdd | test-after | none
-  command: "npm test --"        # optional base test command
+  command: "npm test --"        # optional base test command (run via medra suite)
   checks: ["npm run lint"]      # optional static checks run on green implementation tasks
   allow-additive-test-edits: false  # optional; accept purely additive edits of a locked test, with a warning
   paths: ["test/**", "**/*.test.*", "**/*_test.*", "tests/**"]
+apply:
+  granularity: batch            # batch | task
+  batch_scope: cross-phase      # cross-phase | phase
+  batch_max_tasks: 4
+  inline_max_tasks: 3           # fast-track inline apply threshold
+models:                         # optional per-runtime or flat model tiers (default: inherit)
+  default: inherit
+  claude:
+    apply: haiku
+    verify: opus
+    archive: haiku
+  antigravity:
+    apply: flash
+    verify: pro
+    archive: flash
 learning:
   max_active: 40
   promote_after: 3              # occurrences before proposing a constitution amendment
@@ -172,9 +223,9 @@ learning:
 
 ## Project layout
 
-```
+```text
 docs/
-├── config-flow.yaml     language · integrations · testing mode · learning budget
+├── config-flow.yaml     language · integrations · testing · apply · models · learning
 ├── constitution.md      principles, each with a gate question
 ├── learnings.md         lessons and team preferences
 ├── specs/<capability>/spec.md
@@ -182,11 +233,11 @@ docs/
     └── archive/
 ```
 
-On Claude Code the plugin installs a guard hook (`plugins/medra/hooks/`). It asks you to confirm `medra gate … --approve`, `medra constitution ratify` and `--allow-test-edit` when the agent runs them, denies hand edits of `.medra.yaml`, the archive and task checkboxes, and asks before an existing living spec is edited outside a change. Antigravity has no equivalent, so there these stay prompt rules.
+On Claude Code the plugin installs a guard hook (`plugins/medra/hooks/guard.mjs`). It asks you to confirm `medra gate … --approve`, `medra constitution ratify` and `--allow-test-edit` when the agent runs them, denies hand edits of `.medra.yaml`, the archive and task checkboxes, and asks before an existing living spec is edited outside a change. Across all runtimes (including Antigravity), the CLI also enforces `MEDRA_SUBAGENT=1` on `medra gate` and `medra verify-fix` while stripping `MEDRA_SUBAGENT` from child test/check processes via `childEnv()`.
 
 The security agent (Sentinel) runs only on security-relevant changes. It audits but never edits code, checks its claims against OWASP, NVD, CISA KEV and vendor documentation over the network, and informs the gate without blocking it.
 
-Commit `docs/` with your code. medra never commits or creates branches for you; it suggests a commit message at the end of every step.
+Commit `docs/` with your code. `medra` never commits or creates branches for you; it suggests a commit message at the end of every step.
 
 ## Design
 
@@ -196,6 +247,9 @@ Commit `docs/` with your code. medra never commits or creates branches for you; 
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
+- **2.1.0 (2026-11-22):** Added per-runtime `models.claude` and `models.antigravity` configuration in `docs/config-flow.yaml`, `--runtime <claude|antigravity>` / `MEDRA_RUNTIME` / environment auto-detection in `medra step`, automatic `--runtime antigravity` skill rewriting in `medra install --target antigravity`, and updated `README.md` with v2 positioning and usage.
+- **2.0.1 (2026-11-22):** Updated bundled `README.md` changelog and `2.0.0` resource metrics for the npm package.
+- **2.0.0 (2026-11-22):** Introduced the deterministic `medra step` compiler, thin coordinator skills, and `/medra:run` loop with clean-context subagent isolation (`inline` for `propose`/`plan`/`tasks` and small `fast`-track `apply`, `cross-phase` `batch` for `full`-track `apply`, and parallel `reviewer` + `security` `verify` rounds). Added `coordinator_steps[]` (auto-running `medra suite` before `verify`), incremental `verify` handoffs (`round`, `previous_report`, `changed_since_previous`), `MEDRA_SUBAGENT=1` CLI enforcement with `childEnv()` subprocess isolation, compact `medra step --md` task packs, and lean core pipelines (`24,872 B` raw / `36,575 B` in `measure-envelope.js` vs `74,369 B` baseline) with inline guardrails and rule rationales.
 - **1.10.0 (2026-11-20):** Classified locked-test edits in `task.test-tampered` (`additive`, `weakening`, or `other`) with a diff summary, required `--reason` with `--allow-test-edit` (recording it in evidence and re-locking the snapshot), added `testing.allow-additive-test-edits` (default `false`), and updated `/medra:apply` and `/medra:tasks` so overrides always ask the user and `[TEST]` tasks list all cases before the red checkpoint.
 - **1.9.0 (2026-11-16):** Removed the `model` and `effort` pins from every command skill and from the `reviewer` and `security` agents, so commands and subagents use the model and effort the user configured in their session. Added `medra handoff`, which emits each subagent's dispatch payload and the files changed since its previous round, so later verify rounds re-inspect only what the fixes touched. Added the `proposal.impact`, `proposal.open-questions` and scenario-mapping `plan.test-strategy` rules, and trimmed the template checklists and command skills accordingly. Added `medra suite` with the `verify.suite` rule (the verify gate and every reviewer dispatch need a green full-suite run on the current code) and `verify.merge` (deltas must still merge into the living specs), a Claude Code hook that makes gate approvals, constitution ratification and `--allow-test-edit` ask the user and blocks hand edits of CLI-owned files, and a CI workflow.
 - **1.8.0 (2026-11-12):** Made command skills the single source for each command (removing mirrored `author`/`implementer` agent files and 8 `pipelines/*.md` files), split `conventions.md` into `gate.md` and `portability.md`, declared `model` and `effort` per command, made `medra fix` use `pending` / `[NEEDS CLARIFICATION: …]` markers instead of guessing judgment, added the `plan.markers` validation rule, reduced `specDrift` git spawns, and split the test suite for parallel execution.
@@ -245,8 +299,8 @@ npm link                 # puts `medra` on your PATH from this checkout
 `cli/package.json` and `plugins/medra/.claude-plugin/plugin.json` **must** carry the exact same semver version (`npm run check-version` enforces this). Because npm versions are immutable, every publish requires bumping the version first:
 
 1. **Bump the version** in both files:
-   - `cli/package.json` (`"version": "1.x.y"`)
-   - `plugins/medra/.claude-plugin/plugin.json` (`"version": "1.x.y"`)
+   - `cli/package.json` (`"version": "2.x.y"`)
+   - `plugins/medra/.claude-plugin/plugin.json` (`"version": "2.x.y"`)
 2. **Document the release** in `CHANGELOG.md` and the `## Changelog` summary in `README.md`.
 3. **Validate, bundle, and test** from `cli/`:
    ```bash
@@ -258,10 +312,11 @@ npm link                 # puts `medra` on your PATH from this checkout
    ```bash
    node bin/medra.js install --target antigravity --scope global
    ```
-5. **Commit, push, and publish to npm:**
+5. **Commit, tag, push, and publish to npm:**
    ```bash
    git add -A
-   git commit -m "Release 1.x.y: <summary>"
-   git push
-   cd cli && npm publish
+   git commit -m "chore(release): 2.x.y"
+   git tag -a v2.x.y -m "Release 2.x.y"
+   git push origin <branch> v2.x.y
+   cd cli && npm publish --access public
    ```

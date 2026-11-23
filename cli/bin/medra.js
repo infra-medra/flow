@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Entry point: wires commands, prints `--json` or a human summary, and maps failures to exit codes.
 import { Command, CommanderError } from 'commander';
-import { MedraError, EXIT, requireRoot, findRoot } from '../src/core.js';
+import { MedraError, EXIT, requireRoot, findRoot, usageError } from '../src/core.js';
 import { migrateLayout } from '../src/migrate.js';
 import * as cmd from '../src/commands.js';
 import { index, indexMarkdown, context, contextMarkdown, taskDoneMarkdown, taskBlockMarkdown, taskContext, taskContextMarkdown } from '../src/context.js';
 import { archive } from '../src/archive.js';
 import { install, cliVersion } from '../src/install.js';
 import { handoff, handoffText } from '../src/handoff.js';
+import { compileStep, stepMarkdown } from '../src/step.js';
 
 const program = new Command();
 program.name('medra').description('Deterministic operations for the medra workflow').version(cliVersion(), '-V, --version');
@@ -93,6 +94,25 @@ j(program.command('context <change>').description('Bounded context pack for one 
     else emit(pack, jsonMode ? undefined : contextMarkdown(pack));
   });
 
+j(program.command('step <change>').description('Compile deterministic next-step prompt and handoff envelope')
+  .option('--stage <stage>').option('--diff-base <ref>').option('--role <role>').option('--task <id>').option('--runtime <runtime>').option('--full').option('--md', 'Markdown output'))
+  .action((change, o) => {
+    if (o.runtime && o.runtime !== 'claude' && o.runtime !== 'antigravity') {
+      throw usageError(`Invalid --runtime "${o.runtime}"; expected "claude" or "antigravity"`);
+    }
+    const needsFull = Boolean(o.full || (o.md && !jsonMode) || !jsonMode);
+    const env = compileStep(root(), change, {
+      stage: o.stage,
+      diffBase: o.diffBase,
+      role: o.role,
+      task: o.task,
+      runtime: o.runtime,
+      full: needsFull,
+    });
+    if (o.md && !jsonMode) process.stdout.write(stepMarkdown(env, { role: o.role, task: o.task }));
+    else emit(env, jsonMode ? undefined : stepMarkdown(env, { role: o.role, task: o.task }));
+  });
+
 j(program.command('gate <change> <gate>').description('Record a gate decision')
   .option('--approve').option('--request-changes').option('--note <text>').option('--by <name>'))
   .action(run((change, g, o) => cmd.gate(root(), change, g, o)));
@@ -111,6 +131,8 @@ j(program.command('handoff <change> <contract>').description('Dispatch payload f
   });
 
 j(program.command('suite <change>').description('Run the whole test suite and the static checks, and record the result')).action(run((change) => cmd.suite(root(), change)));
+
+j(program.command('verify-fix <change>').description('Record a verify fix round')).action(run((change) => cmd.verifyFix(root(), change)));
 
 j(program.command('coverage [change]').description('Map scenario IDs to tests').option('--all'))
   .action(run((change, o) => cmd.coverageCmd(root(), change, o)));

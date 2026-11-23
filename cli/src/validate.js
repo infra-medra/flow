@@ -1,7 +1,7 @@
 // The validation rules of SPEC §6, grouped by stage.
 import fs from 'node:fs';
 import path from 'node:path';
-import { finding, readIf, readText, loadConfig, rel, docsPath } from './core.js';
+import { finding, readIf, readText, loadConfig, rel, docsPath, configRel, sha256 } from './core.js';
 import { section, trimBlank } from './markdown.js';
 import { parseConstitution, constitutionFindings, liveArticles, parseProposal, PROPOSAL_HEADINGS, parsePlan, PLAN_ANCHORS, parseThreatModel, THREAT_MODEL_ANCHORS } from './documents.js';
 import { loadLivingSpecs, loadDeltas, livingSpecFindings, deltaFindings } from './specs.js';
@@ -10,15 +10,51 @@ import { changeDir, loadState, loadTasks, latestReport, coverage, changeScenario
 
 export const STAGES = ['proposal', 'plan', 'tasks', 'verify'];
 
+const INLINE_MODEL_KEYS = ['propose', 'plan', 'tasks', 'author'];
+
+function inlineModelWarnings(root) {
+  const models = loadConfig(root).models ?? {};
+  const warnings = [];
+  for (const k of INLINE_MODEL_KEYS) {
+    if (typeof models[k] === 'string' && models[k] !== 'inherit') {
+      warnings.push(finding(
+        'config.models',
+        `models.${k} (${models[k]}) does not apply because inline stages (propose, plan, tasks) run in the main session`,
+        { file: configRel, severity: 'warning' },
+      ));
+    }
+  }
+  for (const rt of ['claude', 'antigravity']) {
+    const rtModels = models[rt];
+    if (!rtModels || typeof rtModels !== 'object') continue;
+    for (const k of INLINE_MODEL_KEYS) {
+      if (typeof rtModels[k] === 'string' && rtModels[k] !== 'inherit') {
+        warnings.push(finding(
+          'config.models',
+          `models.${rt}.${k} (${rtModels[k]}) does not apply because inline stages (propose, plan, tasks) run in the main session`,
+          { file: configRel, severity: 'warning' },
+        ));
+      }
+    }
+  }
+  return warnings;
+}
+
 export function projectFindings(root, scope) {
+  let out;
   if (scope === 'constitution') {
     const text = readIf(docsPath(root, 'constitution.md'));
-    if (text === null) return [finding('constitution.structure', 'docs/constitution.md is missing')];
-    return constitutionFindings(parseConstitution(text));
+    out = text === null
+      ? [finding('constitution.structure', 'docs/constitution.md is missing')]
+      : constitutionFindings(parseConstitution(text));
+  } else if (scope === 'specs') {
+    out = livingSpecFindings(root, loadLivingSpecs(root));
+  } else if (scope === 'learnings') {
+    out = learningsFindings(loadLearnings(root));
+  } else {
+    return [finding('cli', `Unknown project scope "${scope}"`)];
   }
-  if (scope === 'specs') return livingSpecFindings(root, loadLivingSpecs(root));
-  if (scope === 'learnings') return learningsFindings(loadLearnings(root));
-  return [finding('cli', `Unknown project scope "${scope}"`)];
+  return [...out, ...inlineModelWarnings(root)];
 }
 
 const IMPACT_LINES = ['Code', 'Interfaces', 'Data', 'Dependencies'];
@@ -232,10 +268,43 @@ function tasksFindings(root, change) {
     const cited = tasks.some((t) => new RegExp(`\\b${m}\\b`).test(`${t.description} — verify: ${t.verify}`));
     if (!cited) out.push(finding('tasks.mitigations', `Accepted mitigation ${m} is not cited by any task`, { file, ref: m, remediation: `Add a task citing accepted mitigation "${m}" in its description or verify clause` }));
   }
+  // tasks.traceability: every task cites a REQ/scenario or backticked file path for deterministic slicing
+  for (const t of tasks) {
+    const text = `${t.description ?? ''} ${t.verify ?? ''}`;
+    const hasReq = t.reqs.length > 0 || /\b[A-Z]{2,10}-\d{3,}(?:\.S\d+)?\b/.test(text);
+    const hasPath = /`[^`\s]+\/[^`\s]*`/.test(text);
+    if (!hasReq && !hasPath) {
+      out.push(finding('tasks.traceability', `${t.id} lacks a REQ/scenario reference and target file path`, { file, line: t.line, ref: t.id, remediation: `Cite [<REQ-ID>] or a backticked file path in ${t.id}` }));
+    }
+  }
   return out;
 }
 
-function verifyFindings(root, change, state) {
+/**
+ * Evaluates report freshness against `freshFloor`.
+ * Uses `reviews[].recorded_at` and SHA-256 `hash` when recorded; falls back to `mtime` for 1.x states without `recorded_at`.
+ */
+export function reportFreshness(root, change, state, report, freshFloor = 0) {
+  const reportRel = rel(changeDir(root, change), report.file);
+  const reviews = state?.reviews ?? [];
+  let entry = null;
+  for (let i = reviews.length - 1; i >= 0; i--) {
+    if (reviews[i]?.report === reportRel) {
+      entry = reviews[i];
+      break;
+    }
+  }
+  if (entry?.recorded_at) {
+    const recordedMs = Date.parse(entry.recorded_at);
+    const currentHash = sha256(readText(report.file));
+    const hashMismatch = Boolean(entry.hash && currentHash !== entry.hash);
+    const fresh = !hashMismatch && !Number.isNaN(recordedMs) && recordedMs >= freshFloor;
+    return { fresh, hashMismatch, timestampMs: Number.isNaN(recordedMs) ? 0 : recordedMs, source: 'recorded_at' };
+  }
+  return { fresh: report.mtime >= freshFloor, hashMismatch: false, timestampMs: report.mtime, source: 'mtime' };
+}
+
+export function verifyFindings(root, change, state = loadState(root, change)) {
   const out = [];
   const parsed = loadTasks(root, change);
   const file = rel(root, path.join(changeDir(root, change), 'tasks.md'));
@@ -249,17 +318,33 @@ function verifyFindings(root, change, state) {
   }
   out.push(...suiteFindings(root, change, state), ...mergeFindings(root, change));
   const report = latestReport(root, change, 'verify');
-  const lastDone = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
+  const lastDoneMs = state.last_task_done_at ? Date.parse(state.last_task_done_at) : 0;
+  const lastFixMs = state.last_fix_round_at ? Date.parse(state.last_fix_round_at) : 0;
+  const freshFloor = Math.max(lastDoneMs || 0, lastFixMs || 0);
   if (!report) out.push(finding('verify.report', 'No verify review report in reviews/', { remediation: 'Run reviewer verification via /medra:verify to produce a review report' }));
   else {
-    if (report.mtime < lastDone) out.push(finding('verify.report', 'The verify report is older than the last task done; re-run the check', { file: rel(root, report.file), remediation: 'Re-run /medra:verify check because tasks were completed after the last report' }));
+    const freshness = reportFreshness(root, change, state, report, freshFloor);
+    if (!freshness.fresh) {
+      const msg = freshness.hashMismatch
+        ? 'The verify report content changed after it was recorded; re-run the check'
+        : 'The verify report is older than the last task done or fix round; re-run the check';
+      out.push(finding('verify.report', msg, { file: rel(root, report.file), remediation: 'Re-run /medra:verify check because tasks or fix rounds were completed after the last report' }));
+    }
     if (!['pass', 'pass-with-findings'].includes(report.verdict)) out.push(finding('verify.report', `Verify verdict is ${report.verdict}`, { file: rel(root, report.file), remediation: 'Address reported findings and re-run /medra:verify until verdict is pass or pass-with-findings' }));
   }
   // verify.security-report: presence only. Its verdict informs the gate and never blocks it.
   if (securityRelevance(root, change) === 'relevant') {
     const sec = latestReport(root, change, 'security');
     if (!sec) out.push(finding('verify.security-report', 'No security report in reviews/; the proposal says **Security:** relevant', { remediation: 'Run security audit via /medra:verify to generate a security report in reviews/' }));
-    else if (sec.mtime < lastDone) out.push(finding('verify.security-report', 'The security report is older than the last task done; re-run the audit', { file: rel(root, sec.file), remediation: 'Re-run security audit (/medra:verify) because tasks were completed after the last audit' }));
+    else {
+      const secFreshness = reportFreshness(root, change, state, sec, freshFloor);
+      if (!secFreshness.fresh) {
+        const msg = secFreshness.hashMismatch
+          ? 'The security report content changed after it was recorded; re-run the audit'
+          : 'The security report is older than the last task done or fix round; re-run the audit';
+        out.push(finding('verify.security-report', msg, { file: rel(root, sec.file), remediation: 'Re-run security audit (/medra:verify) because tasks or fix rounds were completed after the last audit' }));
+      }
+    }
   }
   return out;
 }

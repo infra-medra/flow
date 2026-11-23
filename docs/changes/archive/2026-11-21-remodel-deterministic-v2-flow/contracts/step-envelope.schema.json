@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Medra v2 Step Prompt Envelope",
+  "type": "object",
+  "required": ["ok", "change", "stage", "action", "model"],
+  "properties": {
+    "ok": { "type": "boolean", "const": true },
+    "change": { "type": "string" },
+    "track": { "type": "string", "enum": ["fast", "full"] },
+    "phase": { "type": "string" },
+    "stage": { "type": "string", "enum": ["propose", "plan", "tasks", "apply", "verify", "archive"] },
+    "action": { "type": "string", "enum": ["dispatch", "gate", "clarify", "done"] },
+    "granularity": { "type": "string", "enum": ["stage", "task", "round"] },
+    "model": {
+      "type": "object",
+      "required": ["tier", "fallback"],
+      "properties": {
+        "tier": { "type": "string" },
+        "fallback": { "type": "string", "const": "inherit" }
+      }
+    },
+    "subagents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "task_id", "prompt", "exit_command"],
+        "properties": {
+          "role": { "type": "string", "enum": ["author", "implementer", "reviewer", "security"] },
+          "task_id": { "type": ["string", "null"] },
+          "prompt": { "type": "string" },
+          "pointers": { "type": "array", "items": { "type": "string" } },
+          "embedded": { "type": "object" },
+          "exit_command": { "type": "string" }
+        }
+      }
+    },
+    "gate": { "type": ["string", "null"] },
+    "legacy_fallback": { "type": "boolean" }
+  }
+}

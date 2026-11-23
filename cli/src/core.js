@@ -37,12 +37,21 @@ export const configRel = docsRel(CONFIG_FILE);
 export const CHANGE_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+){1,7}$/;
 export const CAPABILITY_NAME = /^[a-z][a-z0-9-]{1,40}$/;
 
+const MODEL_KEYS = new Set([
+  'default',
+  'author', 'implementer', 'reviewer', 'security',
+  'init', 'propose', 'plan', 'tasks', 'apply', 'verify', 'archive', 'review',
+]);
+const RUNTIME_KEYS = new Set(['claude', 'antigravity']);
+
 export const DEFAULT_CONFIG = {
   version: 1,
   language: 'en',
   integrations: ['claude'],
   testing: { mode: 'tdd', command: null, checks: [], 'allow-additive-test-edits': false, paths: ['test/**', '**/*.test.*', '**/*_test.*', 'tests/**'] },
   learning: { max_active: 40, promote_after: 3, stale_after: 10, context_max: 10 },
+  apply: { inline_max_tasks: 3, granularity: 'batch', batch_max_tasks: 4, batch_scope: 'cross-phase' },
+  models: { default: 'inherit' },
 };
 
 /** Nearest ancestor holding docs/config-flow.yaml, or the 1.0 layout (medra/config.yaml): { root, legacy }. */
@@ -66,20 +75,60 @@ export function requireRoot() {
 export function loadConfig(root) {
   const file = docsPath(root, CONFIG_FILE);
   const raw = YAML.parse(fs.readFileSync(file, 'utf8')) ?? {};
+  const rawModels = raw.models && typeof raw.models === 'object' && !Array.isArray(raw.models) ? raw.models : {};
+  const models = { ...DEFAULT_CONFIG.models };
+  for (const [k, v] of Object.entries(rawModels)) {
+    if (MODEL_KEYS.has(k) && typeof v === 'string' && v.trim()) models[k] = v.trim();
+    else if (RUNTIME_KEYS.has(k) && v && typeof v === 'object' && !Array.isArray(v)) {
+      const rt = {};
+      for (const [rk, rv] of Object.entries(v)) {
+        if (MODEL_KEYS.has(rk) && typeof rv === 'string' && rv.trim()) rt[rk] = rv.trim();
+      }
+      models[k] = rt;
+    }
+  }
   return {
     ...DEFAULT_CONFIG,
     ...raw,
     testing: { ...DEFAULT_CONFIG.testing, ...(raw.testing ?? {}) },
     learning: { ...DEFAULT_CONFIG.learning, ...(raw.learning ?? {}) },
+    apply: { ...DEFAULT_CONFIG.apply, ...(raw.apply ?? {}) },
+    models,
   };
 }
 
 export function configWarnings(root) {
   const raw = YAML.parse(fs.readFileSync(docsPath(root, CONFIG_FILE), 'utf8')) ?? {};
   const known = new Set(Object.keys(DEFAULT_CONFIG));
-  return Object.keys(raw)
+  const warnings = Object.keys(raw)
     .filter((k) => !known.has(k))
     .map((k) => finding('config.unknown-key', `Unknown config key "${k}"`, { file: configRel, severity: 'warning' }));
+  if (raw.models !== undefined) {
+    if (!raw.models || typeof raw.models !== 'object' || Array.isArray(raw.models)) {
+      warnings.push(finding('config.models', 'Invalid models configuration; expected mapping of role/stage to tier', { file: configRel, severity: 'warning' }));
+    } else {
+      for (const [k, v] of Object.entries(raw.models)) {
+        if (RUNTIME_KEYS.has(k)) {
+          if (!v || typeof v !== 'object' || Array.isArray(v)) {
+            warnings.push(finding('config.models', `Invalid models.${k} configuration; expected mapping of role/stage to tier`, { file: configRel, severity: 'warning' }));
+          } else {
+            for (const [rk, rv] of Object.entries(v)) {
+              if (!MODEL_KEYS.has(rk)) {
+                warnings.push(finding('config.models', `Unknown models.${k} key "${rk}"; falling back to inherit`, { file: configRel, severity: 'warning' }));
+              } else if (typeof rv !== 'string' || !rv.trim()) {
+                warnings.push(finding('config.models', `Invalid model tier for "${k}.${rk}"; falling back to inherit`, { file: configRel, severity: 'warning' }));
+              }
+            }
+          }
+        } else if (!MODEL_KEYS.has(k)) {
+          warnings.push(finding('config.models', `Unknown models key "${k}"; falling back to inherit`, { file: configRel, severity: 'warning' }));
+        } else if (typeof v !== 'string' || !v.trim()) {
+          warnings.push(finding('config.models', `Invalid model tier for "${k}"; falling back to inherit`, { file: configRel, severity: 'warning' }));
+        }
+      }
+    }
+  }
+  return warnings;
 }
 
 export const readText = (file) => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
@@ -125,6 +174,13 @@ export function git(root, args) {
   }
 }
 
+/** Child process environment for test/check commands, stripped of MEDRA_SUBAGENT. */
+export function childEnv() {
+  const env = { ...process.env };
+  delete env.MEDRA_SUBAGENT;
+  return env;
+}
+
 export function identity(root, by) {
   return by || git(root, ['config', 'user.name']) || process.env.USER || 'unknown';
 }
@@ -132,3 +188,32 @@ export function identity(root, by) {
 export const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX'];
 
 export const listOpt = (value) => (value ? String(value).split(',').map((s) => s.trim()).filter(Boolean) : []);
+
+/**
+ * Resolves a project-relative path inside `root`, rejecting absolute paths, null bytes,
+ * `..` traversals, and symlinks pointing outside canonical `root` (M-01).
+ */
+export function resolveSafePath(root, relPath) {
+  if (typeof relPath !== 'string' || !relPath.length) throw usageError('Unsafe empty path');
+  if (relPath.includes('\0')) throw usageError(`Unsafe path with null byte: "${relPath}"`);
+  if (path.isAbsolute(relPath)) throw usageError(`Unsafe absolute path: "${relPath}"`);
+  const realRoot = fs.realpathSync(root);
+  const candidate = path.resolve(realRoot, relPath);
+  if (candidate !== realRoot && !candidate.startsWith(`${realRoot}${path.sep}`)) {
+    throw usageError(`Unsafe path traversal outside project root: "${relPath}"`);
+  }
+  // Canonicalize the nearest existing ancestor to catch symlink escapes even for new files.
+  let probe = candidate;
+  const suffix = [];
+  while (!fs.existsSync(probe)) {
+    const parent = path.dirname(probe);
+    if (parent === probe) break;
+    suffix.unshift(path.basename(probe));
+    probe = parent;
+  }
+  const realTarget = path.join(fs.realpathSync(probe), ...suffix);
+  if (realTarget !== realRoot && !realTarget.startsWith(`${realRoot}${path.sep}`)) {
+    throw usageError(`Unsafe symlink outside project root: "${relPath}"`);
+  }
+  return realTarget;
+}

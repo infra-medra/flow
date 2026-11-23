@@ -21,21 +21,41 @@ const args = input.tool_input ?? {};
 
 // One shell segment: up to the next ; | & or newline.
 const SEG = '[^\\n;|&]*';
+const stripQuoted = (s) => s.replace(/"(?:\\.|[^"\\])*"|'(?:[^'\\]|\\.)*'/g, '""');
 const TICK = /^\s*- \[x\]/i;
 const EVIDENCE = /^\s*- evidence (red|green|manual) /;
 const count = (text, re) => String(text ?? '').split('\n').filter((l) => re.test(l)).length;
 
+const isSubagent = Boolean(input.agent_id) || process.env.MEDRA_SUBAGENT === '1';
+
 if (tool === 'Bash') {
   const cmd = String(args.command ?? '');
-  const gate = cmd.match(new RegExp(`\\bmedra\\s+gate\\s+(\\S+)\\s+(\\S+)${SEG}--approve\\b`)) ?? cmd.match(new RegExp(`\\bmedra\\s+gate\\b${SEG}--approve\\b`));
-  if (gate) {
-    const what = gate[2] ? `the ${gate[2]} gate of "${gate[1]}"` : 'a medra gate';
+  const unquoted = stripQuoted(cmd);
+  const cmdIsSubagent = isSubagent
+    || /(?:^|[\s;|&(])(?:export\s+)?MEDRA_SUBAGENT=(?:"1"|'1'|1)(?=\s|[;&|)]|$)/.test(cmd);
+  const matchGate = (flag) =>
+    unquoted.match(new RegExp(`\\bmedra(?:\\.js)?\\s+gate\\s+(\\S+)\\s+(\\S+)${SEG}--${flag}\\b`))
+    ?? unquoted.match(new RegExp(`\\bmedra(?:\\.js)?\\s+gate\\b${SEG}--${flag}\\b`));
+  const gateApprove = matchGate('approve');
+  if (gateApprove) {
+    const what = gateApprove[2] ? `the ${gateApprove[2]} gate of "${gateApprove[1]}"` : 'a medra gate';
+    if (cmdIsSubagent) {
+      decide('deny', `medra: subagents cannot approve ${what}. Gate approvals are human-only decisions.`);
+    }
     decide('ask', `medra: this records your approval of ${what}. Allow it only if you reviewed the documents and chose to approve.`);
   }
-  if (/\bmedra\s+constitution\s+ratify\b/.test(cmd)) {
+  const gateReqChanges = cmdIsSubagent && matchGate('request-changes');
+  if (gateReqChanges) {
+    const what = gateReqChanges[2] ? `the ${gateReqChanges[2]} gate of "${gateReqChanges[1]}"` : 'a medra gate';
+    decide('deny', `medra: subagents cannot request changes on ${what}. Gate decisions are coordinator/human-only.`);
+  }
+  if (/\bmedra(?:\.js)?\s+verify-fix\b/.test(cmd) && cmdIsSubagent) {
+    decide('deny', 'medra: subagents cannot run verify-fix. Only the coordinator records fix rounds before dispatching a fix implementer.');
+  }
+  if (/\bmedra(?:\.js)?\s+constitution\s+ratify\b/.test(cmd)) {
     decide('ask', 'medra: this ratifies the constitution, which gates every future plan. Allow it only if you approved these articles.');
   }
-  if (new RegExp(`\\bmedra\\s+task\\s+done\\b${SEG}--allow-test-edit\\b`).test(cmd)) {
+  if (new RegExp(`\\bmedra(?:\\.js)?\\s+task\\s+done\\b${SEG}--allow-test-edit\\b`).test(cmd)) {
     decide('ask', 'medra: --allow-test-edit accepts a change to a test that was locked when it was seen failing, with the reason given in --reason. Allow it only if you agreed to that test edit.');
   }
   if (/(?:>>?|\btee\b|\bsed\s+(?:-\S+\s+)*-i)[^\n;|&]*(?:\.medra\.yaml|changes\/archive\/)/.test(cmd)) {
