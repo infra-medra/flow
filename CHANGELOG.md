@@ -2,6 +2,23 @@
 
 All notable changes to `@medra.dev/flow` (`medra` CLI and the `medra` plugin for Claude Code and Antigravity) are documented in this file.
 
+## [2.2.0] — 2026-11-23
+
+### Added
+- **`medra verify-carry <change> --by <reviewer|security>` (coordinator-only).** Reuses a receiver's previous report as its next round, marked `Carried forward`, when no code changed since it or (security only) only test files changed after a non-failing audit, and the change documents are untouched. `medra step` emits it as a `coordinator_steps[]` command instead of dispatching that subagent, once no other receiver is pending in the round (so the carried report never raises the shared round under a running subagent); the guard hook and `MEDRA_SUBAGENT=1` refuse it from subagents.
+- **Reviewer pre-checks.** The reviewer's compiled prompt carries `## Pre-checks (CLI)`: scenario-to-test locations from `medra coverage`, TDD evidence gaps on the task list, and each changed test file classified against `diff_base` (new, additive-only, or flagged for weakening via the same classifier that guards locked tests). The check pipeline takes them as given and inspects only what they flag.
+- **`cli/scripts/measure-verify.js`.** Measures the embedded verify diff (legacy vs current) and each receiver's intake bytes against a base ref.
+
+### Changed
+- **Leaner verify diff (`cli/src/step.js`).** The embedded `git-diff` block now leaves out `docs/changes/**` (the change's own documents, whose requirements the prompt already carries) and `.agents/**` (the generated Antigravity bundle), plus any globs in the new `verify.diff_exclude` config key. On the 2.1.0 release diff this cuts the embedded diff from `117,046 B` (truncated at 64 KiB, with the tests cut off) to `59,319 B`.
+- **Incremental diff on later verify rounds.** When a round carries `changed_since_previous`, its subagent gets a per-role `diff:<role>` block holding only those files instead of the full change diff.
+- **Working-tree, prioritized verify diff.** The diff now compares `diff_base` with the working tree (as the change snapshot already did) and includes untracked files, so uncommitted fixes reach the reviewer. Whole files are kept in priority order (source, tests, manifests, docs, lockfiles) up to 64 KiB; the rest are named in an `Omitted files:` line and in the prompt instead of being cut mid-file.
+- **Per-receiver diff.** The reviewer's diff leaves out lockfiles and the security agent's leaves out test files. Chunks both keep are embedded once as `diff`; the rest go under `diff:reviewer` / `diff:security`.
+- **Conventions excerpt and on-demand examples.** A compiled verify prompt carries a `## Conventions (verify)` excerpt, so the reviewer and security agent no longer read `references/conventions.md` at intake. The filled examples of the review and security-report guides moved to `templates/*/examples.md`, read only when a field's format is unclear. Measured intake drops from `23,794 B` to `14,061 B` (reviewer) and from `32,078 B` to `20,898 B` (security).
+- **Conventions version check.** `references/conventions.md` now expects `medra --version` major `2` (it still said `1`, which would stop an agent on a current install), matching the command skills' preconditions.
+- **Only stale receivers are re-dispatched.** When only one of the reviewer/security reports is missing or stale, `medra step` dispatches only that receiver.
+- **Lighter reviewer/security intake (`reviewer-check.md`, `security-audit.md`).** On a compiled `medra step` dispatch the receivers no longer read the handoff contract, run `medra context`, or run `git diff --stat`; they read the report guide only at the Report phase and open files only for context the embedded diff lacks. Payload-only `medra handoff` dispatches keep the full intake.
+
 ## [2.1.0] — 2026-11-22
 
 ### Added

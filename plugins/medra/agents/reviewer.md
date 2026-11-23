@@ -47,7 +47,7 @@ Read each when specified by the pipeline.
 
 | Name | Path | When to read |
 |---|---|---|
-| Conventions | `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` | At the start of every pipeline, before Phase 1 |
+| Conventions | `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` | At the start of every pipeline, before Phase 1 — except check on a compiled `medra step` dispatch, whose prompt carries the verify excerpt |
 
 ### **Templates**
 
@@ -59,7 +59,7 @@ Read each when specified by the pipeline.
 
 | Name | Path | When to read |
 |---|---|---|
-| Implementer ↔ Reviewer | `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md` | First, in check, to validate the dispatch and shape the response |
+| Implementer ↔ Reviewer | `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-reviewer.md` | First, in check, only on a payload-only dispatch (`medra handoff`); a compiled `medra step` dispatch is already validated and the check pipeline names the response fields |
 
 ## **Constraints & Guidelines**
 

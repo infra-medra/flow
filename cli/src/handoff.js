@@ -3,9 +3,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
+import picomatch from 'picomatch';
 import { refused, usageError, finding, errorsOf, readText, rel, today, listOpt, loadConfig } from './core.js';
 import { changeDir, loadState, saveState, loadTasks, securityRelevance, snapshot, suiteFindings, mergeFindings } from './change.js';
 import { changeFindings } from './validate.js';
+import { parseReport } from './documents.js';
 
 export const CONTRACTS = {
   check: { agent: 'reviewer', handoff: 'handoffs/implementer-reviewer.md', kind: 'verify', prefix: 'F' },
@@ -161,4 +163,39 @@ export function handoffText(res) {
     if (YAML.isSeq(node)) node.flow = true;
   }
   return doc.toString({ lineWidth: 0, flowCollectionPadding: false });
+}
+
+/** Newest mtime of the change's documents, ignoring round reports and CLI state. */
+function changeDocsMtime(root, change) {
+  const dir = changeDir(root, change);
+  let newest = 0;
+  const visit = (cur) => {
+    for (const e of fs.readdirSync(cur, { withFileTypes: true })) {
+      const full = path.join(cur, e.name);
+      if (e.isDirectory()) { if (!(cur === dir && e.name === 'reviews')) visit(full); }
+      else if (e.isFile() && !(cur === dir && e.name === '.medra.yaml')) newest = Math.max(newest, fs.statSync(full).mtimeMs);
+    }
+  };
+  if (fs.existsSync(dir)) visit(dir);
+  return newest;
+}
+
+/**
+ * Why a verify round can reuse the receiver's previous report instead of dispatching it, or null.
+ * Deterministic and conservative: the previous report must parse, the change documents must be
+ * untouched since it, and either no code changed or (security only) only tests changed after a
+ * non-failing audit.
+ */
+export function carryReason(root, change, contract, payload) {
+  if (!payload?.previous_report || payload.changed_since_previous === undefined) return null;
+  const prevFile = path.join(root, payload.previous_report);
+  if (!fs.existsSync(prevFile)) return null;
+  const prev = parseReport(readText(prevFile));
+  if (!prev.verdict || !prev.counts) return null;
+  if (changeDocsMtime(root, change) > fs.statSync(prevFile).mtimeMs) return null;
+  const changed = payload.changed_since_previous;
+  if (changed.length === 0) return 'no code changed since the previous report';
+  if (contract !== 'audit' || prev.verdict === 'fail') return null;
+  const isTest = picomatch(loadConfig(root).testing.paths ?? [], { dot: true });
+  return changed.every((f) => isTest(f)) ? 'only test files changed since a non-failing security report' : null;
 }

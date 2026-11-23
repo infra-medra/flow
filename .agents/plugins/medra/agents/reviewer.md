@@ -48,7 +48,7 @@ Read each when specified by the pipeline.
 
 | Name | Path | When to read |
 |---|---|---|
-| Conventions | `.agents/plugins/medra/references/conventions.md` | At the start of every pipeline, before Phase 1 |
+| Conventions | `.agents/plugins/medra/references/conventions.md` | At the start of every pipeline, before Phase 1 — except check on a compiled `medra step` dispatch, whose prompt carries the verify excerpt |
 
 ### **Templates**
 
@@ -60,7 +60,7 @@ Read each when specified by the pipeline.
 
 | Name | Path | When to read |
 |---|---|---|
-| Implementer ↔ Reviewer | `.agents/plugins/medra/handoffs/implementer-reviewer.md` | First, in check, to validate the dispatch and shape the response |
+| Implementer ↔ Reviewer | `.agents/plugins/medra/handoffs/implementer-reviewer.md` | First, in check, only on a payload-only dispatch (`medra handoff`); a compiled `medra step` dispatch is already validated and the check pipeline names the response fields |
 
 ## **Constraints & Guidelines**
 

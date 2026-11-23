@@ -27,7 +27,7 @@ Repeat until `action === "done"` or a human gate, clarification, or blocker requ
 
 1. **Compile step:** Run `medra step <change> --json` and follow only `action` (`inline` / `dispatch` / `gate` / `done`).
 2. **Execute `coordinator_steps[]` in order** before any subagent dispatch:
-   - `type === "command"` (e.g. `medra verify-fix <change> --json`): run `command` once as coordinator.
+   - `type === "command"` (e.g. `medra verify-fix <change> --json`, or `medra verify-carry <change> --by <role> --json`, which reuses that role's previous report instead of dispatching it): run `command` once as coordinator.
    - `type === "ask_user"` (e.g. non-null `diff_error`): warn or prompt via `AskUserQuestion` / `ask_question` and pause for reply.
    - If `action !== "gate"` and subagents[] is empty after `coordinator_steps[]`, loop back to Step 1.
 3. **`action === "gate"`:** present the summary (`stage`, `gate`, `pointers`, `findings`), then use `AskUserQuestion` / `ask_question` (`references/portability.md`) to approve (`medra gate <change> <gate> --approve`) or request changes (`--request-changes --note "..."`). Pause if changes requested; else loop back to Step 1.
@@ -38,5 +38,5 @@ Repeat until `action === "done"` or a human gate, clarification, or blocker requ
 ## Avoid
 - Never infer dispatch from stage names, because `compileStep` determines `action` (`inline` / `dispatch` / `gate` / `done`) from track, config, and CLI state.
 - Never hand-edit `.medra.yaml` or `tasks.md` checkboxes, or bypass `PreToolUse` hooks, because CLI transitions and hashes protect workflow integrity.
-- Never let subagents run `medra gate` or `medra verify-fix`, because gates require human approval and fix-round accounting is coordinator-only.
+- Never let subagents run `medra gate`, `medra verify-fix` or `medra verify-carry`, because gates require human approval and fix-round accounting is coordinator-only.
 - Never trust memory or subagent claims over `medra step <change> --json`, because only the CLI holds authoritative state.

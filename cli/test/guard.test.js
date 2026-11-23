@@ -34,6 +34,8 @@ test('PLUG-009.S2: guard.mjs denies MEDRA_SUBAGENT=1 prefixed gate and verify-fi
   assert.equal(bash('MEDRA_SUBAGENT=1 medra gate x verify --approve', { env: cleanEnv }), 'deny');
   assert.equal(bash('MEDRA_SUBAGENT=1 medra gate x verify --request-changes --note "reopen"', { env: cleanEnv }), 'deny');
   assert.equal(bash('MEDRA_SUBAGENT=1 medra verify-fix x', { env: cleanEnv }), 'deny');
+  assert.equal(bash('MEDRA_SUBAGENT=1 medra verify-carry x --by security', { env: cleanEnv }), 'deny');
+  assert.equal(bash('medra verify-carry x --by security', { extra: { agent_id: 'sub-1' }, env: cleanEnv }), 'deny');
   assert.equal(bash('cd app && MEDRA_SUBAGENT=1 medra gate x verify --approve', { env: cleanEnv }), 'deny');
   assert.equal(bash('MEDRA_SUBAGENT=1 node cli/bin/medra.js verify-fix x --json', { env: cleanEnv }), 'deny');
 

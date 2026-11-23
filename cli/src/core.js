@@ -51,6 +51,7 @@ export const DEFAULT_CONFIG = {
   testing: { mode: 'tdd', command: null, checks: [], 'allow-additive-test-edits': false, paths: ['test/**', '**/*.test.*', '**/*_test.*', 'tests/**'] },
   learning: { max_active: 40, promote_after: 3, stale_after: 10, context_max: 10 },
   apply: { inline_max_tasks: 3, granularity: 'batch', batch_max_tasks: 4, batch_scope: 'cross-phase' },
+  verify: { diff_exclude: [] },
   models: { default: 'inherit' },
 };
 
@@ -93,6 +94,7 @@ export function loadConfig(root) {
     testing: { ...DEFAULT_CONFIG.testing, ...(raw.testing ?? {}) },
     learning: { ...DEFAULT_CONFIG.learning, ...(raw.learning ?? {}) },
     apply: { ...DEFAULT_CONFIG.apply, ...(raw.apply ?? {}) },
+    verify: { ...DEFAULT_CONFIG.verify, ...(raw.verify ?? {}) },
     models,
   };
 }
@@ -103,6 +105,10 @@ export function configWarnings(root) {
   const warnings = Object.keys(raw)
     .filter((k) => !known.has(k))
     .map((k) => finding('config.unknown-key', `Unknown config key "${k}"`, { file: configRel, severity: 'warning' }));
+  const exclude = raw.verify?.diff_exclude;
+  if (exclude !== undefined && (!Array.isArray(exclude) || exclude.some((p) => typeof p !== 'string' || !/^[^\s:!-]/.test(p.trim())))) {
+    warnings.push(finding('config.verify', 'verify.diff_exclude must be a list of glob paths (no leading ":", "!" or "-"); invalid entries are ignored', { file: configRel, severity: 'warning' }));
+  }
   if (raw.models !== undefined) {
     if (!raw.models || typeof raw.models !== 'object' || Array.isArray(raw.models)) {
       warnings.push(finding('config.models', 'Invalid models configuration; expected mapping of role/stage to tier', { file: configRel, severity: 'warning' }));

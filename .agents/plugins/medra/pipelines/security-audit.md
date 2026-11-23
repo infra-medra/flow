@@ -11,12 +11,13 @@ Read `.agents/plugins/medra/references/verify-checklists.md` §2 during Analysis
 ## Phases (Intake → Surface → Analysis → Report → Response)
 
 ### 1. Intake
-- Read `.agents/plugins/medra/handoffs/implementer-security.md`, `.agents/plugins/medra/references/conventions.md`, and `.agents/plugins/medra/templates/security-report/guide.md` in parallel with `medra context <change> --stage verify --md`.
-- Validate dispatch against receiver rules (on failure, go to Response with `invalid-dispatch`). Never read `reviewer`'s report for this round.
+- **Compiled dispatch** (the prompt from `medra step` carries `## Touched Requirements` and `embedded_keys`): the CLI already validated the round and the prompt carries `## Conventions (verify)`, so read no protocol file at intake; do not run `medra context`, because the prompt already holds the touched requirements.
+- **Payload-only dispatch** (`medra handoff <change> audit`): read `.agents/plugins/medra/handoffs/implementer-security.md` and `.agents/plugins/medra/references/conventions.md` in parallel with `medra context <change> --stage verify --md`, and validate the dispatch against receiver rules (on failure, go to Response with `invalid-dispatch`).
+- Never read `reviewer`'s report for this round.
 - Read `proposal.md` (`Security rationale`), `threat-model.md` (if present), and `previous_report` on later rounds.
 
 ### 2. Surface
-- Run `git diff --stat <diff_base>` (if `diff_base` != `none`), read the diff of security-relevant files (or `changed_since_previous` + `previous_report` locations on incremental rounds).
+- Work from the embedded diff when the dispatch carries one (on incremental rounds it holds only `changed_since_previous`); otherwise run `git diff --stat <diff_base>` (if `diff_base` != `none`) and read the diff of security-relevant files (or `changed_since_previous` + `previous_report` locations on incremental rounds). Open a file only for context the diff lacks.
 - Map added/altered entry points with server-side authn/authz paths, dependency manifest/lockfile changes, and touched secrets/tokens (location + kind only). Follow external callers only when a finding depends on it, noting unexamined scope under Limitations.
 
 ### 3. Analysis
@@ -24,8 +25,8 @@ Read `.agents/plugins/medra/references/verify-checklists.md` §2 during Analysis
 - Judge each `accepted` mitigation in `threat-model.md` as `implemented`, `partial`, `missing`, or `unverified` with code locations, and re-check `previous_report` findings for resolution and regressions.
 
 ### 4. Report
-- Copy security-report template to `report_path` (new file), preserving earlier `S-NN` IDs, setting `Verdict` (`fail` on open `critical`, `confirmed`/`high`-confidence `high`, or missing mitigation; `pass-with-findings` on other open findings; `pass` on 0 open) and severity `Counts` (`critical`, `high`, `medium`, `low`, `info`) per `.agents/plugins/medra/templates/security-report/guide.md`, and never claiming the change "is secure".
+- Read `.agents/plugins/medra/templates/security-report/guide.md`, then copy the security-report template to `report_path` (new file), preserving earlier `S-NN` IDs, setting `Verdict` (`fail` on open `critical`, `confirmed`/`high`-confidence `high`, or missing mitigation; `pass-with-findings` on other open findings; `pass` on 0 open) and severity `Counts` (`critical`, `high`, `medium`, `low`, `info`) per `.agents/plugins/medra/templates/security-report/guide.md`, and never claiming the change "is secure".
 - Re-read `report_path` and verify against the guide's Quality Checklist.
 
 ### 5. Response
-- Precede the final YAML block with <= 3 sentences (verdict + most severe open finding), matching the handoff's Response section with zero trailing prose.
+- Precede the final YAML block with <= 3 sentences (verdict + most severe open finding), with zero trailing prose. The block carries `status`, `verdict`, `report_path`, `counts` (`critical`, `high`, `medium`, `low`, `info`), `unverified_sources`, and `question` only with `needs-decision`; read the handoff's Response section only if you have not read the handoff yet and need the field rules.

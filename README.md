@@ -52,7 +52,7 @@ Coding agents are fast at emitting code, but in real-world brownfield codebases 
 ## Key Benefits in Detail
 
 - **Living Specifications that Never Go Stale:** `docs/specs/<capability>/spec.md` always describes how the system behaves today. Changes are authored as reviewable deltas keyed by stable IDs (`AUTH-004`) and merged atomically by `medra archive`. Capabilities can declare `**Paths:**` globs so `medra drift` and `medra status` flag code modified outside an active change.
-- **Deterministic CLI Harness (`medra step`) vs. Agent Judgment:** LLMs never hand-edit `.medra.yaml`, task checkboxes, evidence lines, archive indices, or living specs. The CLI enforces 25+ structural and cross-document rules, atomic writes, `MEDRA_SUBAGENT=1` role isolation (refusing `gate` and `verify-fix` from subagents while stripping the env var from child test processes via `childEnv()`), and deterministic exit codes.
+- **Deterministic CLI Harness (`medra step`) vs. Agent Judgment:** LLMs never hand-edit `.medra.yaml`, task checkboxes, evidence lines, archive indices, or living specs. The CLI enforces 25+ structural and cross-document rules, atomic writes, `MEDRA_SUBAGENT=1` role isolation (refusing `gate`, `verify-fix` and `verify-carry` from subagents while stripping the env var from child test processes via `childEnv()`), and deterministic exit codes.
 - **SHA-256 Cryptographic Human Gates & Constitution Governance:** `docs/constitution.md` defines non-negotiable project principles, each with a yes/no Gate question answered by every technical plan. Human approvals at `proposal`, `plan`, `tasks`, and `verify` hash the stage's documents; any post-approval edit automatically marks the gate `stale`.
 - **Enforced TDD, Anti-Tampering & Static Guardrails:**
   - **Scenario-to-Test Traceability:** Every Gherkin scenario (`Given`/`When`/`Then`) has a stable ID (`AUTH-004.S1`). Automated tests cite those IDs, and `medra coverage` verifies 100% scenario coverage before `verify` can pass.
@@ -76,7 +76,7 @@ Coding agents are fast at emitting code, but in real-world brownfield codebases 
 
 ```bash
 npm install -g @medra.dev/flow
-medra --version   # 2.1.0
+medra --version   # 2.2.0
 ```
 
 ### 2a. Claude Code
@@ -158,6 +158,7 @@ medra gate <change> proposal|plan|tasks|verify --approve [--note "<text>"] [--by
 medra gate <change> proposal|plan|tasks|verify --request-changes --note "<text>" [--by <name>]
 medra review <change> --report <path> [--by <name>]
 medra verify-fix <change> [--json]
+medra verify-carry <change> --by <reviewer|security> [--json]   # coordinator-only: reuse a report whose evidence did not change
 medra handoff <change> check|audit|threat-model [--fixed <ids>] [--focus "<text>"]
 
 # Task execution, red/green checkpoints & test-tampering guard
@@ -204,6 +205,8 @@ apply:
   batch_scope: cross-phase      # cross-phase | phase
   batch_max_tasks: 4
   inline_max_tasks: 3           # fast-track inline apply threshold
+verify:
+  diff_exclude: []              # extra globs left out of the verify diff (docs/changes/** and .agents/** always are)
 models:                         # optional per-runtime or flat model tiers (default: inherit)
   default: inherit
   claude:
@@ -233,7 +236,7 @@ docs/
     └── archive/
 ```
 
-On Claude Code the plugin installs a guard hook (`plugins/medra/hooks/guard.mjs`). It asks you to confirm `medra gate … --approve`, `medra constitution ratify` and `--allow-test-edit` when the agent runs them, denies hand edits of `.medra.yaml`, the archive and task checkboxes, and asks before an existing living spec is edited outside a change. Across all runtimes (including Antigravity), the CLI also enforces `MEDRA_SUBAGENT=1` on `medra gate` and `medra verify-fix` while stripping `MEDRA_SUBAGENT` from child test/check processes via `childEnv()`.
+On Claude Code the plugin installs a guard hook (`plugins/medra/hooks/guard.mjs`). It asks you to confirm `medra gate … --approve`, `medra constitution ratify` and `--allow-test-edit` when the agent runs them, denies hand edits of `.medra.yaml`, the archive and task checkboxes, and asks before an existing living spec is edited outside a change. Across all runtimes (including Antigravity), the CLI also enforces `MEDRA_SUBAGENT=1` on `medra gate`, `medra verify-fix` and `medra verify-carry` while stripping `MEDRA_SUBAGENT` from child test/check processes via `childEnv()`.
 
 The security agent (Sentinel) runs only on security-relevant changes. It audits but never edits code, checks its claims against OWASP, NVD, CISA KEV and vendor documentation over the network, and informs the gate without blocking it.
 
@@ -247,6 +250,7 @@ Commit `docs/` with your code. `medra` never commits or creates branches for you
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
+- **2.2.0 (2026-11-23):** Cut `verify` token cost: the embedded diff now leaves out change documents and generated bundles (plus `verify.diff_exclude` globs), covers the working tree and untracked files, keeps whole files in priority order (source, tests, manifests, docs, lockfiles), and is tailored per receiver (no lockfiles for the reviewer, no tests for security). Later rounds embed only files changed since the previous report, only stale receivers are re-dispatched, and the new coordinator-only `medra verify-carry` reuses a report whose evidence did not change. The reviewer's prompt carries CLI pre-checks (coverage locations, TDD evidence, weakened tests) and both receivers skip reading the handoff contract and `conventions.md` on compiled dispatches (intake `-41%` reviewer, `-35%` security). Added `cli/scripts/measure-verify.js`.
 - **2.1.0 (2026-11-22):** Added per-runtime `models.claude` and `models.antigravity` configuration in `docs/config-flow.yaml`, `--runtime <claude|antigravity>` / `MEDRA_RUNTIME` / environment auto-detection in `medra step`, automatic `--runtime antigravity` skill rewriting in `medra install --target antigravity`, and updated `README.md` with v2 positioning and usage.
 - **2.0.1 (2026-11-22):** Updated bundled `README.md` changelog and `2.0.0` resource metrics for the npm package.
 - **2.0.0 (2026-11-22):** Introduced the deterministic `medra step` compiler, thin coordinator skills, and `/medra:run` loop with clean-context subagent isolation (`inline` for `propose`/`plan`/`tasks` and small `fast`-track `apply`, `cross-phase` `batch` for `full`-track `apply`, and parallel `reviewer` + `security` `verify` rounds). Added `coordinator_steps[]` (auto-running `medra suite` before `verify`), incremental `verify` handoffs (`round`, `previous_report`, `changed_since_previous`), `MEDRA_SUBAGENT=1` CLI enforcement with `childEnv()` subprocess isolation, compact `medra step --md` task packs, and lean core pipelines (`24,872 B` raw / `36,575 B` in `measure-envelope.js` vs `74,369 B` baseline) with inline guardrails and rule rationales.
