@@ -29,9 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
-          cache-dependency-path: cli/package-lock.json
-      - run: npm ci
+      # No lockfile is committed (cli/package-lock.json was removed), so install from package.json.
+      - run: npm install --no-audit --no-fund
       # cli/package.json and plugins/medra/.claude-plugin/plugin.json must carry the same version.
       - run: npm run check-version
       # The published package ships a copy of the plugin; make sure it still bundles.
