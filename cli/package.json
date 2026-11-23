@@ -1,6 +1,6 @@
 {
   "name": "@medra.dev/flow",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "The medra CLI: deterministic operations for the medra spec-driven development workflow (validation, gates, task checkpoints, delta merge, context packs, coverage, learnings, Antigravity install).",
   "type": "module",
   "bin": {

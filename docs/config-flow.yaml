@@ -24,6 +24,9 @@ apply:
   batch_max_tasks: 4
   batch_scope: cross-phase
   inline_max_tasks: 3
+verify:
+  # extra globs left out of the verify diff (docs/changes/** and .agents/** are always left out)
+  diff_exclude: []
 models:
   default: inherit
   init: flash

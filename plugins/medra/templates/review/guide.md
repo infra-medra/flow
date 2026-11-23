@@ -15,7 +15,7 @@ A review report records one reviewer's judgment of one stage of a change, so tha
 
 ## Structure
 
-Fixed. Copy `${CLAUDE_PLUGIN_ROOT}/templates/review/template.md` to the placement path, then fill it section by section.
+Fixed. Copy `${CLAUDE_PLUGIN_ROOT}/templates/review/template.md` to the placement path, then fill it section by section. A filled finding is in `${CLAUDE_PLUGIN_ROOT}/templates/review/examples.md`; read it only when unsure of a field's format.
 
 ## Sections
 
@@ -45,15 +45,6 @@ Fixed. Copy `${CLAUDE_PLUGIN_ROOT}/templates/review/template.md` to the placemen
 - **minor:** an improvement.
 - When there are no findings, write "None."
 
-**Example:**
-
-```markdown
-### F-02 [critical] Expiry test asserts the implementation, not the scenario
-
-**Where:** `test/auth/reset-expiry.test.ts:41` · AUTH-004.S1
-**Problem:** The test mocks `isExpired()` to return true, so it passes whatever the expiry window is.
-**Fix:** Freeze the clock at issue time + 16 minutes and assert the form is not rendered.
-```
 
 ### Coverage
 

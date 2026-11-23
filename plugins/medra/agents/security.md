@@ -51,7 +51,7 @@ Read each when specified by the pipeline.
 
 | Name | Path | When to read |
 |---|---|---|
-| Conventions | `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` | At the start of every pipeline, before Phase 1 |
+| Conventions | `${CLAUDE_PLUGIN_ROOT}/references/conventions.md` | At the start of every pipeline, before Phase 1 — except audit on a compiled `medra step` dispatch, whose prompt carries the verify excerpt |
 
 ### **Templates**
 
@@ -65,7 +65,7 @@ Read each when specified by the pipeline.
 | Name | Path | When to read |
 |---|---|---|
 | Author ↔ Security | `${CLAUDE_PLUGIN_ROOT}/handoffs/author-security.md` | First, in threat-model, to validate the dispatch and shape the response |
-| Implementer ↔ Security | `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md` | First, in audit, to validate the dispatch and shape the response |
+| Implementer ↔ Security | `${CLAUDE_PLUGIN_ROOT}/handoffs/implementer-security.md` | First, in audit, only on a payload-only dispatch (`medra handoff`); a compiled `medra step` dispatch is already validated and the audit pipeline names the response fields |
 
 ## **Constraints & Guidelines**
 

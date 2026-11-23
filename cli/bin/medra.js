@@ -134,6 +134,8 @@ j(program.command('suite <change>').description('Run the whole test suite and th
 
 j(program.command('verify-fix <change>').description('Record a verify fix round')).action(run((change) => cmd.verifyFix(root(), change)));
 
+j(program.command('verify-carry <change>').description('Reuse a receiver\'s previous verify report when nothing it judged changed').requiredOption('--by <role>', 'reviewer or security')).action(run((change, o) => cmd.verifyCarry(root(), change, o)));
+
 j(program.command('coverage [change]').description('Map scenario IDs to tests').option('--all'))
   .action(run((change, o) => cmd.coverageCmd(root(), change, o)));
 

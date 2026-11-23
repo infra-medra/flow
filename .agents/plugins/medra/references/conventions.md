@@ -33,7 +33,7 @@ Run from the project root. Omit `--json` on `medra index` and `medra handoff`, a
 | `3` | Merge conflict (`archive`) | Resolve per the archive pipeline |
 | `4` | Environment error | Stop and report |
 
-When `medra --version` fails or reports a major other than `1`, stop and tell the user to run `npm install -g @medra.dev/flow`, then re-run the command.
+When `medra --version` fails or reports a major other than `2`, stop and tell the user to run `npm install -g @medra.dev/flow`, then re-run the command.
 
 ## Commit Suggestions
 

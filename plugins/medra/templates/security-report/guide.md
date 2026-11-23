@@ -15,7 +15,7 @@ A security report records one round of the security agent's audit of a change's 
 
 ## Structure
 
-Fixed. Every section is mandatory, in order; a section with nothing to record says so in one line ("None."). The three header lines `**Stage:**`, `**Verdict:**` and `**Counts:**` are the only lines the CLI reads, and their spelling is exact. Copy `${CLAUDE_PLUGIN_ROOT}/templates/security-report/template.md` to the dispatched `report_path`, then fill it section by section.
+Fixed. Every section is mandatory, in order; a section with nothing to record says so in one line ("None."). The three header lines `**Stage:**`, `**Verdict:**` and `**Counts:**` are the only lines the CLI reads, and their spelling is exact. Copy `${CLAUDE_PLUGIN_ROOT}/templates/security-report/template.md` to the dispatched `report_path`, then fill it section by section. Filled examples of the Summary, a finding and a Previous Findings row are in `${CLAUDE_PLUGIN_ROOT}/templates/security-report/examples.md`; read it only when unsure of a field's format.
 
 ## Sections
 
@@ -27,7 +27,7 @@ The title, then the header lines. `**Stage:**` is always `security`. `**Verdict:
 
 **Why:** the gate reader gets the verdict's reason before the detail.
 
-**Fill rules:** two to four sentences: the verdict, the most severe open finding, and the biggest limitation of this audit. Write no reassurance such as "the change is secure"; the absence of findings is not proof of security. Example: "pass-with-findings: one medium finding remains (S-03, verbose errors on the reset endpoint). Token handling matches M-02 of the threat model. Dependency CVEs could not be checked against NVD (unreachable); `npm audit` ran instead."
+**Fill rules:** two to four sentences: the verdict, the most severe open finding, and the biggest limitation of this audit. Write no reassurance such as "the change is secure"; the absence of findings is not proof of security.
 
 ### Scope and Method
 
@@ -39,29 +39,13 @@ The title, then the header lines. `**Stage:**` is always `security`. `**Verdict:
 
 **Why:** each finding is a unit the implementer can fix and the reviewer of the next round can re-check.
 
-**Fill rules:** one `### S-NN` block per finding, in the exact field order of the skeleton. Fill every field; write `unknown` or `n/a` instead of guessing. Location is `path:line` or the endpoint and its configuration key. Evidence quotes the code, the configuration line or the command output that shows the problem. Severity and Confidence follow Writing Standards. Origin is `tool` (a scanner reported it and you have not confirmed it), `verified` (a scanner or a source reported it and you confirmed it in this code), `manual` (you found it by reading), or `hypothesis` (a plausible weakness you could not confirm; Confidence is then `low`). Example:
-
-```markdown
-### S-02 [high] Reset token compared with a non-constant-time equality
-
-**Status:** open
-**Confidence:** high · **Origin:** manual
-**CWE:** CWE-208 · **CVE:** n/a · **CVSS:** n/a
-**Location:** `src/Auth/ResetService.cs:88` · M-02, TM-02
-**Evidence:** `if (stored.TokenHash == Hash(token))` compares strings with `==`
-**Attack scenario:** an attacker measures response times over many requests to recover the hash byte by byte.
-**Impact:** account takeover for any user with a pending reset.
-**Fix:** compare with `CryptographicOperations.FixedTimeEquals` on the byte arrays.
-**Validation:** a unit test asserts `FixedTimeEquals` is used; re-run this audit on round 2.
-**References:** https://learn.microsoft.com/dotnet/api/system.security.cryptography.cryptographicoperations.fixedtimeequals
-**Residual risk:** none once fixed; rate limiting (M-05) further reduces the window.
-```
+**Fill rules:** one `### S-NN` block per finding, in the exact field order of the skeleton. Fill every field; write `unknown` or `n/a` instead of guessing. Location is `path:line` or the endpoint and its configuration key. Evidence quotes the code, the configuration line or the command output that shows the problem. Severity and Confidence follow Writing Standards. Origin is `tool` (a scanner reported it and you have not confirmed it), `verified` (a scanner or a source reported it and you confirmed it in this code), `manual` (you found it by reading), or `hypothesis` (a plausible weakness you could not confirm; Confidence is then `low`).
 
 ### Previous Findings
 
 **Why:** the implementer's claims are checked, not trusted, and every finding of the change keeps a final status.
 
-**Fill rules:** on round 1 write "None.". On later rounds, one row per finding of `previous_report` in a table `ID | Previous status | Status | Evidence`, where Status follows Writing Standards → Finding status. A finding still open is repeated in full under Findings with the same ID. Example: `S-02 | open | remediated | ResetService.cs:88 now uses FixedTimeEquals; test ResetServiceTests.cs:41`.
+**Fill rules:** on round 1 write "None.". On later rounds, one row per finding of `previous_report` in a table `ID | Previous status | Status | Evidence`, where Status follows Writing Standards → Finding status. A finding still open is repeated in full under Findings with the same ID.
 
 ### Threat Model Conformance
 

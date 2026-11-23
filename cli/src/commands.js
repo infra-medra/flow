@@ -16,6 +16,7 @@ import { changeFindings, projectFindings, verifyFindings, reportFreshness, STAGE
 import { archiveIndexPath, nextTaskPayload, taskContext } from './context.js';
 import { install } from './install.js';
 import { fixChange } from './fix.js';
+import { prepareVerifyRound, carryReason } from './handoff.js';
 
 const constitutionPath = (root) => docsPath(root, 'constitution.md');
 const constitutionOf = (root) => parseConstitution(readIf(constitutionPath(root)) ?? '');
@@ -496,6 +497,38 @@ export function verifyFix(root, change) {
     verify_fix_rounds: state.verify_fix_rounds,
     last_fix_round_at: state.last_fix_round_at,
   };
+}
+
+/**
+ * Reuses a receiver's previous verify report as its next round when `carryReason` allows it, so the
+ * coordinator skips a subagent whose evidence cannot have changed. Coordinator-only: it records a verdict.
+ */
+export function verifyCarry(root, change, { by }) {
+  requireCoordinator('verify-carry');
+  const role = by;
+  if (role !== 'reviewer' && role !== 'security') throw usageError('--by must be reviewer or security');
+  const contract = role === 'security' ? 'audit' : 'check';
+  if (role === 'security' && securityRelevance(root, change) !== 'relevant') {
+    throw refused([finding('verify.carry', 'This change gets no security audit', { ref: change })]);
+  }
+  const state = loadState(root, change);
+  const res = prepareVerifyRound(root, change, contract, { state, forStep: true });
+  if (!res.ok) throw refused(res.findings);
+  const { payload } = res;
+  const reason = carryReason(root, change, contract, payload);
+  if (!reason) {
+    throw refused([finding('verify.carry', `The ${role} round cannot be carried forward; dispatch the ${role} subagent`, { ref: change })]);
+  }
+  const target = resolveSafePath(root, payload.report_path);
+  if (fs.existsSync(target)) throw refused([finding('verify.carry', `${payload.report_path} already exists`, { file: payload.report_path })]);
+  const prevRound = /-r(\d+)\.md$/.exec(payload.previous_report)?.[1];
+  const note = `> **Carried forward** from r${prevRound} by \`medra verify-carry\`: ${reason}${payload.changed_since_previous.length ? ` (changed: ${payload.changed_since_previous.map((f) => `\`${f}\``).join(', ')})` : ''}. Status and evidence below are r${prevRound}'s.`;
+  const lines = readText(path.join(root, payload.previous_report)).split('\n');
+  const at = lines.findIndex((l) => l.startsWith('# '));
+  lines.splice(at + 1, 0, '', note);
+  fs.writeFileSync(target, lines.join('\n'));
+  const recorded = review(root, change, { report: payload.report_path, by: 'medra verify-carry' });
+  return { carried: true, role, round: payload.round, report: payload.report_path, previous_report: payload.previous_report, reason, verdict: recorded.verdict };
 }
 
 export function taskBlock(root, change, id, { note }, unblock = false) {

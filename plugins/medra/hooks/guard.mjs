@@ -49,6 +49,9 @@ if (tool === 'Bash') {
     const what = gateReqChanges[2] ? `the ${gateReqChanges[2]} gate of "${gateReqChanges[1]}"` : 'a medra gate';
     decide('deny', `medra: subagents cannot request changes on ${what}. Gate decisions are coordinator/human-only.`);
   }
+  if (/\bmedra(?:\.js)?\s+verify-carry\b/.test(cmd) && cmdIsSubagent) {
+    decide('deny', 'medra: subagents cannot run verify-carry. Only the coordinator reuses a previous verify report.');
+  }
   if (/\bmedra(?:\.js)?\s+verify-fix\b/.test(cmd) && cmdIsSubagent) {
     decide('deny', 'medra: subagents cannot run verify-fix. Only the coordinator records fix rounds before dispatching a fix implementer.');
   }
